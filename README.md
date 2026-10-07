@@ -81,7 +81,7 @@ docker build -t riftball-server . && docker run -p 8787:8787 riftball-server
 - **Render** (gratuit, WebSocket OK) : *New + → Blueprint* → choisir ce dépôt (`render.yaml`).
 - **Fly.io** : `fly launch --copy-config && fly deploy` (`fly.toml`).
 
-Puis dans le jeu : **Options → Jeu en ligne → Serveur**, coller l'adresse (ex. `https://riftball-server.onrender.com`), ou la figer dans l'APK : `VITE_SERVER_URL=https://… npm run android:release`.
+Les builds de production utilisent par défaut l'adresse de `.env.production` (actuellement `https://riftball-server.onrender.com`). Pour changer : **Options → Jeu en ligne → Serveur**, coller l'adresse (ex. `https://riftball-server.onrender.com`), ou la figer dans l'APK : `VITE_SERVER_URL=https://… npm run android:release`.
 Test multi-joueur local : `npm run server:start` puis `npm run dev:online` dans deux onglets.
 
 ## Ce qui est simulé hors ligne
