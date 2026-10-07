@@ -7,6 +7,7 @@ import type { BotProfile, ModeId } from '../data/types';
 import { getMode } from '../data/modes';
 import { botProfileForTrophies } from '../data/bots';
 import { PLAYABLE } from '../data/characters';
+import { createMatch } from '../gamemodes/MatchFactory';
 
 /**
  * Glue between the meta-game (App), the UI screens and match sessions.
@@ -56,11 +57,23 @@ export class Controller {
 
   modeLocked(id: ModeId) { return this.data.level < getMode(id).unlockLevel; }
 
+  /** Bot difficulty used by matchmaking: training choice, else adapted to trophies. */
+  get botLevel(): BotProfile['id'] { return this.trainingLevel ?? botProfileForTrophies(this.data.trophies); }
+
+  /** Builds the exact match (roster included) that matchmaking will show in the lobby, then play. */
+  prepareMatch(p: { mode: ModeId; seed: number; arenaId: string }) {
+    return createMatch({
+      mode: p.mode, arenaId: p.arenaId, seed: p.seed,
+      player: { heroId: this.heroId, name: this.data.profile.name, skinId: this.skinId },
+      botLevel: this.botLevel, modifiers: this.app.events.modifiers(), friends: this.party.length ? [...this.party] : undefined,
+    });
+  }
+
   startMatch(partial: Partial<SessionConfig> & { mode: ModeId; matchId: string; seed: number; arenaId: string }) {
     const cfg: SessionConfig = {
       heroId: this.heroId, skinId: this.skinId,
-      botLevel: this.trainingLevel ?? botProfileForTrophies(this.data.trophies),
-      vsBots: true, friends: this.party.length ? this.party : undefined, ...partial,
+      botLevel: this.botLevel,
+      vsBots: true, training: !!this.trainingLevel, friends: this.party.length ? this.party : undefined, ...partial,
     };
     this.ui.closeModals();
     for (const el of Array.from(this.ui.root.querySelectorAll('.screen'))) (el as HTMLElement).style.display = 'none';

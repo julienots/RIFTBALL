@@ -56,6 +56,8 @@ export class Hero {
   anim = { attackT: 0, hitT: 0, castT: 0, walk: 0, emote: '', emoteT: 0 };
   /** Boss/minion behaviour flags */
   pve = false;
+  /** false for tutorial dummies: can never pick up the Rift */
+  canCarry = true;
   worth = 0;
 
   constructor(

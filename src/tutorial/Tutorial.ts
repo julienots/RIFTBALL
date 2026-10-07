@@ -27,12 +27,17 @@ export function startTutorial(c: Controller) {
     ] });
     const d = m.heroes[1];
     d.x = m.arena.w - 500; d.y = 300;
+    d.canCarry = false;
     return m;
   };
   const s = c.startMatch({ mode: 'TUTORIAL', arenaId: 'rift_valley', seed: 77, matchId: 'tutorial-' + Date.now(), vsBots: true, build } as any);
   const box = h('div.tut.panel', h('div.st'), h('div.tx'));
+  const skip = h('button.btn.small.gray.hud-btn-ui', { style: 'position:absolute;top:3.4em;right:calc(4em + var(--safe-r));pointer-events:auto', onclick: () => {
+    c.data.tutorialDone = true; c.app.save.save(); c.app.analytics.track('tutorial_done', { skipped: true });
+    s.onFrame = null; s.dispose(); c.session = null; c.screens.home();
+  } }, 'PASSER ⏭');
   const arrow = h('div.tut-arrow', '👇');
-  s.hud.el.append(box, arrow);
+  s.hud.el.append(box, arrow, skip);
   const show = () => {
     const st = steps[step];
     (box.firstElementChild as HTMLElement).textContent = st.title;
@@ -59,7 +64,7 @@ export function startTutorial(c: Controller) {
       if (step >= steps.length) {
         box.innerHTML = '';
         box.append(h('div.st', 'TUTORIEL TERMINÉ !'), h('div.tx', 'Bravo ! Place à votre premier vrai match contre des bots.'));
-        arrow.remove();
+        arrow.remove(); skip.remove();
         c.data.tutorialDone = true;
         c.app.save.save();
         c.app.analytics.track('tutorial_done', {});

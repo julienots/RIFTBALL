@@ -3,7 +3,7 @@ import type { Controller } from '../Controller';
 import type { Screen } from '../UIManager';
 import { audio } from '../../audio/AudioEngine';
 import { getCharacter } from '../../data/characters';
-import { getMode, MODES } from '../../data/modes';
+import { getMode } from '../../data/modes';
 import { TROPHY_ROAD } from '../../data/progression';
 import { rewardIcon, rewardText } from '../icons';
 import { formatDuration, Clock } from '../../core/Time';
@@ -18,6 +18,7 @@ import { settingsScreen } from './Settings';
 import { collectionScreen } from './Collection';
 import { missionsModal, eventsModal, inboxModal } from './Missions';
 import { BOT_PROFILES } from '../../data/bots';
+import { modesScreen } from './Modes';
 
 export function currencyBar(c: Controller, opts: { gemsPlus?: boolean } = {}) {
   const d = c.data;
@@ -78,7 +79,7 @@ export function homeScreen(c: Controller): Screen {
 
     const mode = getMode(c.selectedMode);
     const training = c.trainingLevel;
-    const modeBtn = h('button.mode-btn', { onclick: () => { audio.play('click'); modeSelect(c, render); } },
+    const modeBtn = h('button.mode-btn', { onclick: () => { audio.play('click'); c.ui.push(modesScreen(c)); } },
       h('div.mi', { style: `background:${mode.color}` }, mode.icon),
       h('div.col', { style: 'gap:0' }, h('span.mt', mode.name), h('span.small-text.muted', training ? `Entraînement · bots ${BOT_PROFILES[training].id}` : mode.ranked ? `${mode.teamSize}v${mode.teamSize} · Classé` : 'Coop vs IA')));
     const play = h('button.btn.yellow.big.play-btn.shine', { onclick: () => { audio.play('click'); c.screens.matchmaking(); } }, 'JOUER');
@@ -105,22 +106,6 @@ export function homeScreen(c: Controller): Screen {
     onHide() { for (const o of offs) o(); offs = []; },
     refresh: render,
   };
-}
-
-function modeSelect(c: Controller, after: () => void) {
-  const modes = MODES.filter((m) => m.id !== 'TUTORIAL');
-  const forced = c.app.events.modifiers().forcedMode;
-  const list = h('div', { style: 'display:grid;grid-template-columns:repeat(3,1fr);gap:.6em' }, modes.map((m) => {
-    const locked = c.modeLocked(m.id);
-    return h('button.card', { class: locked ? 'locked' : '', style: `padding:.6em;text-align:left;background:linear-gradient(160deg,${m.color},#2a1d68);${c.selectedMode === m.id ? 'outline:.2em solid #ffe14d' : ''}`,
-      onclick: () => { if (locked) { audio.play('error'); c.ui.toast('🔒', `Niveau ${m.unlockLevel} requis`); return; } audio.play('click'); c.selectedMode = m.id; c.trainingLevel = null; mm.close(); after(); } },
-      h('div.row', h('span', { style: 'font-size:1.6em' }, m.icon), h('span.name', { style: 'font-size:1.1em' }, m.name), forced === m.id ? h('span.badge', '!') : null),
-      h('div.small-text', { style: 'margin-top:.3em;opacity:.9' }, locked ? `🔒 Niveau ${m.unlockLevel}` : m.description));
-  }));
-  const training = h('div.row', { style: 'justify-content:center;gap:.5em;flex-wrap:wrap' }, h('span.title', 'ENTRAÎNEMENT :'),
-    (['EASY', 'NORMAL', 'HARD', 'EXPERT'] as const).map((lv) => h('button.btn.tiny' + (c.trainingLevel === lv ? '.yellow' : '.dark'), { onclick: () => { audio.play('click'); c.trainingLevel = lv; mm.close(); after(); } }, { EASY: 'FACILE', NORMAL: 'NORMAL', HARD: 'DIFFICILE', EXPERT: 'EXPERT' }[lv])),
-    h('button.btn.tiny.green', { onclick: () => { mm.close(); c.screens.tutorial(); } }, '🎓 TUTORIEL'));
-  const mm = c.ui.modal('MODES DE JEU', h('div.col', { style: 'gap:.8em;max-width:46em' }, list, h('div.small-text.muted', { style: 'text-align:center' }, 'Les matchs d\'entraînement ne donnent ni ne retirent de trophées.'), training));
 }
 
 function trophyRoad(c: Controller) {

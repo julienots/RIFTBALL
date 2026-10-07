@@ -206,7 +206,7 @@ export function checkPickup(m: Match, r: RiftEntity) {
   if (!r.alive || r.carrier >= 0 || r.state === 'PORTAL' || r.state === 'MUTATING' || r.state === 'CLONING' || r.state === 'IDLE') return;
   if (m.phase !== 'play' && m.phase !== 'overtime') return;
   for (const h of m.heroes) {
-    if (!h.alive || h.carrying || (h.pve && !m.modeRules.pveCanCarry) || h.stunUntil > m.time || h.leap) continue;
+    if (!h.alive || !h.canCarry || h.carrying || (h.pve && !m.modeRules.pveCanCarry) || h.stunUntil > m.time || h.leap) continue;
     if (r.pickupLockUntil > m.time && (r.pickupLockHero === h.id || r.pickupLockHero === -2)) continue;
     const bonus = h.def.passive.id === 'long_grip' ? 1 + h.def.passive.params.pickupBonus : 1;
     const reach = (h.radius + r.radius) * bonus;

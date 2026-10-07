@@ -25,6 +25,8 @@ export interface SessionConfig {
   allyLevel?: BotProfile['id'];
   friends?: { heroId: string; name: string }[];
   vsBots: boolean;
+  /** manual bot difficulty = training match (no trophies) */
+  training?: boolean;
   /** custom match factory (tutorial) */
   build?: () => Match;
 }
@@ -215,7 +217,7 @@ export class GameSession {
     const report: MatchReport = {
       matchId: this.cfg.matchId, mode: m.mode.id, arena: m.arena.data.id, heroId: me.def.id, outcome,
       score: res.score, myTeam: me.team, duration: Math.max(1, m.time), stats: { ...me.stats }, mvp: res.mvp === me.id,
-      ranked: m.mode.ranked, mutationsSeen: this.mutationsSeen, vsBots: this.cfg.vsBots,
+      ranked: m.mode.ranked && !this.cfg.training, mutationsSeen: this.mutationsSeen, vsBots: this.cfg.vsBots,
     };
     this.app.analytics.track('match_end', { mode: m.mode.id, outcome, duration: Math.round(m.time), forfeit });
     this.onEnd({ match: m, report, forfeit });

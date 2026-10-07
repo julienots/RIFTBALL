@@ -4,7 +4,7 @@ import type { Hero, MatchEvent, Projectile, RiftEntity, Zone } from '../entities
 import type { Hazard, Wall } from '../../arenas/Arena';
 import { QUALITY_PROFILES, type Quality, type QualityProfile } from '../../core/Settings';
 import { getMutation } from '../../data/mutations';
-import { heroGeometry, makeOutlineMaterial, decoGeometry } from './Models';
+import { heroGeometry, makeOutlineMaterial, decoGeometry, makeHeroMaterial, makeHeroOutline, makeHeroUniforms, type HeroAnimUniforms } from './Models';
 import { radialTexture, ringTexture, toon, toonGradient } from './Toon';
 import { Particles } from './Particles';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -20,6 +20,7 @@ interface HeroView {
   outline: THREE.Mesh;
   mat: THREE.MeshToonMaterial;
   outlineMat: THREE.ShaderMaterial;
+  u: HeroAnimUniforms;
   ring: THREE.Mesh;
   shadow: THREE.Mesh;
   shield: THREE.Mesh;
@@ -30,7 +31,7 @@ interface HeroView {
   skinKey: string;
 }
 
-interface RiftView { rift: RiftEntity; group: THREE.Group; core: THREE.Mesh; eyes: THREE.Group; rings: THREE.Mesh[]; aura: THREE.Sprite; shadow: THREE.Mesh; light: THREE.PointLight | null; px: number; py: number }
+interface RiftView { beam: THREE.Mesh | null; xray: THREE.Sprite; rift: RiftEntity; group: THREE.Group; core: THREE.Mesh; eyes: THREE.Group; rings: THREE.Mesh[]; aura: THREE.Sprite; shadow: THREE.Mesh; light: THREE.PointLight | null; px: number; py: number }
 
 const RIFT_VS = `varying vec3 vN; varying vec3 vP; void main(){ vN = normalize(normalMatrix * normal); vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
 const RIFT_FS = `uniform float time; uniform vec3 c1; uniform vec3 c2; uniform float mood; varying vec3 vN; varying vec3 vP;
@@ -395,11 +396,13 @@ export class WorldRenderer {
     if (v && v.skinKey === key) return v;
     if (v) { this.matchRoot.remove(v.group); }
     const geo = heroGeometry(h.def.id, h.skinId);
-    const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), transparent: true });
+    const isMeHero = h.id === this.focusId;
+    const u = makeHeroUniforms(isMeHero ? '#ffe14d' : TEAM_COLORS[h.team]);
+    const mat = makeHeroMaterial(u);
     const body = new THREE.Mesh(geo, mat);
     body.castShadow = this.q.shadows;
     body.userData.sharedGeo = true; body.userData.ownMat = true;
-    const outlineMat = makeOutlineMaterial(h.pve && h.def.id === 'boss_golem' ? 0.05 : 0.07);
+    const outlineMat = makeHeroOutline(u, h.pve && h.def.id === 'boss_golem' ? 0.05 : 0.065);
     outlineMat.transparent = true;
     const outline = new THREE.Mesh(geo, outlineMat);
     outline.userData.sharedGeo = true; outline.userData.ownMat = true;
@@ -425,7 +428,7 @@ export class WorldRenderer {
     stun.position.y = h.radius * WS * 4.4; stun.visible = false;
     group.add(stun);
     this.matchRoot.add(group);
-    v = { hero: h, group, body, outline, mat, outlineMat, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key };
+    v = { hero: h, group, body, outline, mat, outlineMat, u, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key };
     this.heroViews.set(h.id, v);
     return v;
   }
@@ -436,7 +439,7 @@ export class WorldRenderer {
     let v = this.riftViews.get(r.id);
     if (v) return v;
     const group = new THREE.Group();
-    const s = r.radius * WS * 1.25;
+    const s = r.radius * WS * (r.clone ? 1.5 : 1.75);
     const mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, c1: { value: new THREE.Color('#b388ff') }, c2: { value: new THREE.Color('#5a189a') }, mood: { value: 0 } }, vertexShader: RIFT_VS, fragmentShader: RIFT_FS });
     const core = new THREE.Mesh(new THREE.SphereGeometry(s, 32, 24), mat);
     core.userData.ownMat = true;
@@ -471,8 +474,25 @@ export class WorldRenderer {
     this.matchRoot.add(shadow);
     let light: THREE.PointLight | null = null;
     if (this.q.glow && !r.clone) { light = new THREE.PointLight('#b388ff', 6, 5, 1.6); light.position.y = 0.4; group.add(light); }
+    // X-ray silhouette: the Rift stays visible behind walls, bushes and players
+    const xray = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), color: '#d9b8ff', transparent: true, opacity: 0.55, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+    xray.scale.setScalar(s * 3.2); xray.renderOrder = 30; xray.userData.ownMat = true;
+    group.add(xray);
+    // light beam pointing at the main Rift from far away
+    let beam: THREE.Mesh | null = null;
+    if (!r.clone) {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 128;
+      const g2 = c.getContext('2d')!; const grd = g2.createLinearGradient(0, 0, 0, 128);
+      grd.addColorStop(0, 'rgba(255,255,255,0)'); grd.addColorStop(1, 'rgba(255,255,255,0.9)');
+      g2.fillStyle = grd; g2.fillRect(0, 0, 4, 128);
+      const tex = new THREE.CanvasTexture(c);
+      beam = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.3, 4.5, 16, 1, true), new THREE.MeshBasicMaterial({ map: tex, color: '#c9a5ff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+      beam.userData.ownMat = true;
+      beam.renderOrder = 9;
+      this.matchRoot.add(beam);
+    }
     this.matchRoot.add(group);
-    v = { rift: r, group, core, eyes, rings, aura, shadow, light, px: r.x, py: r.y };
+    v = { beam, xray, rift: r, group, core, eyes, rings, aura, shadow, light, px: r.x, py: r.y };
     this.riftViews.set(r.id, v);
     return v;
   }
@@ -629,7 +649,7 @@ export class WorldRenderer {
       this.updateRift(this.ensureRift(r), m, dt, mutColor);
     }
     for (const [id, v] of this.riftViews) if (!rseen.has(id)) {
-      this.matchRoot.remove(v.group); this.matchRoot.remove(v.shadow);
+      this.matchRoot.remove(v.group); this.matchRoot.remove(v.shadow); if (v.beam) this.matchRoot.remove(v.beam);
       this.particles.burst(v.group.position.x, 0.5, v.group.position.z, 30, '#00f5d4', 4, 0.3, 0.6);
       this.riftViews.delete(id);
     }
@@ -734,12 +754,17 @@ export class WorldRenderer {
     const bob = moving ? Math.abs(Math.sin(h.anim.walk * 0.9)) * 0.08 : Math.sin(this.time * 2.5 + h.id) * 0.02;
     const atk = h.anim.attackT > 0 ? Math.sin((h.anim.attackT / 0.22) * Math.PI) * 0.12 : 0;
     const cast = h.anim.castT > 0 ? Math.sin((h.anim.castT / 0.35) * Math.PI) * 0.18 : 0;
-    inner.position.y = bob * v.scale * 6;
-    inner.scale.set(v.scale * (1 + atk * 0.6 + cast * 0.4), v.scale * (1 - atk * 0.4 + cast), v.scale * (1 + atk * 0.6 + cast * 0.4));
-    inner.rotation.z = moving ? Math.sin(h.anim.walk * 0.9) * 0.06 : 0;
-    // hit flash
-    v.mat.emissive.setRGB(h.anim.hitT > 0 ? 1 : 0, h.anim.hitT > 0 ? 1 : 0, h.anim.hitT > 0 ? 1 : 0);
-    v.mat.emissiveIntensity = h.anim.hitT > 0 ? 0.8 : 0;
+    inner.position.y = bob * v.scale * 4;
+    inner.scale.set(v.scale * (1 + atk * 0.25 + cast * 0.2), v.scale * (1 - atk * 0.15 + cast * 0.4), v.scale * (1 + atk * 0.25 + cast * 0.2));
+    inner.rotation.z = moving ? -0.12 : 0; // lean into the run
+    // limb animation (vertex shader) + hit flash
+    const u = v.u;
+    u.uWalk.value = h.anim.walk * 0.9;
+    u.uMove.value += ((moving ? 1 : 0) - u.uMove.value) * Math.min(1, dt * 10);
+    u.uAtk.value = h.anim.attackT > 0 ? Math.sin((h.anim.attackT / 0.25) * Math.PI) : 0;
+    u.uCast.value = h.anim.castT > 0 ? Math.sin((h.anim.castT / 0.35) * Math.PI) : 0;
+    u.uTime.value = this.time + h.id;
+    u.uFlash.value = h.anim.hitT > 0 ? 0.55 : 0;
     // ghosting (phase / invisible / bush for allies)
     const ghost = h.phaseUntil > m.time || h.invisUntil > m.time || (h.inBush && h.revealedUntil <= m.time);
     const op = ghost ? 0.45 : 1;
@@ -764,9 +789,8 @@ export class WorldRenderer {
     v.px += (r.x - v.px) * k; v.py += (r.y - v.py) * k;
     if (Math.abs(r.x - v.px) > 150 || Math.abs(r.y - v.py) > 150) { v.px = r.x; v.py = r.y; }
     const carrier = r.carrier >= 0 ? m.heroById(r.carrier) : null;
-    let visible = true;
-    if (carrier && !m.isVisibleTo(carrier, this.viewerTeam)) visible = false;
-    v.group.visible = visible; v.shadow.visible = visible;
+    // the Rift is ALWAYS visible (it is the focus of the game), even when its carrier hides in a bush
+    v.group.visible = true; v.shadow.visible = true;
     const bob = Math.sin(this.time * 3 + r.id) * 0.08;
     let y = carrier ? (carrier.radius * WS) * 5.0 : 0.55 + bob;
     let x = v.px * WS, z = v.py * WS;
@@ -774,6 +798,11 @@ export class WorldRenderer {
     if (r.state === 'PORTAL') y = 0.6 + Math.sin(this.time * 12) * 0.05;
     v.group.position.set(x, y, z);
     v.shadow.position.set(x, 0.03, z);
+    if (v.beam) {
+      v.beam.position.set(x, y + 2.25, z);
+      (v.beam.material as THREE.MeshBasicMaterial).opacity = r.state === 'PORTAL' ? 0 : 0.55 + Math.sin(this.time * 4) * 0.15;
+    }
+    (v.xray.material as THREE.SpriteMaterial).opacity = 0.4 + Math.sin(this.time * 5) * 0.1;
     const isMut = r.state === 'MUTATING' || r.state === 'CLONING';
     const base = r.clone ? '#00f5d4' : m.mutation !== 'NORMAL' ? mutColor : '#b388ff';
     const mat = v.core.material as THREE.ShaderMaterial;
@@ -793,6 +822,8 @@ export class WorldRenderer {
     v.rings[1].rotation.set(-this.time * 1.1, 0, this.time * 1.3);
     for (const ring of v.rings) (ring.material as THREE.MeshBasicMaterial).color.set(base);
     (v.aura.material as THREE.SpriteMaterial).color.set(base);
+    (v.xray.material as THREE.SpriteMaterial).color.set(base);
+    if (v.beam) (v.beam.material as THREE.MeshBasicMaterial).color.set(base);
     v.aura.scale.setScalar(r.radius * WS * 1.25 * (7 + Math.sin(this.time * 4) * 0.8) * (isMut ? 1.6 : 1));
     if (v.light) { v.light.color.set(base); v.light.intensity = 5 + Math.sin(this.time * 5) * 1.5 + (isMut ? 6 : 0); }
     // trail & orbiting sparks
@@ -830,8 +861,8 @@ export class WorldRenderer {
     this.camTarget.z += (ty * WS - this.camTarget.z) * k;
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0, sz = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     this.shake = Math.max(0, this.shake - dt * 1.8);
-    this.camera.position.set(this.camTarget.x + sx, 10.6, this.camTarget.z + 8.6 + sz);
-    this.camera.lookAt(this.camTarget.x + sx, 0, this.camTarget.z + 0.9 + sz);
+    this.camera.position.set(this.camTarget.x + sx, 9.6, this.camTarget.z + 9.4 + sz);
+    this.camera.lookAt(this.camTarget.x + sx, 0, this.camTarget.z + 1.1 + sz);
     if (this.q.shadows) {
       this.sun.position.set(this.camTarget.x - 6, 14, this.camTarget.z + 8);
       this.sun.target.position.set(this.camTarget.x, 0, this.camTarget.z);
@@ -1002,16 +1033,18 @@ export class WorldRenderer {
     if (this.showcaseHero) this.showcase.remove(this.showcaseHero);
     const geo = heroGeometry(heroId, skinId);
     const g = new THREE.Group();
-    const body = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() }));
-    const ol = new THREE.Mesh(geo, makeOutlineMaterial(0.05));
+    this.showcaseU = makeHeroUniforms('#c9a5ff');
+    const body = new THREE.Mesh(geo, makeHeroMaterial(this.showcaseU));
+    const ol = new THREE.Mesh(geo, makeHeroOutline(this.showcaseU, 0.05));
     g.add(body, ol);
-    g.scale.setScalar(0.62);
+    g.scale.setScalar(0.7);
     g.rotation.y = -Math.PI / 2 + 0.5;
     this.showcase.add(g);
     this.showcaseHero = g;
     this.showcasePop = 0.35;
   }
   private showcasePop = 0;
+  private showcaseU: HeroAnimUniforms | null = null;
 
   renderShowcase(dt: number) {
     this.time += dt;
@@ -1019,8 +1052,14 @@ export class WorldRenderer {
       this.showcaseSpin += dt * 0.5;
       this.showcaseHero.rotation.y = Math.PI / 2 + Math.sin(this.showcaseSpin) * 0.55 - Math.PI;
       this.showcaseHero.position.y = Math.abs(Math.sin(this.time * 2)) * 0.05;
-      if (this.showcasePop > 0) { this.showcasePop -= dt; const k = 1 + Math.sin((this.showcasePop / 0.35) * Math.PI) * 0.15; this.showcaseHero.scale.set(0.62 / k, 0.62 * k, 0.62 / k); }
-      else this.showcaseHero.scale.setScalar(0.62);
+      if (this.showcaseU) {
+        // idle: breathing + an occasional flourish (cast pose)
+        this.showcaseU.uTime.value = this.time;
+        const cyc = this.time % 6;
+        this.showcaseU.uCast.value = cyc > 4.6 && cyc < 5.6 ? Math.sin(((cyc - 4.6) / 1.0) * Math.PI) * 0.7 : 0;
+      }
+      if (this.showcasePop > 0) { this.showcasePop -= dt; const k = 1 + Math.sin((this.showcasePop / 0.35) * Math.PI) * 0.15; this.showcaseHero.scale.set(0.7 / k, 0.7 * k, 0.7 / k); }
+      else this.showcaseHero.scale.setScalar(0.7);
     }
     this.renderer.render(this.showcase, this.showcaseCam);
   }
@@ -1034,8 +1073,10 @@ export class WorldRenderer {
     const d = new THREE.DirectionalLight('#ffffff', 2); d.position.set(2, 3, 4); scene.add(d);
     const geo = heroGeometry(heroId, skinId);
     const g = new THREE.Group();
-    const body = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() }));
-    const olm = makeOutlineMaterial(0.06);
+    const pu = makeHeroUniforms('#ffffff');
+    pu.uCast.value = 0.25;
+    const body = new THREE.Mesh(geo, makeHeroMaterial(pu));
+    const olm = makeHeroOutline(pu, 0.06);
     g.add(body, new THREE.Mesh(geo, olm));
     g.rotation.y = -Math.PI / 2 + 0.45;
     scene.add(g);

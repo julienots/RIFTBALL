@@ -55,7 +55,7 @@ async function boot() {
   c.screens = {
     home: () => c.ui.set(homeScreen(c)),
     results: async (e) => { c.ui.set(await resultsScreen(c, e)); },
-    matchmaking: () => { if (!app.data.tutorialDone && c.selectedMode === 'RIFTBALL' && !c.trainingLevel) { startTutorial(c); return; } runMatchmaking(c); },
+    matchmaking: () => { if (!app.data.tutorialDone && c.selectedMode === 'RIFTBALL' && !c.trainingLevel) { startTutorial(c); return; } c.ui.set(runMatchmaking(c)); },
     tutorial: () => { c.ui.closeModals(); startTutorial(c); },
   };
   c.screens.home();

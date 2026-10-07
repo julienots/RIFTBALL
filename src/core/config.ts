@@ -4,7 +4,7 @@ const env = (typeof import.meta !== 'undefined' && (import.meta as any).env) || 
 export const BuildConfig = {
   appName: 'RIFTBALL',
   studio: 'SuperEssence',
-  version: '1.0.0',
+  version: '1.0.1',
   /** Dev builds expose the debug menu and the mock billing store. */
   isDev: !!env.DEV,
   /** Base URL of the authoritative game server. Empty = offline/local authority. */
