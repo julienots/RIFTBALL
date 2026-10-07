@@ -3,12 +3,13 @@ import type { Hero } from '../game/entities';
 import type { AbilityData } from '../data/types';
 import { applyDamage, healHero, nearestEnemy, spawnLob } from '../combat/Combat';
 import { dist2 } from '../core/math';
+import { setRiftState } from '../rift/Rift';
 
 /**
  * Ability / ultimate implementations keyed by AbilityData.effect.
  * Numbers come from data; this file only contains behaviour.
  */
-export function castAbility(m: Match, h: Hero, ab: AbilityData, isUlt: boolean, dx: number, dy: number, aimDist: number): boolean {
+export function castAbility(m: Match, h: Hero, ab: AbilityData, isUlt: boolean, dx: number, dy: number, aimDist: number, isGadget = false): boolean {
   const P = ab.params;
   const pointDist = aimDist > 0 ? Math.min(aimDist, ab.range) : autoPointDistance(m, h, ab.range, dx, dy);
   const px = h.x + dx * pointDist, py = h.y + dy * pointDist;
@@ -153,13 +154,159 @@ export function castAbility(m: Match, h: Hero, ab: AbilityData, isUlt: boolean, 
       m.modeRules.summonMinions(m, h, P.count);
       break;
 
+    // ---------------------------------------------------------------- unique powers (gadgets) & new heroes
+    case 'repulse':
+      for (const e of m.heroes) {
+        if (!e.alive || e.team === h.team || (e.pve && e.def.id === 'boss_golem')) continue;
+        const ddx = e.x - h.x, ddy = e.y - h.y, d = Math.hypot(ddx, ddy) || 1;
+        if (d > P.radius + e.radius) continue;
+        e.kx += (ddx / d) * P.knockback; e.ky += (ddy / d) * P.knockback;
+        if (e.carrying) m.dropCarried(e);
+      }
+      m.emit({ t: 'explosion', x: h.x, y: h.y, radius: P.radius, color: h.def.palette.primary });
+      break;
+
+    case 'vanish':
+      h.invisUntil = m.time + P.duration;
+      h.speedBuff = P.speedBonus; h.speedBuffUntil = m.time + P.duration;
+      break;
+
+    case 'rift_cage': {
+      const r = m.mainRift();
+      if (!r || r.carrier >= 0 || r.state === 'PORTAL' || dist2(h.x, h.y, r.x, r.y) > ab.range * ab.range) return false;
+      r.vx = r.vy = 0;
+      const S = 95, T = 34;
+      const boxes = [
+        { x: r.x - S, y: r.y - S, w: 2 * S, h: T }, { x: r.x - S, y: r.y + S - T, w: 2 * S, h: T },
+        { x: r.x - S, y: r.y - S + T, w: T, h: 2 * S - 2 * T }, { x: r.x + S - T, y: r.y - S + T, w: T, h: 2 * S - 2 * T },
+      ];
+      for (const b of boxes) { const w = m.arena.addDynamicWall(b, P.hp, m.time + P.duration, h.team); if (w) m.emit({ t: 'wall', x: w.x, y: w.y, w: w.w, h: w.h }); }
+      m.unstickFromWalls();
+      break;
+    }
+
+    case 'swap': {
+      let best: Hero | null = null, bd = P.range * P.range;
+      for (const e of m.heroes) {
+        if (!e.alive || e.team === h.team || (e.pve && e.def.id === 'boss_golem') || !m.isVisibleTo(e, h.team)) continue;
+        const d = dist2(h.x, h.y, e.x, e.y);
+        if (d < bd) { bd = d; best = e; }
+      }
+      if (!best) return false;
+      const fx = h.x, fy = h.y;
+      h.x = best.x; h.y = best.y; best.x = fx; best.y = fy;
+      m.emit({ t: 'teleport', hero: h.id, fx, fy, x: h.x, y: h.y });
+      m.emit({ t: 'teleport', hero: best.id, fx: h.x, fy: h.y, x: fx, y: fy });
+      break;
+    }
+
+    case 'emp':
+      for (const e of m.heroes) {
+        if (!e.alive || e.team === h.team || dist2(h.x, h.y, e.x, e.y) > (P.radius + e.radius) ** 2) continue;
+        e.shield = 0; e.shieldUntil = 0; e.absorbUntil = 0;
+        applyDamage(m, e, P.damage, h, { slow: P.slow, slowDuration: 1.5, noUlt: true });
+      }
+      m.emit({ t: 'explosion', x: h.x, y: h.y, radius: P.radius, color: '#00f0ff' });
+      break;
+
+    case 'transfusion': {
+      healHero(m, h, h.maxHp * P.heal, h);
+      let best: Hero | null = null, br = 1;
+      for (const a of m.heroes) if (a !== h && a.alive && a.team === h.team && dist2(a.x, a.y, h.x, h.y) < ab.range * ab.range && a.hp / a.maxHp < br) { br = a.hp / a.maxHp; best = a; }
+      if (best) healHero(m, best, best.maxHp * P.heal, h);
+      break;
+    }
+
+    case 'hook': {
+      let best: Hero | null = null, bd = P.range * P.range;
+      for (const e of m.heroes) {
+        if (!e.alive || e.team === h.team || (e.pve && e.def.id === 'boss_golem') || !m.isVisibleTo(e, h.team)) continue;
+        const d = dist2(h.x, h.y, e.x, e.y) * (e.carrying ? 0.4 : 1); // prefer the Rift carrier
+        if (d < bd) { bd = d; best = e; }
+      }
+      if (!best) return false;
+      const ddx = best.x - h.x, ddy = best.y - h.y, d = Math.hypot(ddx, ddy) || 1;
+      const fx = best.x, fy = best.y;
+      best.x = h.x + (ddx / d) * (h.radius + best.radius + 10); best.y = h.y + (ddy / d) * (h.radius + best.radius + 10);
+      m.collideWalls(best, false);
+      m.emit({ t: 'chain', points: [fx, fy, h.x, h.y], team: h.team });
+      applyDamage(m, best, P.damage, h, { stun: P.stun, noUlt: true });
+      break;
+    }
+
+    case 'mine': m.addZone('mine', h, h.x, h.y, P.radius, P.duration, { burst: P.damage, tickEvery: 99 }); break;
+
+    case 'team_shield':
+      for (const a of m.heroes) if (a.alive && a.team === h.team && dist2(a.x, a.y, h.x, h.y) < P.radius * P.radius) { a.shield = Math.max(a.shield, P.shield); a.shieldUntil = m.time + P.duration; }
+      m.emit({ t: 'explosion', x: h.x, y: h.y, radius: 300, color: '#7fd8ff' });
+      break;
+
+    case 'rift_gust': {
+      let best = null as ReturnType<Match['mainRift']> | null, bd = ab.range * ab.range;
+      for (const r of m.rifts) {
+        if (!r.alive || r.state === 'PORTAL') continue;
+        if (r.carrier >= 0) { const c = m.heroById(r.carrier); if (!c || c.team === h.team || dist2(h.x, h.y, r.x, r.y) > P.steal * P.steal) continue; }
+        const d = dist2(h.x, h.y, r.x, r.y);
+        if (d < bd) { bd = d; best = r; }
+      }
+      if (!best) return false;
+      if (best.carrier >= 0) { const c = m.heroById(best.carrier); if (c) m.dropCarried(c); }
+      best.vx = dx * P.speed; best.vy = dy * P.speed;
+      best.lastTouchTeam = h.team; best.lastTouchAt = m.time; best.lastThrower = h.id;
+      best.pickupLockUntil = m.time + 0.3; best.pickupLockHero = -2;
+      setRiftState(m, best, 'DROPPED');
+      m.emit({ t: 'throw', hero: h.id, rift: best.id });
+      break;
+    }
+
+    case 'blaze':
+      h.blazeUntil = m.time + P.duration;
+      h.speedBuff = P.speedBonus; h.speedBuffUntil = m.time + P.duration;
+      break;
+
+    case 'focus_shot':
+      h.dmgMulNext = P.mul; h.pierceNext = true; h.atkCd = Math.min(h.atkCd, 0.1);
+      break;
+
+    case 'laser': {
+      const len = P.length, ex = h.x + dx * len, ey = h.y + dy * len;
+      for (const e of m.heroes) {
+        if (!e.alive || e.team === h.team) continue;
+        const t = Math.max(0, Math.min(1, ((e.x - h.x) * dx + (e.y - h.y) * dy) / len));
+        const px2 = h.x + dx * len * t, py2 = h.y + dy * len * t;
+        if (dist2(px2, py2, e.x, e.y) <= (P.width + e.radius) ** 2) applyDamage(m, e, P.damage, h, { kb: 300, kbX: dx, kbY: dy });
+      }
+      for (const w of m.arena.walls) if (w.dynamic && w.team !== h.team) w.hp -= P.damage * 0.5;
+      m.emit({ t: 'laser', x: h.x, y: h.y, tx: ex, ty: ey, team: h.team });
+      break;
+    }
+
+    case 'flare':
+      for (const e of m.heroes) if (e.team !== h.team && e.alive) { e.revealedUntil = m.time + P.duration; e.invisUntil = 0; }
+      m.emit({ t: 'explosion', x: h.x, y: h.y, radius: 600, color: '#ffbe0b' });
+      break;
+
+    case 'ice_floor': {
+      m.arena.addTempHazard('ice', { x: px - P.radius, y: py - P.radius, w: P.radius * 2, h: P.radius * 2 }, m.time + P.duration);
+      m.addZone('ice_floor', h, px, py, P.radius, P.duration, { slow: P.slow, tickEvery: 0.4 });
+      break;
+    }
+
+    case 'blizzard': m.addZone('blizzard', h, px, py, P.radius, P.duration, { damage: P.damage, stun: P.stun, slow: P.slow, tickEvery: 0.5 }); break;
+
+    case 'ice_block':
+      h.phaseUntil = m.time + P.duration; h.stunUntil = m.time + P.duration; h.dodgeUntil = m.time + P.duration;
+      healHero(m, h, h.maxHp * P.heal, h);
+      break;
+
     default:
       console.warn('Unknown ability effect', ab.effect);
       return false;
   }
   if (isUlt) h.stats.ults++; else h.stats.abilities++;
-  h.revealedUntil = m.time + 1;
-  m.emit({ t: 'ability', hero: h.id, effect: ab.effect, x: px, y: py, ult: isUlt });
+  if (ab.effect !== 'vanish' && ab.effect !== 'ice_block') h.revealedUntil = m.time + 1;
+  if (isGadget) m.emit({ t: 'gadget', hero: h.id, effect: ab.effect, x: px, y: py });
+  else m.emit({ t: 'ability', hero: h.id, effect: ab.effect, x: px, y: py, ult: isUlt });
   return true;
 }
 

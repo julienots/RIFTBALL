@@ -18,7 +18,7 @@ export function createRift(id: number, x: number, y: number, clone = false): Rif
   return {
     id, x, y, vx: 0, vy: 0, radius: clone ? 16 : BASE.radius, state: 'IDLE', stateTime: 0, carrier: -1,
     lastTouchTeam: -1, lastTouchAt: -99, lastThrower: -1, pickupLockUntil: 0, pickupLockHero: -1, clone, alive: true, dieAt: Infinity,
-    targetX: x, targetY: y, attractX: 0, attractY: 0, attractForce: 0, attractUntil: 0, portalTeam: -1, look: 0, mood: 0,
+    targetX: x, targetY: y, attractX: 0, attractY: 0, attractForce: 0, attractUntil: 0, portalTeam: -1, look: 0, mood: 0, carryTime: 0, charged: false,
   };
 }
 
@@ -132,8 +132,8 @@ export function updateRift(m: Match, r: RiftEntity, dt: number) {
     } else {
       if (r.state !== 'ROAM') setRiftState(m, r, 'ROAM');
       if (dist2(r.x, r.y, r.targetX, r.targetY) < 40 * 40 || r.stateTime > 4) {
-        r.targetX = m.arena.center.x + m.rng.range(-550, 550);
-        r.targetY = m.arena.center.y + m.rng.range(-420, 420);
+        r.targetX = m.arena.center.x + m.rng.range(-0.23, 0.23) * m.arena.w;
+        r.targetY = m.arena.center.y + m.rng.range(-0.32, 0.32) * m.arena.h;
         r.stateTime = 0;
       }
       steer(r, r.targetX, r.targetY, BASE.roamSpeed * speedMul, dt);
@@ -214,6 +214,7 @@ export function checkPickup(m: Match, r: RiftEntity) {
       const interception = r.state === 'DROPPED' && r.lastTouchTeam !== -1 && r.lastTouchTeam !== h.team && r.lastThrower >= 0;
       r.carrier = h.id;
       r.attractUntil = 0;
+      if (r.lastTouchTeam !== h.team) { r.carryTime = 0; r.charged = false; }
       r.lastTouchTeam = h.team;
       r.lastTouchAt = m.time;
       h.carrying = true;

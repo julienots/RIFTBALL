@@ -11,7 +11,7 @@ import type { HeroStats } from '../game/entities';
  * Online protocol (JSON over WebSocket). The server runs the authoritative Match; clients send inputs
  * and receive compact snapshots (20 Hz) + gameplay events used for FX/audio.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 export const SNAPSHOT_HZ = 20;
 
 export interface RosterSlot { slot: number; heroId: string; skinId: string; name: string; team: TeamId; isBot: boolean; trophies: number; heroEntityId: number }
@@ -21,7 +21,7 @@ export type ClientMsg =
   | { t: 'queue'; mode: ModeId; heroId: string; skinId: string; botLevel?: string }
   | { t: 'cancel' }
   | { t: 'in'; s: number; mx: number; my: number }
-  | { t: 'act'; s: number; slot: 'attack' | 'ability' | 'ult'; ax: number; ay: number; ad: number }
+  | { t: 'act'; s: number; slot: 'attack' | 'ability' | 'ult' | 'gadget' | 'roll'; ax: number; ay: number; ad: number }
   | { t: 'emote'; e: string }
   | { t: 'leave' }
   | { t: 'ping'; c: number };
@@ -44,6 +44,7 @@ export interface Snapshot {
   z: (string | number)[][];
   w: number[][];
   hz: (string | number)[][];
+  pk: (string | number)[][];
   ev: MatchEvent[];
 }
 
@@ -51,7 +52,7 @@ const RIFT_STATES: RiftState[] = ['IDLE', 'ROAM', 'FLEE', 'CHASE', 'ATTRACTED', 
 const r2 = (n: number) => Math.round(n * 10) / 10;
 
 // hero flags bitfield
-const F = { ALIVE: 1, CARRY: 2, STUN: 4, PHASE: 8, INVIS: 16, BUSH: 32, REVEAL: 64, LEAP: 128, DASH: 256, SPEED: 512, OVER: 1024, SHIELD: 2048 };
+const F = { ALIVE: 1, CARRY: 2, STUN: 4, PHASE: 8, INVIS: 16, BUSH: 32, REVEAL: 64, LEAP: 128, DASH: 256, SPEED: 512, OVER: 1024, SHIELD: 2048, POWER: 4096, DODGE: 8192, BLAZE: 16384 };
 
 /** Server: serialize the match for one viewer. */
 export function encodeSnapshot(m: Match, events: MatchEvent[], ack: number): Snapshot {
@@ -63,15 +64,17 @@ export function encodeSnapshot(m: Match, events: MatchEvent[], ack: number): Sna
       if (h.alive) f |= F.ALIVE; if (h.carrying) f |= F.CARRY; if (h.stunUntil > now) f |= F.STUN; if (h.phaseUntil > now) f |= F.PHASE;
       if (h.invisUntil > now) f |= F.INVIS; if (h.inBush) f |= F.BUSH; if (h.revealedUntil > now) f |= F.REVEAL; if (h.leap) f |= F.LEAP;
       if (h.dash) f |= F.DASH; if (h.speedBuffUntil > now) f |= F.SPEED; if (h.overdriveUntil > now) f |= F.OVER; if (h.shield > 0 && h.shieldUntil > now) f |= F.SHIELD;
+      if (h.powerUntil > now) f |= F.POWER; if (h.dodgeUntil > now) f |= F.DODGE; if (h.blazeUntil > now) f |= F.BLAZE;
       return [h.id, h.def.id, h.team, h.name, h.skinId, r2(h.x), r2(h.y), r2(h.vx), r2(h.vy), Math.round(h.hp), h.maxHp, r2(h.facing * 100) / 100, f, r2(h.ult), r2(h.abCd), r2(h.atkCd),
         Math.round(h.shield), r2(h.anim.walk), r2(h.anim.attackT * 100) / 100, r2(h.anim.castT * 100) / 100, r2(h.anim.hitT * 100) / 100, h.respawnAt === Infinity ? -1 : r2(h.respawnAt), h.pve ? 1 : 0,
-        h.leap ? r2((h.leap.t / h.leap.dur) * 100) / 100 : 0];
+        h.leap ? r2((h.leap.t / h.leap.dur) * 100) / 100 : 0, h.gadgetCharges, r2(h.gadgetCd), r2(h.rollCd), h.streak];
     }),
-    r: m.rifts.filter((r) => r.alive).map((r) => [r.id, r2(r.x), r2(r.y), r2(r.vx), r2(r.vy), RIFT_STATES.indexOf(r.state), r.carrier, r.clone ? 1 : 0, r2(r.look * 100) / 100, r2(r.mood * 100) / 100, r.portalTeam, r2(r.stateTime * 100) / 100]),
+    r: m.rifts.filter((r) => r.alive).map((r) => [r.id, r2(r.x), r2(r.y), r2(r.vx), r2(r.vy), RIFT_STATES.indexOf(r.state), r.carrier, r.clone ? 1 : 0, r2(r.look * 100) / 100, r2(r.mood * 100) / 100, r.portalTeam, r2(r.stateTime * 100) / 100, r.charged ? 1 : 0, r2(r.carryTime)]),
     p: m.projectiles.filter((p) => p.active).map((p) => [p.id, p.kind, r2(p.x), r2(p.y), r2(p.vx), r2(p.vy), p.color, r2(p.t * 100) / 100, r2(p.dur * 100) / 100, r2(p.sx), r2(p.sy), r2(p.tx), r2(p.ty), p.team, p.areaRadius]),
     z: m.zones.filter((z) => z.active).map((z) => [z.id, z.kind, r2(z.x), r2(z.y), z.radius, r2(z.until), r2(z.born), z.team, z.delay]),
-    w: m.arena.walls.filter((w) => w.dynamic).map((w) => [w.id, w.x, w.y, w.w, w.h, Math.round(w.hp), w.maxHp, w.team, w.expiresAt]),
+    w: m.arena.walls.filter((w) => w.dynamic).map((w) => [w.id, w.x, w.y, w.w, w.h, Math.round(w.hp), w.maxHp, w.team, w.expiresAt === Infinity ? -1 : w.expiresAt, w.crate ? 1 : 0]),
     hz: m.arena.hazards.filter((h) => h.temporary).map((h) => [h.kind, h.x, h.y, h.w, h.h, h.pair, h.expiresAt]),
+    pk: m.pickups.filter((p) => p.alive).map((p) => [p.id, p.kind, r2(p.x), r2(p.y), p.shrine]),
     ev: events,
   };
 }
@@ -93,7 +96,7 @@ export function applySnapshot(m: Match, s: Snapshot, st: MirrorState, predictedI
   m.mutation = s.mu; m.mutations.until = s.mut;
   const seen = new Set<number>();
   for (const row of s.h) {
-    const [id, defId, team, name, skinId, x, y, vx, vy, hp, maxHp, facing, f, ult, abCd, atkCd, shield, walk, atkT, castT, hitT, respawnAt, pve, leapK] = row as any[];
+    const [id, defId, team, name, skinId, x, y, vx, vy, hp, maxHp, facing, f, ult, abCd, atkCd, shield, walk, atkT, castT, hitT, respawnAt, pve, leapK, gch, gcd, rcd, streak] = row as any[];
     seen.add(id);
     let h = m.heroById(id);
     if (!h) {
@@ -109,7 +112,8 @@ export function applySnapshot(m: Match, s: Snapshot, st: MirrorState, predictedI
     h.inBush = !!(f & F.BUSH); h.revealedUntil = f & F.REVEAL ? soon : 0;
     h.speedBuffUntil = f & F.SPEED ? soon : 0; h.overdriveUntil = f & F.OVER ? soon : 0;
     h.shield = shield; h.shieldUntil = f & F.SHIELD ? soon : 0;
-    h.ult = ult; h.abCd = abCd; h.atkCd = atkCd;
+    h.ult = ult; h.abCd = abCd; h.atkCd = atkCd; h.gadgetCharges = gch ?? 0; h.gadgetCd = gcd ?? 0; h.rollCd = rcd ?? 0; h.streak = streak ?? 0;
+    h.powerUntil = f & F.POWER ? soon : 0; h.dodgeUntil = f & F.DODGE ? soon : 0; h.blazeUntil = f & F.BLAZE ? soon : 0;
     h.anim.walk = walk; h.anim.attackT = Math.max(h.anim.attackT, atkT); h.anim.castT = Math.max(h.anim.castT, castT); h.anim.hitT = Math.max(h.anim.hitT, hitT);
     h.respawnAt = respawnAt < 0 ? Infinity : respawnAt;
     h.leap = f & F.LEAP ? { fx: x, fy: y, tx: x, ty: y, t: leapK, dur: 1, dmg: 0 } : null;
@@ -119,10 +123,10 @@ export function applySnapshot(m: Match, s: Snapshot, st: MirrorState, predictedI
 
   const rifts: RiftEntity[] = [];
   for (const row of s.r) {
-    const [id, x, y, vx, vy, st2, carrier, clone, look, mood, portalTeam, stateTime] = row;
+    const [id, x, y, vx, vy, st2, carrier, clone, look, mood, portalTeam, stateTime, charged, carryTime] = row;
     let r = m.rifts.find((q) => q.id === id);
     if (!r) r = createRift(id, x, y, !!clone);
-    r.x = x; r.y = y; r.vx = vx; r.vy = vy; r.state = RIFT_STATES[st2] ?? 'ROAM'; r.carrier = carrier; r.look = look; r.mood = mood; r.portalTeam = portalTeam as any; r.stateTime = stateTime; r.alive = true;
+    r.x = x; r.y = y; r.vx = vx; r.vy = vy; r.state = RIFT_STATES[st2] ?? 'ROAM'; r.carrier = carrier; r.look = look; r.mood = mood; r.portalTeam = portalTeam as any; r.stateTime = stateTime; r.alive = true; r.charged = !!charged; r.carryTime = carryTime ?? 0;
     rifts.push(r);
   }
   m.rifts = rifts;
@@ -150,13 +154,25 @@ export function applySnapshot(m: Match, s: Snapshot, st: MirrorState, predictedI
   if (m.zones.length > 80) m.zones = m.zones.filter((z) => z.active);
 
   const wseen = new Set<number>();
-  for (const [id, x, y, w, hgt, hp, maxHp, team, exp] of s.w) {
+  for (const [id, x, y, w, hgt, hp, maxHp, team, exp, crate] of s.w) {
     wseen.add(id);
     let wall = st.walls.get(id);
-    if (!wall) { wall = { id, x, y, w, h: hgt, hp, maxHp, team: team as any, dynamic: true, expiresAt: exp }; st.walls.set(id, wall); m.arena.walls.push(wall); m.arena.version++; }
+    if (!wall) { const local = m.arena.walls.find((q) => q.id === id && q.dynamic); if (local) { wall = local; st.walls.set(id, wall); } }
+    if (!wall) { wall = { id, x, y, w, h: hgt, hp, maxHp, team: team as any, dynamic: true, expiresAt: exp < 0 ? Infinity : exp, crate: !!crate }; st.walls.set(id, wall); m.arena.walls.push(wall); m.arena.version++; }
     wall.hp = hp;
   }
   for (const [id, wall] of st.walls) if (!wseen.has(id)) { m.arena.removeWall(wall); st.walls.delete(id); }
+  // crates exist locally from the arena data: drop those the server no longer has
+  for (const w of m.arena.walls.slice()) if (w.crate && !st.walls.has(w.id) && !wseen.has(w.id)) m.arena.removeWall(w);
+
+  const pseen2 = new Set<number>();
+  for (const [id, kind, x, y, shrine] of s.pk ?? []) {
+    pseen2.add(id as number);
+    let p = m.pickups.find((q) => q.id === id);
+    if (!p) { p = { id: id as number, kind: kind as any, x: x as number, y: y as number, alive: true, shrine: shrine as number, dieAt: Infinity, born: m.time }; m.pickups.push(p); }
+  }
+  for (const p of m.pickups) if (!pseen2.has(p.id)) p.alive = false;
+  m.pickups = m.pickups.filter((p) => p.alive);
 
   const hseen = new Set<string>();
   for (const [kind, x, y, w, hgt, pair, exp] of s.hz) {

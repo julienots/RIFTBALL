@@ -376,6 +376,45 @@ const BUILDERS: Record<string, (p: Pal) => number> = {
     for (const [part, z] of [[PART.ARM_L, 0.7], [PART.ARM_R, -0.7]] as const) on(part, () => add(K(0.14, 0.4, 7), p.accent, [0.05, 0.65, z], [Math.PI, 0, 0], [1, 1, 1], 1));
     return 3.3;
   },
+  nova: (p) => {
+    body(p, { shoe: '#0b132b', pants: p.secondary, glove: '#0b132b', torso: p.primary, sleeve: p.secondary, belt: p.accent });
+    on(PART.BODY, () => {
+      add(RB(0.08, 0.7, 0.5, 0.03), p.accent, [0.6, 1.1, 0], [0, 0, 0], [1, 1, 1], 0.5);           // chest stripe
+      add(K(0.7, 1.4, 14), p.secondary, [-0.35, 0.95, 0], [0, 0, 0.25], [0.6, 1, 1.4]);            // cape
+      add(T(0.55, 0.07, Math.PI * 2, 8, 24), p.accent, [0, 1.5, 0], [Math.PI / 2, 0, 0]);
+    });
+    on(PART.HEAD, () => {
+      add(S(0.84, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.5), p.secondary, [-0.08, 2.14, 0]);
+      add(CAP(0.16, 0.9), p.secondary, [-0.7, 1.95, 0.2], [0.2, 0, 0.5]);                          // long braid
+      add(RB(0.12, 0.2, 0.3, 0.04), p.accent, [0.55, 2.25, -0.55], [0, 0.3, 0], [1, 1, 1], 0.9);    // scope eyepiece
+      add(S(0.08, 8, 6), p.accent, [-0.3, 2.85, 0.3], [0, 0, 0], [1, 1, 1], 1);
+    });
+    face(p, 'cool', 2.08, 0.62, 0.29, { mouth: 'smirk' });
+    on(PART.ARM_R, () => {                                                                           // long sniper rifle
+      add(C(0.06, 0.06, 1.7, 8), '#2b2d42', [0.8, 0.9, -0.72], [0, 0, Math.PI / 2]);
+      add(RB(0.6, 0.22, 0.18, 0.05), '#2b2d42', [0.2, 0.86, -0.72]);
+      add(C(0.09, 0.09, 0.4, 10), p.accent, [0.4, 1.06, -0.72], [0, 0, Math.PI / 2], [1, 1, 1], 0.6);
+      add(S(0.07, 8, 6), p.primary, [1.65, 0.9, -0.72], [0, 0, 0], [1, 1, 1], 1);
+    });
+    on(PART.FLOAT, () => { for (let i = 0; i < 3; i++) add(new THREE.OctahedronGeometry(0.08, 0), p.accent, [-0.4 + i * 0.4, 3.1 + (i % 2) * 0.2, -0.5 + i * 0.5], [0, 0, 0], [1, 1, 1], 1); }, [2.2, 0, 0]);
+    return 2.95;
+  },
+  frost: (p) => {
+    body(p, { shoe: p.secondary, pants: p.secondary, glove: '#ffffff', torso: p.primary, sleeve: p.secondary, belt: '#ffffff' });
+    on(PART.BODY, () => {
+      for (const s2 of [1, -1]) add(new THREE.OctahedronGeometry(0.28, 0), '#e0fbfc', [0, 1.62, s2 * 0.62], [0, 0, 0], [0.8, 1.4, 0.8], 0.4); // ice shoulders
+      add(T(0.58, 0.12, Math.PI * 2, 10, 24), '#ffffff', [0, 1.5, 0], [Math.PI / 2, 0, 0]);              // fur collar
+      add(new THREE.OctahedronGeometry(0.16, 0), p.eyes, [0.6, 1.15, 0], [0, 0, 0], [0.6, 1.3, 1], 1);  // core gem
+    });
+    on(PART.HEAD, () => {
+      add(S(0.86, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.45), '#ffffff', [-0.06, 2.12, 0]);           // fur hood
+      for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI - Math.PI / 2; add(new THREE.OctahedronGeometry(0.2, 0), i % 2 ? '#e0fbfc' : p.primary, [Math.cos(a) * 0.35 - 0.2, 2.85, Math.sin(a) * 0.55], [0, 0, Math.cos(a) * 0.4], [0.6, 1.8, 0.6], 0.5); } // ice crown
+    });
+    face(p, 'normal', 2.08, 0.62, 0.29, { mouth: 'o', cheeks: true });
+    on(PART.ARM_R, () => { add(C(0.05, 0.05, 2.0, 8), '#adb5bd', [0.25, 1.0, -0.72]); add(new THREE.OctahedronGeometry(0.28, 0), '#caf0f8', [0.25, 2.1, -0.72], [0, 0, 0], [0.7, 1.4, 0.7], 1); });
+    on(PART.FLOAT, () => { for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; add(new THREE.OctahedronGeometry(0.1, 0), '#ffffff', [Math.cos(a) * 1.0, 1.3 + (i % 2) * 0.3, Math.sin(a) * 1.0], [0, 0, 0], [1, 1, 1], 1); } }, [0.9, 0, 0]);
+    return 3.1;
+  },
   golem: (p) => {
     on(PART.BODY, () => {
       add(new THREE.DodecahedronGeometry(1.3, 1), p.primary, [0, 1.45, 0], [0.3, 0.4, 0], [1, 1.05, 1.1]);

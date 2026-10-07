@@ -92,7 +92,7 @@ describe('Rift', () => {
     // temp geometry is cleaned up
     m.step(1 / 60);
     expect(m.arena.hazards.filter((h) => h.temporary)).toHaveLength(0);
-    expect(m.arena.walls.filter((w) => w.dynamic)).toHaveLength(0);
+    expect(m.arena.walls.filter((w) => w.dynamic && !w.crate)).toHaveLength(0);
   });
 
   it('sudden death on tie, next goal wins', () => {

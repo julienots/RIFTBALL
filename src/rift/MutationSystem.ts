@@ -162,7 +162,7 @@ export class MutationSystem {
     m.mutationParams = {};
     this.nextAt = m.time + this.interval;
     // clean temporary geometry right away
-    for (const w of m.arena.walls) if (w.dynamic && w.team === (-1 as any)) w.expiresAt = m.time;
+    for (const w of m.arena.walls) if (w.dynamic && !w.crate && w.team === (-1 as any)) w.expiresAt = m.time;
     for (const h of m.arena.hazards) if (h.temporary) h.expiresAt = m.time;
     m.emit({ t: 'mutation_end', mutation: prev });
   }

@@ -133,7 +133,7 @@ export class GameServer {
         const l = Math.hypot(msg.ax, msg.ay);
         h.cmd.aimX = l > 0 ? msg.ax / l : 0; h.cmd.aimY = l > 0 ? msg.ay / l : 0;
         h.cmd.aimDist = Math.max(0, Math.min(2000, Number(msg.ad) || 0));
-        if (msg.slot === 'attack') h.cmd.attack = true; else if (msg.slot === 'ability') h.cmd.ability = true; else if (msg.slot === 'ult') h.cmd.ult = true;
+        if (msg.slot === 'attack') h.cmd.attack = true; else if (msg.slot === 'ability') h.cmd.ability = true; else if (msg.slot === 'ult') h.cmd.ult = true; else if (msg.slot === 'gadget') h.cmd.gadget = true; else if (msg.slot === 'roll') h.cmd.roll = true;
         return;
       }
       case 'emote': if (c.room) c.room.pending.push({ t: 'emote', hero: c.heroEntityId, emote: String(msg.e).slice(0, 8) }); return;
@@ -272,7 +272,7 @@ export class GameServer {
     m.step(SIM_DT);
     room.pending.push(...m.events);
     m.events.length = 0;
-    for (const h of m.heroes) if (!h.isBot) { h.cmd.attack = h.cmd.ability = h.cmd.ult = false; }
+    for (const h of m.heroes) if (!h.isBot) { h.cmd.attack = h.cmd.ability = h.cmd.ult = h.cmd.gadget = h.cmd.roll = false; }
     room.stepCount++;
     if (room.stepCount % 3 === 0 || m.phase === 'ended') {
       const ev = room.pending;

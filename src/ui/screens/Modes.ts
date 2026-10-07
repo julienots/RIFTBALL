@@ -5,6 +5,8 @@ import { shell } from './shell';
 import { MODES } from '../../data/modes';
 import { audio } from '../../audio/AudioEngine';
 import { BOT_PROFILES } from '../../data/bots';
+import { ARENAS } from '../../data/arenas';
+import { guideScreen } from './Guide';
 
 const FORMAT: Record<string, string> = { RIFTBALL: '3 VS 3', RIFT_RUSH: '3 VS 3 · 2 MIN', RIFT_CHAOS: '3 VS 3', RIFT_DUEL: '1 VS 1', RIFT_BOSS: '3 VS BOSS', SURVIVAL: '3 VS VAGUES' };
 const LEVELS: [keyof typeof BOT_PROFILES | null, string][] = [[null, 'AUTO'], ['EASY', 'FACILE'], ['NORMAL', 'NORMAL'], ['HARD', 'DIFFICILE'], ['EXPERT', 'EXPERT']];
@@ -16,7 +18,9 @@ export function modesScreen(c: Controller): Screen {
   const body = h('div.col.scroll', { style: 'flex:1;min-height:0;padding:0 .9em .9em;gap:.7em' }, grid,
     h('div.panel.row', { style: 'padding:.5em .8em;gap:.8em;flex-wrap:wrap;justify-content:center' }, h('span.title', '🤖 NIVEAU DES BOTS :'), bots,
       h('span.small-text.muted', 'AUTO = adapté à vos trophées. Les niveaux choisis à la main sont des parties d\'entraînement (sans trophées).')),
-    h('div.row', { style: 'justify-content:center;gap:.8em' }, h('button.btn.green', { onclick: () => { audio.play('click'); c.screens.tutorial(); } }, '🎓 TUTORIEL')));
+    h('div.title', { style: 'text-align:center' }, `🗺️ ARÈNES EN ROTATION (${ARENAS.length})`),
+    h('div.row', { style: 'gap:.4em;flex-wrap:wrap;justify-content:center' }, ARENAS.map((a) => h('span.tagx', { style: `font-size:.8em;padding:.25em .6em;background:linear-gradient(120deg,${a.theme.floorA},${a.theme.wallSide})` }, a.name + (a.isNew ? ' ✨' : '')))),
+    h('div.row', { style: 'justify-content:center;gap:.8em' }, h('button.btn.green', { onclick: () => { audio.play('click'); c.screens.tutorial(); } }, '🎓 TUTORIEL'), h('button.btn.purple', { onclick: () => { audio.play('click'); c.ui.push(guideScreen(c)); } }, '📖 GUIDE DU JEU')));
   const { el, off } = shell(c, 'MODES DE JEU', body, { currencies: false });
   const render = () => {
     grid.innerHTML = '';

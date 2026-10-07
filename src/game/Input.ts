@@ -1,6 +1,6 @@
 import type { HeroCommand } from './entities';
 
-export type AimSlot = 'attack' | 'ability' | 'ult';
+export type AimSlot = 'attack' | 'ability' | 'ult' | 'gadget' | 'roll';
 
 export interface AimState { slot: AimSlot; dx: number; dy: number; mag: number; manual: boolean }
 
@@ -24,7 +24,7 @@ export class Input {
   private cleanup: (() => void)[] = [];
   screenToWorldDir: ((sx: number, sy: number) => { x: number; y: number; dist: number } | null) | null = null;
 
-  constructor(private root: HTMLElement, private joyBase: HTMLElement, private joyKnob: HTMLElement, private buttons: Record<AimSlot, HTMLElement>) {
+  constructor(private root: HTMLElement, private joyBase: HTMLElement, private joyKnob: HTMLElement, private buttons: Partial<Record<AimSlot, HTMLElement>>) {
     const on = <K extends keyof WindowEventMap>(t: EventTarget, ev: K | string, fn: (e: any) => void, opts?: AddEventListenerOptions) => { t.addEventListener(ev, fn, opts); this.cleanup.push(() => t.removeEventListener(ev, fn, opts)); };
     // joystick: anywhere on the left 45% of the screen
     on(root, 'pointerdown', (e: PointerEvent) => {
@@ -72,7 +72,7 @@ export class Input {
     on(window, 'pointerup', end);
     on(window, 'pointercancel', end);
     for (const slot of Object.keys(buttons) as AimSlot[]) {
-      const el = buttons[slot];
+      const el = buttons[slot]!;
       on(el, 'pointerdown', (e: PointerEvent) => {
         if (!this.enabled) return;
         e.preventDefault(); e.stopPropagation();
@@ -90,6 +90,8 @@ export class Input {
       if (!this.enabled) return;
       if (e.code === 'KeyE') this.queueMouse('ability');
       if (e.code === 'KeyR' || e.code === 'Space') this.queueMouse('ult');
+      if (e.code === 'KeyG') this.queueMouse('gadget');
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.queued.push({ slot: 'roll', dx: 0, dy: 0, mag: 0 });
       if (e.code === 'KeyF') this.onEmote();
     });
     on(window, 'keyup', (e: KeyboardEvent) => this.keys.delete(e.code));
@@ -122,7 +124,7 @@ export class Input {
   }
 
   /** Writes this frame's intent to the command. `ranges` converts drag magnitude to world distance. */
-  apply(cmd: HeroCommand, ranges: Record<AimSlot, number>) {
+  apply(cmd: HeroCommand, ranges: Partial<Record<AimSlot, number>>) {
     let mx = this.moveX, my = this.moveY;
     if (this.joyId === null) {
       mx = (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('KeyQ') || this.keys.has('ArrowLeft') ? 1 : 0); // WASD + ZQSD (AZERTY)
@@ -132,10 +134,12 @@ export class Input {
     const q = this.queued.shift();
     if (q && this.enabled) {
       cmd.aimX = q.dx; cmd.aimY = q.dy;
-      cmd.aimDist = q.mag < 0 ? -q.mag : q.dx || q.dy ? q.mag * ranges[q.slot] : 0;
+      cmd.aimDist = q.mag < 0 ? -q.mag : q.dx || q.dy ? q.mag * (ranges[q.slot] ?? 500) : 0;
       if (q.slot === 'attack') cmd.attack = true;
       if (q.slot === 'ability') cmd.ability = true;
       if (q.slot === 'ult') cmd.ult = true;
+      if (q.slot === 'gadget') cmd.gadget = true;
+      if (q.slot === 'roll') { cmd.roll = true; cmd.aimX = cmd.aimY = 0; }
     }
   }
 

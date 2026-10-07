@@ -87,6 +87,8 @@ export class WorldRenderer {
   private bushViews: { rect: { x: number; y: number; w: number; h: number }; mesh: THREE.Mesh }[] = [];
   private shockwaves: { mesh: THREE.Mesh; t: number; dur: number; r0: number; r1: number }[] = [];
   private bolts: { line: THREE.Line; t: number }[] = [];
+  private beams: { mesh: THREE.Mesh; t: number }[] = [];
+  private pickupViews = new Map<number, THREE.Group>();
   private animated: { mat: THREE.ShaderMaterial }[] = [];
   private portalViews: THREE.Group[] = [];
   private aim: THREE.Group;
@@ -197,7 +199,7 @@ export class WorldRenderer {
     this.matchRoot.clear();
     this.heroViews.clear(); this.riftViews.clear(); this.projViews.clear(); this.projPool = [];
     this.zoneViews.clear(); this.zonePool = []; this.wallViews.clear(); this.hazardViews.clear(); this.bushViews = [];
-    this.shockwaves = []; this.bolts = []; this.animated = []; this.portalViews = [];
+    this.shockwaves = []; this.bolts = []; this.beams = []; this.animated = []; this.portalViews = []; this.pickupViews.clear();
     this.particles?.clear();
     this.match = null;
   }
@@ -274,6 +276,15 @@ export class WorldRenderer {
     }
     // portals
     for (const p of a.portals) this.portalViews.push(this.buildPortal(p.x * WS, p.y * WS, p.w * WS, p.h * WS, p.team));
+    // power-up altars
+    for (const sh of a.shrines) {
+      const alt = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.12, 20), toon(th.accent));
+      alt.position.set(sh.x * WS, 0.06, sh.y * WS);
+      this.matchRoot.add(alt);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.56, 32), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2; ring.position.set(sh.x * WS, 0.13, sh.y * WS); ring.userData.ownMat = true;
+      this.matchRoot.add(ring);
+    }
     // decoration around the arena
     this.buildDecor(m);
   }
@@ -365,6 +376,7 @@ export class WorldRenderer {
     const kinds: Record<string, ('tree' | 'rock' | 'crystal' | 'pillar' | 'icepillar' | 'lavarock' | 'beacon' | 'palm' | 'ruin')[]> = {
       none: ['tree', 'tree', 'rock', 'crystal'], lava_cycle: ['lavarock', 'lavarock', 'crystal', 'rock'], ice: ['icepillar', 'icepillar', 'rock', 'crystal'],
       void_portals: ['beacon', 'crystal', 'beacon', 'rock'], jungle: ['palm', 'ruin', 'tree', 'palm'],
+      canyon: ['crystal', 'rock', 'crystal', 'rock'], sky: ['pillar', 'pillar', 'crystal', 'tree'], docks: ['beacon', 'rock', 'beacon', 'pillar'],
     };
     const list = kinds[a.data.special] ?? kinds.none;
     const rng = new Rng(11);
@@ -550,7 +562,7 @@ export class WorldRenderer {
       mesh.rotation.x = -Math.PI / 2;
       this.matchRoot.add(mesh);
     }
-    const col: Record<string, string> = { magnet_field: '#ff4d6d', storm: '#ffe600', heal: '#5cff9d', slow: '#4cc9f0', black_hole: '#7b2ff7', fire: '#ff6b35', eruption: '#ff3d00', electric_trail: '#00f0ff', lava_burst: '#ff5400' };
+    const col: Record<string, string> = { magnet_field: '#ff4d6d', storm: '#ffe600', heal: '#5cff9d', slow: '#4cc9f0', black_hole: '#7b2ff7', fire: '#ff6b35', eruption: '#ff3d00', electric_trail: '#00f0ff', lava_burst: '#ff5400', mine: '#ffd23f', ice_floor: '#bde0fe', blizzard: '#e0fbfc' };
     const mat = mesh.material as THREE.ShaderMaterial;
     mat.uniforms.color.value.set(col[z.kind] ?? '#ffffff');
     mesh.scale.setScalar(z.radius * WS);
@@ -563,14 +575,16 @@ export class WorldRenderer {
     for (const w of m.arena.walls) {
       if (!w.dynamic || this.wallViews.has(w)) continue;
       const team = w.team as number;
-      const top = team === 0 ? '#7cc4ff' : team === 1 ? '#ff8a96' : '#ffb347';
-      const side = team === 0 ? '#2f6fd1' : team === 1 ? '#c22f45' : '#c46b12';
-      const geo = this.wallBox({ x: -w.w / 2, y: -w.h / 2, w: w.w, h: w.h }, top, side, 0.75);
+      const crateTop = m.arena.data.special === 'canyon' ? '#e0aaff' : m.arena.data.special === 'docks' ? '#f472b6' : '#e6b980';
+      const crateSide = m.arena.data.special === 'canyon' ? '#9d4edd' : m.arena.data.special === 'docks' ? '#9d174d' : '#9c6b3c';
+      const top = w.crate ? crateTop : team === 0 ? '#7cc4ff' : team === 1 ? '#ff8a96' : '#ffb347';
+      const side = w.crate ? crateSide : team === 0 ? '#2f6fd1' : team === 1 ? '#c22f45' : '#c46b12';
+      const geo = this.wallBox({ x: -w.w / 2, y: -w.h / 2, w: w.w, h: w.h }, top, side, w.crate ? 0.65 : 0.75);
       const key = top;
       if (!this.dynWallMat[key]) this.dynWallMat[key] = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() });
       const mesh = new THREE.Mesh(geo, this.dynWallMat[key]);
       mesh.position.set((w.x + w.w / 2) * WS, 0, (w.y + w.h / 2) * WS);
-      mesh.scale.y = 0.01;
+      mesh.scale.y = w.crate ? 1 : 0.01;
       mesh.castShadow = this.q.shadows;
       this.matchRoot.add(mesh);
       this.wallViews.set(w, mesh);
@@ -587,6 +601,35 @@ export class WorldRenderer {
     }
   }
 
+  private syncPickups(m: Match) {
+    const colors: Record<string, string> = { speed: '#4cc9f0', shield: '#7fd8ff', power: '#ff4d6d', ult: '#ffd23f' };
+    const seen = new Set<number>();
+    for (const p of m.pickups) {
+      if (!p.alive) continue;
+      seen.add(p.id);
+      let g = this.pickupViews.get(p.id);
+      if (!g) {
+        g = new THREE.Group();
+        const col = colors[p.kind];
+        const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), toon(col, { emissive: col, emissiveIntensity: 0.6 }));
+        gem.scale.set(1, 1.4, 1);
+        const ol = new THREE.Mesh(gem.geometry, makeOutlineMaterial(0.03));
+        ol.scale.copy(gem.scale);
+        const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: col, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
+        glow.scale.setScalar(1.1); glow.userData.ownMat = true;
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.38, 28), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
+        ring.rotation.x = -Math.PI / 2; ring.position.y = -0.48; ring.userData.ownMat = true;
+        g.add(gem, ol, glow, ring);
+        this.matchRoot.add(g);
+        this.pickupViews.set(p.id, g);
+        this.particles.burst(p.x * WS, 0.5, p.y * WS, 16, col, 2.5, 0.25, 0.6, 2, -3);
+      }
+      g.position.set(p.x * WS, 0.55 + Math.sin(this.time * 3 + p.id) * 0.08, p.y * WS);
+      g.children[0].rotation.y += 0.04; g.children[1].rotation.y = g.children[0].rotation.y;
+    }
+    for (const [id, g] of this.pickupViews) if (!seen.has(id)) { this.matchRoot.remove(g); this.pickupViews.delete(id); }
+  }
+
   private syncHazards(m: Match) {
     for (const h of m.arena.hazards) {
       let mesh = this.hazardViews.get(h);
@@ -594,7 +637,7 @@ export class WorldRenderer {
         let mat: THREE.Material;
         if (h.kind === 'lava') mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, active: { value: 1 }, warn: { value: 0 } }, vertexShader: UV_VS, fragmentShader: LAVA_FS, transparent: true, depthWrite: false });
         else if (h.kind === 'ice') mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 } }, vertexShader: UV_VS, fragmentShader: ICE_FS, transparent: true, depthWrite: false });
-        else mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, color: { value: new THREE.Color(h.kind === 'boost' ? '#ffd166' : h.pair % 2 ? '#4cc9f0' : '#f72585') }, intensity: { value: 1 } }, vertexShader: UV_VS, fragmentShader: SWIRL_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+        else mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, color: { value: new THREE.Color(h.kind === 'boost' ? '#ffd166' : h.kind === 'jump' ? '#ff7b00' : h.pair % 2 ? '#4cc9f0' : '#f72585') }, intensity: { value: 1 } }, vertexShader: UV_VS, fragmentShader: SWIRL_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
         if (mat instanceof THREE.ShaderMaterial) this.animated.push({ mat });
         const w = h.w * WS, d = h.h * WS;
         mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
@@ -686,6 +729,14 @@ export class WorldRenderer {
 
     this.syncWalls(m);
     this.syncHazards(m);
+    this.syncPickups(m);
+    for (let i = this.beams.length - 1; i >= 0; i--) {
+      const b = this.beams[i];
+      b.t -= dt;
+      (b.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, b.t / 0.45);
+      b.mesh.scale.y = b.mesh.scale.z = 1 + (0.45 - b.t) * 2;
+      if (b.t <= 0) { this.matchRoot.remove(b.mesh); b.mesh.geometry.dispose(); (b.mesh.material as THREE.Material).dispose(); this.beams.splice(i, 1); }
+    }
 
     // bushes: transparent when the viewer's team stands inside
     for (const b of this.bushViews) {
@@ -780,6 +831,8 @@ export class WorldRenderer {
     if ((h.dash || h.speedBuffUntil > m.time || h.carrying) && Math.random() < 0.6 * this.q.particleMul) {
       this.particles.emit(v.px * WS, 0.3 + Math.random() * 0.4, v.py * WS, 0, 0.3, 0, h.carrying ? '#c77dff' : h.def.palette.accent, 0.22, 0.45, 0, 0);
     }
+    if (h.powerUntil > m.time && Math.random() < 0.35) this.particles.emit(v.px * WS, 0.2 + Math.random() * 0.8, v.py * WS, 0, 1, 0, '#ff4d6d', 0.16, 0.5, 0);
+    if (h.blazeUntil > m.time && Math.random() < 0.6) this.particles.emit(v.px * WS, 0.15, v.py * WS, 0, 1.6, 0, Math.random() < 0.5 ? '#ff6b35' : '#ffd166', 0.26, 0.5, 0.5);
     if (h.overdriveUntil > m.time && Math.random() < 0.3) this.particles.emit(v.px * WS, 0.1, v.py * WS, 0, 1.6, 0, '#ff70a6', 0.18, 0.6, 0);
   }
 
@@ -804,7 +857,7 @@ export class WorldRenderer {
     }
     (v.xray.material as THREE.SpriteMaterial).opacity = 0.4 + Math.sin(this.time * 5) * 0.1;
     const isMut = r.state === 'MUTATING' || r.state === 'CLONING';
-    const base = r.clone ? '#00f5d4' : m.mutation !== 'NORMAL' ? mutColor : '#b388ff';
+    const base = r.charged ? '#ffd23f' : r.clone ? '#00f5d4' : m.mutation !== 'NORMAL' ? mutColor : '#b388ff';
     const mat = v.core.material as THREE.ShaderMaterial;
     mat.uniforms.time.value = this.time * (r.state === 'FRENZY' ? 2.5 : 1);
     (mat.uniforms.c1.value as THREE.Color).lerp(this.tmpColor.set(isMut ? (Math.sin(this.time * 25) > 0 ? '#ffffff' : '#ff3df5') : base), 0.15);
@@ -955,6 +1008,24 @@ export class WorldRenderer {
       }
       case 'kill': break;
       case 'respawn': break;
+      case 'roll': { const h = m.heroById(e.hero); if (h) P.burst(h.x * WS, 0.25, h.y * WS, 14, '#e2e8f0', 2, 0.28, 0.45, 0.6, -2); break; }
+      case 'jump': P.burst(e.x * WS, 0.2, e.y * WS, 30, '#ff9f1c', 3.5, 0.3, 0.6, 4, -6); this.addShockwave(e.x, e.y, 0.3, 1.6, '#ff9f1c', 0.4); break;
+      case 'crate_break': P.burst(e.x * WS, 0.4, e.y * WS, 30, '#c8915a', 4, 0.32, 0.8, 4, -9); this.addShake(0.08); break;
+      case 'pickup': { const col = ({ speed: '#4cc9f0', shield: '#7fd8ff', power: '#ff4d6d', ult: '#ffd23f' } as Record<string, string>)[e.kind]; P.burst(e.x * WS, 0.6, e.y * WS, 28, col, 3, 0.3, 0.6, 3, -4); this.addShockwave(e.x, e.y, 0.2, 1.2, col, 0.35); break; }
+      case 'rift_charged': { const r = m.rifts.find((x) => x.id === e.rift); if (r) { this.addShockwave(r.x, r.y, 0.3, 3.5, '#ffd23f', 0.7); P.burst(r.x * WS, 1.2, r.y * WS, 60, '#ffd23f', 4, 0.35, 0.9, 3, -3); } break; }
+      case 'bounty': { const h = m.heroById(e.hero); if (h) P.burst(h.x * WS, 1.4, h.y * WS, 30, '#ffd23f', 2.5, 0.3, 0.8, 3, -2); break; }
+      case 'gadget': { const h = m.heroById(e.hero); if (h) { P.burst(h.x * WS, 0.6, h.y * WS, 24, '#3ddc84', 3, 0.28, 0.6, 2, -3); this.addShockwave(h.x, h.y, 0.2, 1.4, '#3ddc84', 0.35); } break; }
+      case 'laser': {
+        const len = Math.hypot(e.tx - e.x, e.ty - e.y) * WS;
+        const col = e.team === 0 ? '#9fd3ff' : '#ffb3bd';
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(len, 0.28, 0.28), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }));
+        mesh.position.set(((e.x + e.tx) / 2) * WS, 0.65, ((e.y + e.ty) / 2) * WS);
+        mesh.rotation.y = -Math.atan2(e.ty - e.y, e.tx - e.x);
+        this.matchRoot.add(mesh);
+        this.beams.push({ mesh, t: 0.45 });
+        for (let i = 0; i < 40 * this.q.particleMul; i++) { const k = Math.random(); P.emit((e.x + (e.tx - e.x) * k) * WS, 0.65, (e.y + (e.ty - e.y) * k) * WS, (Math.random() - 0.5), 1, (Math.random() - 0.5), '#ffffff', 0.25, 0.5, 0); }
+        break;
+      }
     }
   }
 

@@ -35,7 +35,8 @@ export function heroesScreen(c: Controller): Screen {
         h('div.small-text', { style: 'font-size:.62em;opacity:.9' }, ROLE_FR[hero.role]),
         owned ? h('div.tro', '🏆', String(hp.trophies)) : null,
         owned ? h('div.mast', '⭐' + hp.masteryLevel) : null,
-        owned ? null : h('div.lock.stroke-s', '🔒', h('br'), unlockText(c, hero.id))));
+        owned ? null : h('div.lock.stroke-s', '🔒', h('br'), unlockText(c, hero.id)),
+        hero.id === 'nova' || hero.id === 'frost' ? h('span.tagx.red', { style: 'position:absolute;bottom:2.6em;left:50%;transform:translateX(-50%)' }, 'NOUVEAU') : null));
     }
   };
   return { el, onShow: render, refresh: render, onHide: off };
@@ -67,7 +68,8 @@ export function heroDetail(c: Controller, heroId: string): Screen {
       stat('Cadence', 1 / a.cooldown, 2.3, a.cooldown + 's'),
       h('div.panel', { style: 'padding:.45em .6em;background:rgba(10,5,30,.35)' }, h('div.title', '⚡ ' + hero.ability.name, h('span.small-text.muted', `  ${hero.ability.cooldown}s`)), h('div.small-text', hero.ability.description)),
       h('div.panel', { style: 'padding:.45em .6em;background:rgba(10,5,30,.35)' }, h('div.title', { style: 'color:#ffe14d' }, '★ ULTIME : ' + hero.ultimate.name), h('div.small-text', hero.ultimate.description)),
-      h('div.panel', { style: 'padding:.45em .6em;background:rgba(10,5,30,.35)' }, h('div.title', { style: 'color:#7cc4ff' }, '◆ PASSIF : ' + hero.passive.name), h('div.small-text', hero.passive.description)));
+      h('div.panel', { style: 'padding:.45em .6em;background:rgba(10,5,30,.35)' }, h('div.title', { style: 'color:#7cc4ff' }, '◆ PASSIF : ' + hero.passive.name), h('div.small-text', hero.passive.description)),
+      hero.gadget ? h('div.panel', { style: 'padding:.45em .6em;background:rgba(61,220,132,.18)' }, h('div.title', { style: 'color:#80ed99' }, `✦ POUVOIR UNIQUE : ${hero.gadget.name}`, h('span.small-text.muted', `  ×${hero.gadget.charges} par match`)), h('div.small-text', hero.gadget.description)) : null);
     const skins = c.app.cosmetics.skins(heroId);
     const right = h('div.col', { style: 'width:30%;margin-left:auto;gap:.5em;min-height:0' },
       h('div.panel', { style: 'padding:.5em .7em' },

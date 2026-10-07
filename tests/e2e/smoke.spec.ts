@@ -15,7 +15,10 @@ test('boot -> home -> tutorial -> match -> results, no runtime errors', async ({
   // skip the tutorial and run a ranked match to the end
   await page.evaluate(() => { const r = (window as any).__rift; r.app.data.tutorialDone = true; r.c.session.forfeit(); });
   await page.waitForSelector('.home', { timeout: 30_000 });
-  await page.click('text=JOUER');
+  // dismiss the one-time "what's new" popup
+  const news = page.locator('.modal-wrap button:has-text("JOUER !")');
+  if (await news.waitFor({ state: "visible", timeout: 5_000 }).then(() => true, () => false)) await news.click();
+  await page.click('.play-btn');
   await page.waitForSelector('#hud', { timeout: 30_000 });
   await page.evaluate(() => { const m = (window as any).__rift.c.session.match; m.time = 120; m.score[0] = 3; m.clock = 0.1; m.phase = 'play'; });
   await page.waitForSelector('.results', { timeout: 60_000 });

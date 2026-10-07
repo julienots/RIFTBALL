@@ -176,6 +176,14 @@ export class BotBrain {
           for (const a of m.heroes) if (a.alive && a.team === h.team && a.hp < a.maxHp * 0.6 && dist2(a.x, a.y, h.x, h.y) < 450 * 450) { hurt++; if (!isUlt) this.aimAt(a.x, a.y, dist(h.x, h.y, a.x, a.y)); }
           return hurt >= (isUlt ? 2 : 1) || (isUlt && h.carrying);
         }
+        case 'rift_play': {
+          if (!rift || rift.carrier >= 0 && (!carrier || carrier.team === h.team)) return false;
+          if (dRift > 700) return false;
+          if (h.def.gadget?.effect === 'rift_gust') { const ep = m.arena.enemyPortal(h.team); this.aimAt(ep.x + ep.w / 2, ep.y + ep.h / 2, 0); return true; }
+          // cage the Rift when an enemy is closer to it than we are
+          return m.heroes.some((e) => e.alive && e.team !== h.team && dist(e.x, e.y, rift.x, rift.y) < dRift);
+        }
+        case 'reveal': return !t && m.heroes.some((e) => e.alive && e.team !== h.team && !m.isVisibleTo(e, h.team) && dist(e.x, e.y, h.x, h.y) < 800);
         case 'nuke': {
           let n = 0;
           for (const e of m.heroes) if (e.alive && e.team !== h.team && dist2(e.x, e.y, h.x, h.y) < 330 * 330) n++;
@@ -186,6 +194,10 @@ export class BotBrain {
     };
     if (h.abCd <= 0 && m.rng.chance(P.abilityUse) && tryCast(h.def.ability.aiHint, false)) c.ability = true;
     else if (h.ult >= 100 && m.rng.chance(P.ultUse) && tryCast(h.def.ultimate.aiHint, true)) c.ult = true;
+    else if (h.def.gadget && h.gadgetCharges > 0 && h.gadgetCd <= 0 && m.rng.chance(P.abilityUse * 0.45) && tryCast(h.def.gadget.aiHint, false)) c.gadget = true;
+    // dodge roll: escape when hurt, or burst toward the portal when carrying
+    const threat = this.target && this.target.alive && dist(h.x, h.y, this.target.x, this.target.y) < 320;
+    if (h.rollCd <= 0 && threat && m.rng.chance(P.dodge * 0.5) && (h.hp < h.maxHp * 0.5 || h.carrying)) c.roll = true;
   }
 
   private bestRift(): RiftEntity | null {

@@ -383,3 +383,14 @@ input { font: inherit; }
 .mm-center { display: flex; flex-direction: column; align-items: center; gap: 0.5em; min-width: 9em; }
 .mm-vs { font-family: 'Lilita One'; font-size: 3.4em; color: #ffe14d; animation: pulse 1.2s infinite; }
 .mm-arena { padding: 0.5em 1em; border-radius: 0.8em; border: 0.14em solid var(--ink); box-shadow: 0 0.18em 0 var(--ink); animation: pop 0.35s; }
+
+/* gadget / roll buttons + status badges */
+.hud-btn.gadget { right: 7.4em; bottom: 5.6em; width: 4em; height: 4em; background: radial-gradient(circle at 40% 30%, #c7f9cc, #3ddc84 60%, #12a150); }
+.hud-btn.roll { right: 12.4em; bottom: 0.2em; width: 3.6em; height: 3.6em; background: radial-gradient(circle at 40% 30%, #f1f5f9, #94a3b8 60%, #475569); }
+.hud-btn.gadget .ic, .hud-btn.roll .ic { font-size: 1.5em; }
+.hud-btn .gcount { position: absolute; top: -0.4em; right: -0.4em; min-width: 1.4em; height: 1.4em; border-radius: 0.7em; background: #ffe14d; color: var(--ink); border: 0.1em solid var(--ink); display: grid; place-items: center; font-size: 0.8em; }
+.hpbar .badges { font-size: 0.75em; min-height: 0; line-height: 1; }
+
+.guide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17em, 1fr)); gap: 0.6em; }
+.guide-card { position: relative; display: flex; gap: 0.6em; align-items: flex-start; padding: 0.6em 0.7em; }
+.guide-card .gi { font-size: 1.8em; width: 1.6em; text-align: center; flex: 0 0 auto; }

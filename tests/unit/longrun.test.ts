@@ -18,7 +18,7 @@ describe('Long runs (leaks, invariants, duplication)', () => {
       let maxProj = 0, maxZones = 0, maxHeroes = 0, maxRifts = 0;
       for (let i = 0; i < 60 * 420 && m.phase !== 'ended'; i++) {
         m.step(1 / 60);
-        for (const e of m.events) if (e.t === 'goal' && m.mode.id !== 'RIFT_BOSS' && m.mode.id !== 'SURVIVAL') goalsByTeam[e.team] += 1;
+        for (const e of m.events) if (e.t === 'goal' && m.mode.id !== 'RIFT_BOSS' && m.mode.id !== 'SURVIVAL') goalsByTeam[e.team] += e.worth;
         m.events.length = 0;
         if (i % 30 === 0) {
           maxProj = Math.max(maxProj, m.projectiles.length); maxZones = Math.max(maxZones, m.zones.length);

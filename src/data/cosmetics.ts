@@ -56,6 +56,14 @@ const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; sourc
     { id: 'vortex_sand', name: 'Vortex des Sables', rarity: 'RARE', source: 'crate', visual: { primary: '#e9c46a', secondary: '#264653', accent: '#f4a261' } },
     { id: 'vortex_mastery', name: 'Vortex Maître', rarity: 'EPIC', source: 'mastery', visual: { primary: '#ef476f', secondary: '#073b4c', accent: '#ffd166' } },
   ],
+  nova: [
+    { id: 'nova_eclipse', name: 'Nova Éclipse', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#1b1b1b', secondary: '#ffbe0b', accent: '#ff006e', hat: 'visor' } },
+    { id: 'nova_galaxy', name: 'Nova Galactique', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#7209b7', secondary: '#10002b', accent: '#4cc9f0', hat: 'halo' } },
+  ],
+  frost: [
+    { id: 'frost_aurora', name: 'Frost Aurore', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#80ffdb', secondary: '#5390d9', accent: '#ffffff', hat: 'crown' } },
+    { id: 'frost_ember', name: 'Frost Dégel', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#ffadad', secondary: '#9d0208', accent: '#ffd6a5' } },
+  ],
   ember: [
     { id: 'ember_ash', name: 'Ember Cendrée', rarity: 'EPIC', source: 'pass_premium', season: 's1', visual: { primary: '#6c757d', secondary: '#212529', accent: '#ff6b35' } },
     { id: 'ember_phoenix', name: 'Ember Phénix', rarity: 'MYTHIC', source: 'pass_plus', season: 's1', visual: { primary: '#ffba08', secondary: '#d00000', accent: '#ffffff', hat: 'halo' } },

@@ -1,5 +1,5 @@
 import type { ArenaData, TeamId } from '../data/types';
-import { ARENA_H, ARENA_W, PORTAL } from '../data/arenas';
+import { ARENA_H, ARENA_SCALE, ARENA_W, PORTAL } from '../data/arenas';
 import type { Rect } from '../core/math';
 import { pointInRect } from '../core/math';
 
@@ -11,10 +11,12 @@ export interface Wall extends Rect {
   expiresAt: number;     // match time, Infinity for static
   team: TeamId | -1;
   border?: boolean;
+  /** destructible crate (drops power-ups) */
+  crate?: boolean;
 }
 
 export interface Hazard extends Rect {
-  kind: 'lava' | 'ice' | 'teleport' | 'boost';
+  kind: 'lava' | 'ice' | 'teleport' | 'boost' | 'jump';
   pair: number;
   active: boolean;
   /** lava cycle phase offset */
@@ -25,51 +27,65 @@ export interface Hazard extends Rect {
 
 export interface PortalZone extends Rect { team: TeamId }
 
-const mirrorRect = (r: [number, number, number, number]): [number, number, number, number] => [ARENA_W - r[0] - r[2], r[1], r[2], r[3]];
 
 /** Runtime arena geometry built from ArenaData (pure data -> world). */
 export class Arena {
-  readonly w = ARENA_W;
-  readonly h = ARENA_H;
+  readonly w: number;
+  readonly h: number;
+  readonly scale: number;
   walls: Wall[] = [];
   bushes: Rect[] = [];
   hazards: Hazard[] = [];
+  shrines: { x: number; y: number }[] = [];
   portals: [PortalZone, PortalZone];
   spawns: [{ x: number; y: number }[], { x: number; y: number }[]];
-  center = { x: ARENA_W / 2, y: ARENA_H / 2 };
+  center: { x: number; y: number };
+  /** crates destroyed since the last call to update() (consumed by the Match for power-up drops) */
+  brokenCrates: Wall[] = [];
   private wallSeq = 1;
   /** Bumped every time walls change so nav grids can rebuild lazily. */
   version = 0;
 
   constructor(public data: ArenaData) {
-    const py = (ARENA_H - PORTAL.height) / 2;
+    const S = (this.scale = data.scale ?? ARENA_SCALE);
+    const W = (this.w = Math.round(ARENA_W * S)), H = (this.h = Math.round(ARENA_H * S));
+    this.center = { x: W / 2, y: H / 2 };
+    const sc = (r: [number, number, number, number]): [number, number, number, number] => [r[0] * S, r[1] * S, r[2] * S, r[3] * S];
+    const mir = (r: [number, number, number, number]): [number, number, number, number] => [W - r[0] - r[2], r[1], r[2], r[3]];
+    const PH = Math.round(PORTAL.height * Math.min(S, 1.15)), PD = PORTAL.depth;
+    const py = (H - PH) / 2;
     this.portals = [
-      { x: 0, y: py, w: PORTAL.depth, h: PORTAL.height, team: 0 },
-      { x: ARENA_W - PORTAL.depth, y: py, w: PORTAL.depth, h: PORTAL.height, team: 1 },
+      { x: 0, y: py, w: PD, h: PH, team: 0 },
+      { x: W - PD, y: py, w: PD, h: PH, team: 1 },
     ];
-    const sx = 300;
-    const spawnY = [ARENA_H / 2, ARENA_H / 2 - 260, ARENA_H / 2 + 260];
-    this.spawns = [spawnY.map((y) => ({ x: sx, y })), spawnY.map((y) => ({ x: ARENA_W - sx, y }))];
+    const sx = 300 * S;
+    const spawnY = [H / 2, H / 2 - 270 * S, H / 2 + 270 * S];
+    this.spawns = [spawnY.map((y) => ({ x: sx, y })), spawnY.map((y) => ({ x: W - sx, y }))];
 
     // Border walls (top/bottom full, left/right with portal openings)
     const T = 60;
-    this.addStatic({ x: -T, y: -T, w: ARENA_W + 2 * T, h: T }, true);
-    this.addStatic({ x: -T, y: ARENA_H, w: ARENA_W + 2 * T, h: T }, true);
+    this.addStatic({ x: -T, y: -T, w: W + 2 * T, h: T }, true);
+    this.addStatic({ x: -T, y: H, w: W + 2 * T, h: T }, true);
     this.addStatic({ x: -T, y: 0, w: T, h: py }, true);
-    this.addStatic({ x: -T, y: py + PORTAL.height, w: T, h: ARENA_H - py - PORTAL.height }, true);
-    this.addStatic({ x: ARENA_W, y: 0, w: T, h: py }, true);
-    this.addStatic({ x: ARENA_W, y: py + PORTAL.height, w: T, h: ARENA_H - py - PORTAL.height }, true);
+    this.addStatic({ x: -T, y: py + PH, w: T, h: H - py - PH }, true);
+    this.addStatic({ x: W, y: 0, w: T, h: py }, true);
+    this.addStatic({ x: W, y: py + PH, w: T, h: H - py - PH }, true);
     // back of the portals so nothing exits the world
-    this.addStatic({ x: -T * 2, y: py - 10, w: T, h: PORTAL.height + 20 }, true);
-    this.addStatic({ x: ARENA_W + T, y: py - 10, w: T, h: PORTAL.height + 20 }, true);
+    this.addStatic({ x: -T * 2, y: py - 10, w: T, h: PH + 20 }, true);
+    this.addStatic({ x: W + T, y: py - 10, w: T, h: PH + 20 }, true);
 
-    for (const r of data.walls) { this.addStaticArr(r); this.addStaticArr(mirrorRect(r)); }
-    for (const r of data.centerWalls ?? []) this.addStaticArr(r);
-    for (const r of data.bushes) { this.bushes.push(toRect(r)); this.bushes.push(toRect(mirrorRect(r))); }
+    for (const r of data.walls) { this.addStaticArr(sc(r)); this.addStaticArr(mir(sc(r))); }
+    for (const r of data.centerWalls ?? []) this.addStaticArr(sc(r));
+    for (const r of data.bushes) { this.bushes.push(toRect(sc(r))); this.bushes.push(toRect(mir(sc(r)))); }
+    for (const r of data.crates ?? []) for (const q of [sc(r), mir(sc(r))]) {
+      this.walls.push({ x: q[0], y: q[1], w: q[2], h: q[3], id: this.wallSeq++, dynamic: true, hp: 2400, maxHp: 2400, expiresAt: Infinity, team: -1, crate: true });
+      this.version++;
+    }
+    for (const [x, y] of data.shrines ?? []) { this.shrines.push({ x: x * S, y: y * S }); this.shrines.push({ x: W - x * S, y: y * S }); }
     let i = 0;
     for (const hz of data.hazards) {
-      this.hazards.push(mkHazard(hz.kind, hz.rect, hz.pair ?? 0, i++ * 1.7));
-      if (hz.mirror) this.hazards.push(mkHazard(hz.kind, mirrorRect(hz.rect), hz.pair ?? 0, i++ * 1.7));
+      this.hazards.push(mkHazard(hz.kind, sc(hz.rect), hz.pair ?? 0, i++ * 1.7));
+      if (hz.mirror) this.hazards.push(mkHazard(hz.kind, mir(sc(hz.rect)), hz.pair ?? 0, i++ * 1.7));
     }
   }
 
@@ -82,7 +98,7 @@ export class Arena {
   addDynamicWall(r: Rect, hp: number, expiresAt: number, team: TeamId): Wall | null {
     // never block portals or the inside of another wall completely
     for (const p of this.portals) if (overlaps(r, inflate(p, 40))) return null;
-    if (r.x < 0 || r.y < 0 || r.x + r.w > ARENA_W || r.y + r.h > ARENA_H) return null;
+    if (r.x < 0 || r.y < 0 || r.x + r.w > this.w || r.y + r.h > this.h) return null;
     const w: Wall = { ...r, id: this.wallSeq++, dynamic: true, hp, maxHp: hp, expiresAt, team };
     this.walls.push(w);
     this.version++;
@@ -104,7 +120,7 @@ export class Arena {
   update(time: number) {
     for (let i = this.walls.length - 1; i >= 0; i--) {
       const w = this.walls[i];
-      if (w.dynamic && (time >= w.expiresAt || w.hp <= 0)) { this.walls.splice(i, 1); this.version++; }
+      if (w.dynamic && (time >= w.expiresAt || w.hp <= 0)) { if (w.crate) this.brokenCrates.push(w); this.walls.splice(i, 1); this.version++; }
     }
     for (let i = this.hazards.length - 1; i >= 0; i--) {
       const h = this.hazards[i];

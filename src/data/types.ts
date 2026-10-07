@@ -40,7 +40,7 @@ export interface AbilityData {
   params: Record<string, number>;
   aim: 'direction' | 'point' | 'self';
   /** Hint used by bots to decide when the ability is worth casting. */
-  aiHint: 'pull_rift' | 'dash_offense' | 'dash_escape' | 'wall_block' | 'phase' | 'zone_enemy' | 'self_buff' | 'heal_team' | 'nuke' | 'leap';
+  aiHint: 'pull_rift' | 'dash_offense' | 'dash_escape' | 'wall_block' | 'phase' | 'zone_enemy' | 'self_buff' | 'heal_team' | 'nuke' | 'leap' | 'rift_play' | 'reveal';
 }
 
 export interface PassiveData {
@@ -63,9 +63,11 @@ export interface CharacterData {
   ability: AbilityData;
   ultimate: AbilityData;
   passive: PassiveData;
+  /** Unique power: limited charges per match (GADGET button). */
+  gadget?: AbilityData & { charges: number };
   ultChargePerHit: number;   // % gained per successful hit
   palette: { primary: string; secondary: string; accent: string; skin: string; eyes: string };
-  model: 'magnet' | 'blink' | 'block' | 'shade' | 'volt' | 'flux' | 'titan' | 'arc' | 'pulse' | 'vortex' | 'ember' | 'golem' | 'minion';
+  model: 'magnet' | 'blink' | 'block' | 'shade' | 'volt' | 'flux' | 'titan' | 'arc' | 'pulse' | 'vortex' | 'ember' | 'nova' | 'frost' | 'golem' | 'minion';
   /** How it is obtained. Characters are NEVER sold for premium currency (anti pay-to-win). */
   unlock: { type: 'starter' } | { type: 'trophies'; trophies: number } | { type: 'coins'; price: number } | { type: 'season'; season: string; passTier: number };
   hidden?: boolean;       // bosses / minions
@@ -101,9 +103,16 @@ export interface ArenaData {
   /** Rects placed exactly as given (center pieces). */
   centerWalls?: [number, number, number, number][];
   bushes: [number, number, number, number][];
-  hazards: { kind: 'lava' | 'ice' | 'teleport' | 'boost'; rect: [number, number, number, number]; pair?: number; mirror?: boolean }[];
-  special: 'none' | 'lava_cycle' | 'ice' | 'void_portals' | 'jungle';
+  hazards: { kind: 'lava' | 'ice' | 'teleport' | 'boost' | 'jump'; rect: [number, number, number, number]; pair?: number; mirror?: boolean }[];
+  /** Destructible crates (left half, mirrored). They can drop power-ups. */
+  crates?: [number, number, number, number][];
+  /** Power-up altars (left half, mirrored): a power-up appears there regularly. */
+  shrines?: [number, number][];
+  /** World scale applied to the authored 2400x1300 layout (bigger maps). */
+  scale?: number;
+  special: 'none' | 'lava_cycle' | 'ice' | 'void_portals' | 'jungle' | 'canyon' | 'sky' | 'docks';
   music: 'battle' | 'battle_hot' | 'battle_cold' | 'battle_void' | 'battle_jungle';
+  isNew?: boolean;
 }
 
 // ---------------------------------------------------------------- Modes

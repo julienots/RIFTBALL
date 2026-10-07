@@ -35,8 +35,10 @@ export const TROPHY_ROAD: TrophyRoadReward[] = [
   { trophies: 1000, reward: { kind: 'hero', id: 'pulse' } },
   { trophies: 1200, reward: { kind: 'gems', amount: 30 } },
   { trophies: 1400, reward: { kind: 'hero', id: 'vortex' } },
-  { trophies: 1700, reward: { kind: 'cosmetic', id: 'emote_trophy' } },
-  { trophies: 2000, reward: { kind: 'cosmetic', id: 'banner_champion' } },
+  { trophies: 1700, reward: { kind: 'hero', id: 'nova' } },
+  { trophies: 1850, reward: { kind: 'cosmetic', id: 'emote_trophy' } },
+  { trophies: 2000, reward: { kind: 'hero', id: 'frost' } },
+  { trophies: 2200, reward: { kind: 'cosmetic', id: 'banner_champion' } },
   { trophies: 2500, reward: { kind: 'cosmetic', id: 'title_legend' } },
 ];
 

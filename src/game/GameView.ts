@@ -124,7 +124,7 @@ export class GameSession {
     if (me) {
       this.input.apply(me.cmd, { attack: me.def.attack.range, ability: Math.max(me.def.ability.range, 300), ult: Math.max(me.def.ultimate.range, 300) });
       const c = me.cmd;
-      for (const slot of ['attack', 'ability', 'ult'] as const) if (c[slot]) { o.client.send({ t: 'act', s: this.seq, slot, ax: c.aimX, ay: c.aimY, ad: c.aimDist }); c[slot] = false; if (slot === 'attack') me.anim.attackT = 0.22; }
+      for (const slot of ['attack', 'ability', 'ult', 'gadget', 'roll'] as const) if (c[slot]) { o.client.send({ t: 'act', s: this.seq, slot, ax: c.aimX, ay: c.aimY, ad: c.aimDist }); c[slot] = false; if (slot === 'attack') me.anim.attackT = 0.22; }
       c.aimX = c.aimY = c.aimDist = 0;
       this.sendT -= dt;
       if (this.sendT <= 0 || Math.abs(c.mx - this.lastSent.mx) > 0.2 || Math.abs(c.my - this.lastSent.my) > 0.2) {
@@ -240,7 +240,8 @@ export class GameSession {
     const me = this.match.human, a = this.input.aiming;
     if (!me || !me.alive || !a) { this.r.setAim(false); return; }
     const isAttack = a.slot === 'attack';
-    const ab = a.slot === 'ability' ? me.def.ability : me.def.ultimate;
+    if (a.slot === 'roll') { this.r.setAim(false); return; }
+    const ab = a.slot === 'ability' ? me.def.ability : a.slot === 'gadget' ? (me.def.gadget ?? me.def.ability) : me.def.ultimate;
     let dx = a.dx, dy = a.dy;
     if (!a.manual) {
       // preview auto-aim direction
@@ -254,7 +255,7 @@ export class GameSession {
       else if (lob) this.r.setAim(true, me, dx, dy, a.manual ? a.mag * me.def.attack.range : me.def.attack.range * 0.8, 'point', me.def.attack.radius ?? 70, '#ffffff');
       else this.r.setAim(true, me, dx, dy, me.def.attack.range, 'line', 0, '#ffffff');
     } else {
-      const color = a.slot === 'ult' ? '#ffcd1f' : '#2fe0ff';
+      const color = a.slot === 'ult' ? '#ffcd1f' : a.slot === 'gadget' ? '#3ddc84' : '#2fe0ff';
       if (ab.aim === 'self') this.r.setAim(true, me, 0, 0, 0, 'self', ab.params.radius ?? me.radius * 2.5, color);
       else if (ab.aim === 'point') this.r.setAim(true, me, dx, dy, a.manual ? a.mag * ab.range : ab.range * 0.7, 'point', ab.params.radius ?? 120, color);
       else this.r.setAim(true, me, dx, dy, ab.params.distance ?? ab.range, 'line', 0, color);
@@ -302,6 +303,15 @@ export class GameSession {
       case 'mutation_start': audio.play('mutation'); haptic('medium', this.app.data.settings.haptics); break;
       case 'sudden_death': audio.play('mutation_warn'); break;
       case 'wave': audio.play('mutation_warn'); break;
+      case 'roll': if (e.hero === m.humanId) audio.play('whoosh', { vol: 0.9 }); break;
+      case 'gadget': audio.play('ability', { vol: e.hero === m.humanId ? 1 : 0.5, pitch: 1.4 }); break;
+      case 'pickup': audio.play(e.hero === m.humanId ? 'reward' : 'coin', { vol: e.hero === m.humanId ? 1 : 0.4 }); break;
+      case 'pickup_spawn': audio.play('notify', { vol: 0.35 }); break;
+      case 'rift_charged': audio.play('mutation_warn'); haptic('medium', this.app.data.settings.haptics); break;
+      case 'bounty': case 'bounty_claim': audio.play('kill', { vol: 0.8 }); break;
+      case 'jump': audio.play('throw', { vol: this.vol(e.x, e.y) }); break;
+      case 'crate_break': audio.play('wall', { vol: this.vol(e.x, e.y) }); break;
+      case 'laser': audio.play('ult', { vol: 0.9 }); this.r.addShake(0.25); break;
     }
   }
 

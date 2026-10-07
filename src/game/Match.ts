@@ -5,7 +5,7 @@ import { getMode } from '../data/modes';
 import type { EventModifiers, ModeData, ModeId, MutationId, TeamId } from '../data/types';
 import { Rng } from '../core/Rng';
 import { circleRectPush, dist2, pointInRect, segmentHitsRect } from '../core/math';
-import { Hero, Projectile, Zone, type MatchEvent, type RiftEntity, type ZoneKind } from './entities';
+import { Hero, Projectile, Zone, type MatchEvent, type Pickup, type PickupKind, type RiftEntity, type ZoneKind } from './entities';
 import { applyDamage, healHero, nearestEnemy, performAttack, updateProjectiles } from '../combat/Combat';
 import { castAbility, updateDash, updateLeap } from '../abilities/AbilitySystem';
 import { checkGoal, checkPickup, createRift, RIFT_TUNING, setRiftState, updateRift } from '../rift/Rift';
@@ -63,6 +63,9 @@ export class Match {
   readonly mutations: MutationSystem;
   readonly modifiers: EventModifiers;
   heroes: Hero[] = [];
+  pickups: Pickup[] = [];
+  private pickupSeq = 1;
+  private shrineNext: number[] = [];
   rifts: RiftEntity[] = [];
   projectiles: Projectile[] = [];
   zones: Zone[] = [];
@@ -101,11 +104,13 @@ export class Match {
     for (const slot of opts.players) {
       const h = new Hero(id++, slot.team, getCharacter(slot.heroId), slot.name, slot.isBot, slot.skinId ?? `${slot.heroId}_default`);
       h.spawnIndex = perTeam[slot.team]++;
+      h.gadgetCharges = h.def.gadget?.charges ?? 0;
       this.addHero(h);
       if (slot.human) this.humanId = h.id;
       if (slot.isBot) this.brains.set(h.id, new BotBrain(this, h, BOT_PROFILES[slot.botLevel ?? 'NORMAL']));
     }
     this.rifts.push(createRift(this.riftSeq++, this.arena.center.x, this.arena.center.y));
+    this.shrineNext = this.arena.shrines.map((_, i) => 14 + i * 3);
     this.modeRules.setup(this);
     this.resetPositions();
     this.emit({ t: 'countdown', n: 3 });
@@ -150,7 +155,8 @@ export class Match {
     z.x = x; z.y = y; z.radius = radius; z.born = this.time; z.until = this.time + duration;
     z.tickEvery = o.tickEvery ?? 0.5; z.nextTick = this.time + (o.delay ?? 0);
     z.damage = o.damage ?? 0; z.heal = o.heal ?? 0; z.pull = o.pull ?? 0; z.slow = o.slow ?? 0; z.stun = o.stun ?? 0;
-    z.delay = o.burst ?? 0; // eruption burst damage stored in delay slot when used
+    z.delay = kind === 'eruption' ? o.burst ?? 0 : 0; // eruption burst damage stored in delay slot when used
+    z.burst = o.burst ?? 0;
     z.id = this.projSeq++;
     return z;
   }
@@ -253,7 +259,8 @@ export class Match {
   }
 
   scoreGoal(r: RiftEntity, team: TeamId, scorer: number, portalTeam: TeamId) {
-    const worth = 1;
+    const worth = r.charged && !r.clone ? 2 : 1;
+    r.charged = false; r.carryTime = 0;
     const carrier = r.carrier >= 0 ? this.heroById(r.carrier) : null;
     if (carrier) carrier.carrying = false;
     r.carrier = -1;
@@ -289,7 +296,7 @@ export class Match {
     this.rifts = this.rifts.filter((r) => !r.clone);
     const r = this.mainRift()!;
     r.alive = true; r.carrier = -1; r.x = this.arena.center.x; r.y = this.arena.center.y; r.vx = r.vy = 0;
-    r.lastTouchTeam = -1; r.attractUntil = 0;
+    r.lastTouchTeam = -1; r.attractUntil = 0; r.charged = false; r.carryTime = 0;
     setRiftState(this, r, 'IDLE');
     for (const p of this.projectiles) p.active = false;
     for (const z of this.zones) z.active = false;
@@ -347,6 +354,7 @@ export class Match {
     }
 
     this.arena.update(this.time);
+    this.updatePickups();
     this.modeRules.update(this, dt);
 
     const canAct = this.phase === 'play' || this.phase === 'overtime';
@@ -366,6 +374,15 @@ export class Match {
       if (!r.alive) continue;
       checkPickup(this, r);
       checkGoal(this, r);
+      // OVERCHARGE: holding the Rift long enough makes the next goal worth 2
+      if (r.carrier >= 0 && !r.clone && (this.phase === 'play' || this.phase === 'overtime')) {
+        r.carryTime += dt;
+        if (!r.charged && r.carryTime >= 8) {
+          r.charged = true;
+          const c = this.heroById(r.carrier);
+          if (c) this.emit({ t: 'rift_charged', rift: r.id, team: c.team });
+        }
+      }
     }
     if (this.frame % 60 === 0) {
       this.rifts = this.rifts.filter((r) => r.alive);
@@ -384,7 +401,8 @@ export class Match {
       if (this.time >= h.respawnAt && this.phase !== 'ended') this.respawn(h);
       return;
     }
-    h.atkCd -= dt; h.abCd -= dt;
+    h.atkCd -= dt; h.abCd -= dt; h.gadgetCd -= dt; h.rollCd -= dt; h.jumpCd -= dt;
+    if (h.blazeUntil > this.time && this.frame % 12 === 0 && h.def.gadget) this.addZone('fire', h, h.x, h.y, 75, 2.2, { damage: h.def.gadget.params.damage ?? 150, tickEvery: 0.5 });
     if (h.shieldUntil <= this.time) h.shield = 0;
     if (canAct && !h.pve) h.ult = Math.min(100, h.ult + dt * 0.9);
 
@@ -423,6 +441,7 @@ export class Match {
       const slow = h.def.passive.id === 'porter' ? 0 : 0.15;
       speed *= 1 - slow + (this.mutation === 'FURY' ? this.mutationParams.carrierSpeed ?? 0 : 0);
     }
+    if (h.carrying) { const cr = this.rifts.find((q) => q.carrier === h.id); if (cr?.charged) { speed *= 0.9; h.revealedUntil = this.time + 0.2; } }
     if (h.slowUntil > this.time) speed *= h.slowMul;
     if (h.speedBuffUntil > this.time) speed *= 1 + h.speedBuff;
     if (h.def.passive.id === 'kindling' && h.hp / h.maxHp < h.def.passive.params.threshold) speed *= 1 + h.def.passive.params.speedBonus;
@@ -446,9 +465,34 @@ export class Match {
     const phasing = h.phaseUntil > this.time || (h.carrying && this.mutation === 'PHASE');
     this.collideWalls(h, phasing);
     this.applyTeleporters(h, h.id);
+    this.applyJumpPads(h);
     this.updateBush(h);
 
-    if (stunned) { c.attack = c.ability = c.ult = false; return; }
+    if (stunned) { c.attack = c.ability = c.ult = c.gadget = c.roll = false; return; }
+
+    // universal dodge roll (short dash with invulnerability frames)
+    if (c.roll) {
+      c.roll = false;
+      if (h.rollCd <= 0 && !h.pve) {
+        let rx = mx, ry = my;
+        if (Math.hypot(rx, ry) < 0.2) { rx = Math.cos(h.facing); ry = Math.sin(h.facing); }
+        const rl = Math.hypot(rx, ry) || 1;
+        h.dash = { dx: rx / rl, dy: ry / rl, remaining: 300, speed: 1700, dmg: 0, kb: 0, stun: 0, kind: 'roll', hit: new Set() };
+        h.dodgeUntil = this.time + 0.3;
+        h.rollCd = h.carrying ? 5.5 : 4;
+        h.facing = Math.atan2(ry, rx);
+        this.emit({ t: 'roll', hero: h.id });
+      }
+    }
+    // unique power (gadget)
+    if (c.gadget) {
+      c.gadget = false;
+      const g = h.def.gadget;
+      if (g && h.gadgetCharges > 0 && h.gadgetCd <= 0) {
+        const [dx, dy] = this.resolveAim(h, c, Math.max(g.range, 400));
+        if (castAbility(this, h, g, false, dx, dy, c.aimDist, true)) { h.gadgetCharges--; h.gadgetCd = g.cooldown; }
+      }
+    }
 
     // aim
     let ax = c.aimX, ay = c.aimY;
@@ -466,7 +510,12 @@ export class Match {
       } else if (h.atkCd <= 0) {
         if (!manual) {
           const e = nearestEnemy(this, h, h.def.attack.range * 1.1);
-          if (e) { ax = e.x - h.x; ay = e.y - h.y; } else { ax = Math.cos(h.facing); ay = Math.sin(h.facing); }
+          if (e) {
+            // precise auto-aim: lead moving targets by projectile travel time
+            const sp = h.def.attack.projectileSpeed;
+            const t = sp > 0 ? Math.min(0.6, Math.hypot(e.x - h.x, e.y - h.y) / sp) : 0;
+            ax = e.x + e.vx * t * 0.85 - h.x; ay = e.y + e.vy * t * 0.85 - h.y;
+          } else { ax = Math.cos(h.facing); ay = Math.sin(h.facing); }
         }
         const l = Math.hypot(ax, ay) || 1;
         performAttack(this, h, ax / l, ay / l, c.aimDist);
@@ -558,6 +607,70 @@ export class Match {
     this.emit({ t: 'respawn', hero: h.id });
   }
 
+  // ------------------------------------------------------------------ map mechanics
+
+  /** Jump pads launch heroes (leap, ignores walls) to the paired pad. */
+  private applyJumpPads(h: Hero) {
+    if (h.leap || h.jumpCd > 0 || h.pve) return;
+    for (const hz of this.arena.hazards) {
+      if (hz.kind !== 'jump' || h.x < hz.x || h.x > hz.x + hz.w || h.y < hz.y || h.y > hz.y + hz.h) continue;
+      const other = this.arena.hazards.find((o) => o !== hz && o.kind === 'jump' && o.pair === hz.pair);
+      if (!other) return;
+      const tx = other.x + other.w / 2, ty = other.y + other.h / 2;
+      h.leap = { fx: h.x, fy: h.y, tx, ty, t: 0, dur: 0.85, dmg: 0 };
+      h.jumpCd = 1.6;
+      h.dash = null;
+      this.emit({ t: 'jump', hero: h.id, x: h.x, y: h.y, tx, ty });
+      return;
+    }
+  }
+
+  spawnPickup(kind: PickupKind, x: number, y: number, shrine: number) {
+    const p: Pickup = { id: this.pickupSeq++, kind, x, y, alive: true, shrine, dieAt: shrine >= 0 ? Infinity : this.time + 14, born: this.time };
+    this.pickups.push(p);
+    this.emit({ t: 'pickup_spawn', kind, x, y });
+    return p;
+  }
+
+  private updatePickups() {
+    // destroyed crates may drop a power-up
+    for (const w of this.arena.brokenCrates) {
+      this.emit({ t: 'crate_break', x: w.x + w.w / 2, y: w.y + w.h / 2 });
+      if (this.rng.chance(0.65)) this.spawnPickup(this.rng.pick(['speed', 'shield', 'power', 'ult'] as const), w.x + w.w / 2, w.y + w.h / 2, -1);
+    }
+    this.arena.brokenCrates.length = 0;
+    if (this.phase !== 'play' && this.phase !== 'overtime') return;
+    // altars spawn a power-up every ~14 s when empty
+    this.arena.shrines.forEach((sh, i) => {
+      if (this.time < this.shrineNext[i] || this.pickups.some((p) => p.alive && p.shrine === i)) return;
+      this.shrineNext[i] = this.time + 14;
+      this.spawnPickup(this.rng.pick(['speed', 'shield', 'power', 'ult'] as const), sh.x, sh.y, i);
+    });
+    for (const p of this.pickups) {
+      if (!p.alive) continue;
+      if (this.time >= p.dieAt) { p.alive = false; continue; }
+      if (this.time - p.born < 0.4) continue;
+      for (const h of this.heroes) {
+        if (!h.alive || h.pve || dist2(h.x, h.y, p.x, p.y) > (h.radius + 34) ** 2) continue;
+        p.alive = false;
+        if (p.shrine >= 0) this.shrineNext[p.shrine] = this.time + 14;
+        this.applyPickup(h, p.kind);
+        this.emit({ t: 'pickup', hero: h.id, kind: p.kind, x: p.x, y: p.y });
+        break;
+      }
+    }
+    if (this.frame % 120 === 0) this.pickups = this.pickups.filter((p) => p.alive);
+  }
+
+  private applyPickup(h: Hero, kind: PickupKind) {
+    switch (kind) {
+      case 'speed': h.speedBuff = Math.max(h.speedBuffUntil > this.time ? h.speedBuff : 0, 0.3); h.speedBuffUntil = this.time + 5; break;
+      case 'shield': h.shield = Math.max(h.shield, 1000); h.shieldUntil = this.time + 6; break;
+      case 'power': h.powerUntil = this.time + 6; break;
+      case 'ult': h.ult = Math.min(100, h.ult + 35); break;
+    }
+  }
+
   private updateZones() {
     for (const z of this.zones) {
       if (!z.active) continue;
@@ -576,6 +689,16 @@ export class Match {
           const dx = z.x - r.x, dy = z.y - r.y, d = Math.hypot(dx, dy);
           if (d < z.radius && d > 10) { r.vx += (dx / d) * z.pull * 3 * dt; r.vy += (dy / d) * z.pull * 3 * dt; }
         }
+      }
+      if (z.kind === 'mine') {
+        if (this.time - z.born < 0.8) continue;
+        const victim = this.heroes.find((h) => h.alive && h.team !== z.team && dist2(z.x, z.y, h.x, h.y) < (z.radius + h.radius) ** 2);
+        if (victim) {
+          for (const h of this.heroes) if (h.alive && h.team !== z.team && dist2(z.x, z.y, h.x, h.y) < (z.radius * 1.6 + h.radius) ** 2) applyDamage(this, h, z.burst, owner, { kb: 500, kbX: h.x - z.x, kbY: h.y - z.y, noUlt: true });
+          this.emit({ t: 'explosion', x: z.x, y: z.y, radius: z.radius * 1.6, color: '#ffd23f' });
+          z.active = false;
+        }
+        continue;
       }
       if (this.time < z.nextTick) continue;
       const first = z.nextTick <= z.born + 0.001 || (z.kind === 'eruption' && z.delay > 0);

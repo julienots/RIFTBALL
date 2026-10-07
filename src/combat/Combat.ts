@@ -17,12 +17,15 @@ const LOG_ATTACKER_WINDOW = 5;
 /** Central damage pipeline: shields, phase, reductions, ult charge, kills. Returns damage dealt. */
 export function applyDamage(m: Match, target: Hero, amount: number, source: Hero | null, opts: DamageOpts = {}): number {
   if (!target.alive || amount <= 0) return 0;
-  if (target.phaseUntil > m.time) return 0;
+  if (target.phaseUntil > m.time || target.dodgeUntil > m.time) return 0;
   if (source && source.team === target.team) return 0;
   if (m.phase === 'goal' || m.phase === 'ended') return 0;
 
   let dmg = amount;
   if (source && source.dmgMulNext !== 1) { dmg *= source.dmgMulNext; source.dmgMulNext = 1; }
+  if (source && source.powerUntil > m.time) dmg *= 1.25;
+  if (source && source.def.passive.id === 'steady' && dist2(source.x, source.y, target.x, target.y) > source.def.passive.params.range ** 2) dmg *= 1 + source.def.passive.params.mul;
+  if (source && source.def.passive.id === 'chill' && !opts.slow) { opts = { ...opts, slow: source.def.passive.params.slow, slowDuration: 1 }; }
   if (target.dmgReductionUntil > m.time) dmg *= 1 - target.dmgReduction;
   if (target.pve && target.def.id === 'boss_golem') dmg *= m.bossArmor;
   dmg = Math.round(dmg);
@@ -93,7 +96,11 @@ export function killHero(m: Match, victim: Hero, killer: Hero | null) {
   if (killer) {
     killer.stats.kills++;
     killer.ult = clamp(killer.ult + 12, 0, 100);
+    // BOUNTY: 3 kills without dying puts a price on your head
+    if (victim.streak >= 3) { killer.ult = clamp(killer.ult + 40, 0, 100); killer.shield = Math.max(killer.shield, 600); killer.shieldUntil = m.time + 4; m.emit({ t: 'bounty_claim', killer: killer.id, victim: victim.id }); }
+    if (!killer.pve) { killer.streak++; if (killer.streak === 3) m.emit({ t: 'bounty', hero: killer.id, streak: killer.streak }); }
   }
+  victim.streak = 0;
   for (const [hid, t] of victim.recentAttackers) {
     if (killer && hid === killer.id) continue;
     if (m.time - t <= LOG_ATTACKER_WINDOW) { const h = m.heroById(hid); if (h) h.stats.assists++; }
@@ -153,7 +160,8 @@ export function performAttack(m: Match, h: Hero, dx: number, dy: number, aimDist
     case 'bolt': case 'boomerang': case 'wave': {
       const kind = a.kind === 'bolt' ? (h.pve ? 'boss' : 'bolt') : a.kind;
       const p = spawnProjectile(m, h, kind, ox, oy, dx, dy, a.projectileSpeed, a.range, a.radius ?? 12, a.damage);
-      p.pierce = !!a.pierce; p.healAllies = a.healAllies ?? 0; p.knockback = a.knockback ?? 0;
+      p.pierce = !!a.pierce || h.pierceNext; p.healAllies = a.healAllies ?? 0; p.knockback = a.knockback ?? 0;
+      if (h.pierceNext) { h.pierceNext = false; p.radius *= 1.5; p.color = '#ffbe0b'; }
       break;
     }
     case 'spread': case 'blades': {

@@ -19,6 +19,7 @@ import { collectionScreen } from './Collection';
 import { missionsModal, eventsModal, inboxModal } from './Missions';
 import { BOT_PROFILES } from '../../data/bots';
 import { modesScreen } from './Modes';
+import { guideScreen, showNews } from './Guide';
 
 export function currencyBar(c: Controller, opts: { gemsPlus?: boolean } = {}) {
   const d = c.data;
@@ -93,7 +94,8 @@ export function homeScreen(c: Controller): Screen {
 
     const bottomLeft = h('div', { style: 'position:absolute;left:calc(.9em + var(--safe-l));bottom:.9em;display:flex;gap:.6em;align-items:flex-end' },
       iconBtn('📋', 'MISSIONS', () => missionsModal(c, render), missionsClaim, 'linear-gradient(#80ed99,#2d9b5a)'),
-      iconBtn('🎉', 'ÉVÉNEMENTS', () => eventsModal(c), events.length, 'linear-gradient(#ff7b00,#d00000)'));
+      iconBtn('🎉', 'ÉVÉNEMENTS', () => eventsModal(c), events.length, 'linear-gradient(#ff7b00,#d00000)'),
+      iconBtn('📖', 'GUIDE', () => c.ui.push(guideScreen(c)), 0, 'linear-gradient(#a78bfa,#6d28d9)'));
 
     el.append(top, evBanner, left, right, heroInfo, bottomLeft, h('div.play-zone', modeBtn, play));
 
@@ -102,7 +104,7 @@ export function homeScreen(c: Controller): Screen {
 
   return {
     el, showcase: true,
-    onShow() { render(); c.renderer.showcaseActive = true; audio.playMusic('menu'); c.app.shop.checkRefresh(); },
+    onShow() { render(); c.renderer.showcaseActive = true; audio.playMusic('menu'); c.app.shop.checkRefresh(); setTimeout(() => showNews(c), 600); },
     onHide() { for (const o of offs) o(); offs = []; },
     refresh: render,
   };

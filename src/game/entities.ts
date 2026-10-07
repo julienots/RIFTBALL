@@ -7,9 +7,14 @@ export interface HeroCommand {
   attack: boolean;
   ability: boolean;
   ult: boolean;
+  gadget: boolean;
+  roll: boolean;
 }
 
-export const emptyCommand = (): HeroCommand => ({ mx: 0, my: 0, aimX: 0, aimY: 0, aimDist: 0, attack: false, ability: false, ult: false });
+export const emptyCommand = (): HeroCommand => ({ mx: 0, my: 0, aimX: 0, aimY: 0, aimDist: 0, attack: false, ability: false, ult: false, gadget: false, roll: false });
+
+export type PickupKind = 'speed' | 'shield' | 'power' | 'ult';
+export interface Pickup { id: number; kind: PickupKind; x: number; y: number; alive: boolean; shrine: number; dieAt: number; born: number }
 
 export interface HeroStats {
   kills: number; deaths: number; goals: number; assists: number; damage: number; heal: number;
@@ -58,6 +63,20 @@ export class Hero {
   pve = false;
   /** false for tutorial dummies: can never pick up the Rift */
   canCarry = true;
+  /** unique power (gadget) charges left this match */
+  gadgetCharges = 0;
+  gadgetCd = 0;
+  /** universal dodge roll */
+  rollCd = 0;
+  /** POWER pickup: +25% damage */
+  powerUntil = 0;
+  /** kills since last death (3+ = bounty) */
+  streak = 0;
+  blazeUntil = 0;
+  pierceNext = false;
+  jumpCd = 0;
+  /** roll i-frames */
+  dodgeUntil = 0;
   worth = 0;
 
   constructor(
@@ -103,7 +122,7 @@ export class Projectile {
   id = 0;
 }
 
-export type ZoneKind = 'magnet_field' | 'storm' | 'heal' | 'slow' | 'black_hole' | 'fire' | 'eruption' | 'electric_trail' | 'lava_burst';
+export type ZoneKind = 'magnet_field' | 'storm' | 'heal' | 'slow' | 'black_hole' | 'fire' | 'eruption' | 'electric_trail' | 'lava_burst' | 'mine' | 'ice_floor' | 'blizzard';
 
 export class Zone {
   active = false;
@@ -121,6 +140,7 @@ export class Zone {
   slow = 0;
   stun = 0;
   delay = 0;          // eruption delay before damage
+  burst = 0;          // one-shot damage (mines)
   id = 0;
 }
 
@@ -142,6 +162,8 @@ export interface RiftEntity {
   targetX: number; targetY: number;
   attractX: number; attractY: number; attractForce: number; attractUntil: number;
   portalTeam: TeamId | -1;   // portal being entered (PORTAL state)
+  carryTime: number;         // seconds carried by the same team (overcharge)
+  charged: boolean;          // overcharged Rift = goal worth 2
   look: number;              // eye direction (visual)
   mood: number;              // -1 scared .. 1 angry (visual)
 }
@@ -174,4 +196,14 @@ export type MatchEvent =
   | { t: 'wave'; n: number }
   | { t: 'boss_hit'; amount: number }
   | { t: 'emote'; hero: number; emote: string }
+  | { t: 'pickup'; hero: number; kind: PickupKind; x: number; y: number }
+  | { t: 'pickup_spawn'; kind: PickupKind; x: number; y: number }
+  | { t: 'rift_charged'; rift: number; team: TeamId }
+  | { t: 'bounty'; hero: number; streak: number }
+  | { t: 'bounty_claim'; killer: number; victim: number }
+  | { t: 'roll'; hero: number }
+  | { t: 'gadget'; hero: number; effect: string; x: number; y: number }
+  | { t: 'jump'; hero: number; x: number; y: number; tx: number; ty: number }
+  | { t: 'crate_break'; x: number; y: number }
+  | { t: 'laser'; x: number; y: number; tx: number; ty: number; team: TeamId }
   | { t: 'end' };
