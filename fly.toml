@@ -1,0 +1,15 @@
+# Alternative: Fly.io  (fly launch --copy-config --no-deploy && fly deploy)
+app = "riftball-server"
+primary_region = "cdg"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+
+[[http_service.checks]]
+  method = "GET"
+  path = "/v1/health"
+  interval = "15s"
+  timeout = "3s"

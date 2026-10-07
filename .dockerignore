@@ -1,0 +1,9 @@
+node_modules
+android
+releases
+dist
+branding
+tests
+server/dist
+server/data
+.git

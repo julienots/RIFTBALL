@@ -85,8 +85,18 @@ function rtdn(body) {
   return [204, null];
 }
 
+let onlineOutcome = () => null;
+let onlineStats = () => ({});
+/** Called by the game server so rewards of online matches are checked against the authoritative result. */
+function setOnlineResults(outcomeFn, stats) { onlineOutcome = outcomeFn; onlineStats = stats; }
+
 function report(body, playerId) {
   const verdict = validateMatchReport(body, (id) => !!db.matches[`${playerId}:${id}`]);
+  if (verdict.accepted && String(body.matchId).startsWith('online-')) {
+    const outcome = onlineOutcome(body.matchId, playerId);
+    if (!outcome) return [200, { accepted: false, reason: 'unknown_online_match' }];
+    if (outcome !== body.outcome) return [200, { accepted: false, reason: 'outcome_mismatch' }];
+  }
   if (verdict.accepted) { db.matches[`${playerId}:${body.matchId}`] = Date.now(); persist(); }
   return [200, verdict];
 }
@@ -104,7 +114,7 @@ const server = http.createServer(async (req, res) => {
   try { body = raw ? JSON.parse(raw) : {}; } catch { res.writeHead(400); return res.end(); }
   let out = [404, { error: 'not_found' }];
   try {
-    if (url.pathname === '/v1/health') out = [200, { ok: true }];
+    if (url.pathname === '/v1/health') out = [200, { ok: true, ...onlineStats() }];
     else if (url.pathname === '/v1/iap/verify' && req.method === 'POST') out = await verify(body);
     else if (url.pathname === '/v1/iap/revocations') out = [200, db.revoked.filter((r) => r.playerId === playerId).map(({ orderId, productId }) => ({ orderId, productId }))];
     else if (url.pathname === '/v1/rtdn' && req.method === 'POST') out = rtdn(body);
@@ -115,5 +125,5 @@ const server = http.createServer(async (req, res) => {
   res.end(out[1] === null ? '' : JSON.stringify(out[1]));
 });
 
-if (process.argv[1] && process.argv[1].endsWith('server.mjs')) server.listen(PORT, () => console.log(`RIFTBALL server on :${PORT} (package ${PKG})`));
-export { server, verify, report };
+if (process.argv[1] && process.argv[1].endsWith('server.mjs') && !process.env.RIFT_EMBEDDED) server.listen(PORT, () => console.log(`RIFTBALL server on :${PORT} (package ${PKG})`));
+export { server, verify, report, setOnlineResults };

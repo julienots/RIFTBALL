@@ -7,6 +7,7 @@ export class Connectivity {
   networkUp = true;
   serverUp = false;
   lastPingMs = -1;
+  playersOnline = 0;
   private timer: any;
 
   constructor(private bus: EventBus<AppEvents>) {}
@@ -33,6 +34,7 @@ export class Connectivity {
       clearTimeout(to);
       const was = this.serverUp;
       this.serverUp = r.ok;
+      try { const j = await r.json(); this.playersOnline = j.online ?? 0; } catch { /* ignore */ }
       this.lastPingMs = Math.round(performance.now() - t0);
       if (was !== this.serverUp) this.bus.emit('connectivity', { online: this.online });
     } catch {

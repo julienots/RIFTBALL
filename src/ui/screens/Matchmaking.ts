@@ -6,6 +6,7 @@ import { getMode } from '../../data/modes';
 import { getArena } from '../../data/arenas';
 import { getCharacter } from '../../data/characters';
 import type { Match } from '../../game/Match';
+import { BuildConfig } from '../../core/config';
 
 const LEVEL_FR = { EASY: 'FACILE', NORMAL: 'NORMAL', HARD: 'DIFFICILE', EXPERT: 'EXPERT' } as const;
 
@@ -28,7 +29,7 @@ export function runMatchmaking(c: Controller) {
       h('div.col', { style: 'gap:.1em;align-items:center;flex:1' }, status, sub),
       h('div.pill', `🤖 IA : ${LEVEL_FR[c.botLevel]}`)),
     h('div.mm-body', slotsB, center, slotsR),
-    h('div.row', { style: 'justify-content:center;padding-bottom:.8em' }, h('button.btn.red', { onclick: () => { signal.cancelled = true; audio.play('click'); c.screens.home(); } }, 'ANNULER')));
+    h('div.row', { style: 'justify-content:center;padding-bottom:.8em' }, h('button.btn.red', { onclick: () => { signal.cancelled = true; c.app.online.cancel(); audio.play('click'); c.screens.home(); } }, 'ANNULER')));
 
   const teamSize = modeId === 'RIFT_DUEL' ? 1 : mode.teamSize;
   const mkSlot = () => h('div.mm-card.empty', h('div.spinner', { style: 'width:1.8em;height:1.8em;border-width:.3em' }));
@@ -39,24 +40,68 @@ export function runMatchmaking(c: Controller) {
   const t0 = performance.now();
   const tick = setInterval(() => { const s = Math.floor((performance.now() - t0) / 1000); timer.textContent = `00:${String(s).padStart(2, '0')}`; }, 250);
 
+  const fillCard = (slot: HTMLElement, p: { heroId: string; skinId: string; name: string; team: number; me: boolean; tag: 'VOUS' | 'AMI' | 'BOT' | 'JOUEUR'; trophies: number }) => {
+    slot.className = 'mm-card ' + (p.team === 0 ? 'b' : 'r') + (p.me ? ' me' : '');
+    slot.innerHTML = '';
+    slot.append(
+      h('img', { src: c.portrait(p.heroId, p.skinId) }),
+      h('div.col', { style: 'gap:0;min-width:0' },
+        h('span.title.stroke-s', { style: 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis' }, p.name),
+        h('span.small-text', getCharacter(p.heroId).name),
+        h('div.row', { style: 'gap:.3em' }, h('span.small-text', '🏆 ' + fmt(p.trophies)),
+          p.tag === 'VOUS' ? h('span.tagx', 'VOUS') : p.tag === 'AMI' ? h('span.tagx.friend', 'AMI') : p.tag === 'JOUEUR' ? h('span.tagx.friend', '🌐 JOUEUR') : h('span.tagx.bot', '🤖 BOT'))));
+    audio.play('tab');
+  };
   const fill = (slot: HTMLElement, m: Match, heroIdx: number) => {
     const hero = m.heroes[heroIdx];
     if (!hero) return;
     const me = hero.id === m.humanId;
     const isFriend = c.party.some((p) => p.name === hero.name);
-    slot.className = 'mm-card ' + (hero.team === 0 ? 'b' : 'r') + (me ? ' me' : '');
-    slot.innerHTML = '';
-    const trophies = me ? c.data.trophies : Math.max(0, c.data.trophies + ((hero.id * 37) % 160) - 60);
-    slot.append(
-      h('img', { src: c.portrait(hero.def.id, hero.skinId) }),
-      h('div.col', { style: 'gap:0;min-width:0' },
-        h('span.title.stroke-s', { style: 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis' }, hero.name),
-        h('span.small-text', getCharacter(hero.def.id).name),
-        h('div.row', { style: 'gap:.3em' }, h('span.small-text', '🏆 ' + fmt(trophies)), me ? h('span.tagx', 'VOUS') : isFriend ? h('span.tagx.friend', 'AMI') : h('span.tagx.bot', '🤖 BOT'))));
-    audio.play('tab');
+    fillCard(slot, { heroId: hero.def.id, skinId: hero.skinId, name: hero.name, team: hero.team, me, tag: me ? 'VOUS' : isFriend ? 'AMI' : 'BOT', trophies: me ? c.data.trophies : Math.max(0, c.data.trophies + ((hero.id * 37) % 160) - 60) });
+  };
+
+  // ---------------------------------------------------------------- ONLINE: real players first, bots fill the rest
+  const tryOnline = async (): Promise<boolean> => {
+    if (!BuildConfig.serverUrl) return false;
+    status.textContent = 'CONNEXION AU SERVEUR…';
+    const ok = await c.app.online.connect({ playerId: c.data.playerId, name: c.data.profile.name, trophies: c.data.trophies });
+    if (!ok || signal.cancelled) return false;
+    status.textContent = 'RECHERCHE DE JOUEURS EN LIGNE…';
+    const client = c.app.online;
+    return new Promise<boolean>((resolve) => {
+      const off = client.on(async (msg) => {
+        if (signal.cancelled) { off(); client.cancel(); resolve(true); return; }
+        if (msg.t === 'queue') sub.textContent = `🌐 ${msg.online} joueur(s) en ligne · ${msg.humans} dans la file · bots dans ${Math.ceil(msg.waitLeft / 1000)} s si personne`;
+        if (msg.t === 'error' && msg.msg === 'disconnected') { off(); resolve(false); }
+        if (msg.t === 'error' && msg.msg !== 'disconnected') { off(); c.ui.alert('SERVEUR', msg.msg); resolve(true); c.screens.home(); }
+        if (msg.t === 'found') {
+          off();
+          clearInterval(tick);
+          const blue = msg.roster.filter((r) => r.team === 0), red = msg.roster.filter((r) => r.team === 1);
+          const humans = msg.roster.filter((r) => !r.isBot).length;
+          blue.forEach((r, k) => bSlots[k] && fillCard(bSlots[k], { ...r, me: r.heroEntityId === msg.you, tag: r.heroEntityId === msg.you ? 'VOUS' : r.isBot ? 'BOT' : 'JOUEUR', trophies: r.isBot ? Math.max(0, c.data.trophies + ((r.slot * 37) % 160) - 60) : r.trophies }));
+          if (!pve) red.forEach((r, k) => rSlots[k] && fillCard(rSlots[k], { ...r, me: false, tag: r.isBot ? 'BOT' : 'JOUEUR', trophies: r.isBot ? Math.max(0, c.data.trophies + ((r.slot * 53) % 160) - 60) : r.trophies }));
+          status.textContent = 'MATCH TROUVÉ !';
+          sub.textContent = humans > 1 ? `🌐 ${humans} joueurs réels + ${msg.roster.length - humans} bots` : '🤖 Aucun autre joueur disponible : match contre des bots';
+          const arena = getArena(msg.arenaId);
+          center.innerHTML = '';
+          center.append(h('div.mm-vs.stroke', 'VS'), h('div.mm-arena', { style: `background:linear-gradient(160deg,${arena.theme.floorA},${arena.theme.wallSide})` }, h('span.title.stroke-s', arena.name)));
+          audio.play('go');
+          await new Promise((r) => setTimeout(r, 1100));
+          if (signal.cancelled) { client.leave(); resolve(true); return; }
+          c.startMatch({ mode: msg.mode, arenaId: msg.arenaId, seed: msg.seed, matchId: msg.matchId, vsBots: humans <= 1, online: { client, roster: msg.roster, you: msg.you } });
+          resolve(true);
+        }
+      });
+      client.queue(modeId, c.heroId, c.skinId, c.trainingLevel ?? undefined);
+    });
   };
 
   (async () => {
+    if (await tryOnline()) return;
+    if (signal.cancelled) return;
+    if (BuildConfig.serverUrl) sub.textContent = 'Serveur injoignable : partie hors ligne contre des bots';
+    status.textContent = 'RECHERCHE DE JOUEURS…';
     const found = await c.app.matchmaker.join({ mode: modeId, heroId: c.heroId, trophies: c.data.trophies, partyIds: c.party.map((p) => p.name) }, (n, needed) => {
       sub.textContent = `Joueurs trouvés : ${n}/${needed} · ${c.app.net.online ? 'serveur en ligne' : 'hors ligne : complété par des bots'}`;
     }, signal);

@@ -56,7 +56,7 @@ export function homeScreen(c: Controller): Screen {
           h('div.row', { style: 'gap:.4em' }, h('div.lvl', h('span', String(d.level))), h('span.title.stroke-s', d.profile.name)),
           h('div.bar.xp', { style: 'width:8em;height:.7em' }, h('i', { style: `width:${xpPct}%` })))),
       h('button.pill', { onclick: () => { audio.play('click'); trophyRoad(c); } }, h('span.cur.trophy', '🏆'), fmt(d.trophies)),
-      !c.app.net.online ? h('span.offline-pill', c.app.net.hasServer ? '● Hors ligne' : '● Mode local (IA)') : null,
+      c.app.net.online ? h('span.offline-pill', { style: 'background:rgba(61,220,132,.8)' }, `🌐 En ligne${c.app.net.playersOnline ? ' · ' + c.app.net.playersOnline + ' joueurs' : ''}`) : h('span.offline-pill', c.app.net.hasServer ? '● Serveur injoignable (bots)' : '● Hors ligne (bots)'),
       h('div.grow'),
       cur,
       h('button.btn.small.dark', { style: 'position:relative', onclick: () => { audio.play('click'); inboxModal(c, render); } }, '🔔', unread ? h('div.badge', { style: 'position:absolute;top:-.6em;right:-.6em' }, String(unread)) : null));

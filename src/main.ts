@@ -91,7 +91,7 @@ async function boot() {
       CapApp.addListener('appStateChange', ({ isActive }) => { if (!isActive) app.save.flush(); else app.iap.processOutstanding().catch(() => {}); });
     }
   } catch { /* web */ }
-  (window as any).__rift = { app, c };
+  (window as any).__rift = { app, c, config: BuildConfig };
 }
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));

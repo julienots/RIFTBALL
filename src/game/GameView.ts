@@ -13,6 +13,9 @@ import type { MatchReport } from '../networking/Authority';
 import { getArena } from '../data/arenas';
 import { haptic } from '../core/Haptics';
 import { h } from '../ui/dom';
+import type { OnlineClient } from '../networking/OnlineClient';
+import { applySnapshot, MirrorState, type RosterSlot, type ServerMsg, type Snapshot } from '../networking/Protocol';
+import type { PlayerSlot } from './Match';
 
 export interface SessionConfig {
   mode: ModeId;
@@ -29,6 +32,8 @@ export interface SessionConfig {
   training?: boolean;
   /** custom match factory (tutorial) */
   build?: () => Match;
+  /** online match: the server simulates, this client mirrors snapshots */
+  online?: { client: OnlineClient; roster: RosterSlot[]; you: number };
 }
 
 export interface SessionEnd { match: Match; report: MatchReport; forfeit: boolean }
@@ -51,7 +56,7 @@ export class GameSession {
 
   constructor(private app: App, private r: WorldRenderer, private ui: UIManager, readonly cfg: SessionConfig, portrait: string) {
     const d = app.data;
-    this.match = cfg.build ? cfg.build() : createMatch({
+    this.match = cfg.online ? GameSession.mirrorMatch(cfg) : cfg.build ? cfg.build() : createMatch({
       mode: cfg.mode, arenaId: cfg.arenaId, seed: cfg.seed,
       player: { heroId: cfg.heroId, name: d.profile.name, skinId: cfg.skinId },
       botLevel: cfg.botLevel, allyLevel: cfg.allyLevel, modifiers: app.events.modifiers(), friends: cfg.friends ? [...cfg.friends] : undefined,
@@ -70,11 +75,101 @@ export class GameSession {
       return { x: dx / dd, y: dy / dd, dist: dd };
     };
     this.hud.onPause = () => this.openPause();
-    this.hud.onEmote = (glyph) => this.match.emit({ t: 'emote', hero: this.match.humanId, emote: glyph });
+    this.hud.onEmote = (glyph) => { if (cfg.online) cfg.online.client.send({ t: 'emote', e: glyph }); else this.match.emit({ t: 'emote', hero: this.match.humanId, emote: glyph }); };
+    if (cfg.online) this.offNet = cfg.online.client.on((msg) => this.onNet(msg));
     this.input.onEmote = () => this.match.emit({ t: 'emote', hero: this.match.humanId, emote: '🤝' });
     const music = getArena(cfg.arenaId).music as MusicTrack;
     audio.playMusic(music);
     app.analytics.track('match_start', { mode: cfg.mode, arena: cfg.arenaId, hero: cfg.heroId });
+  }
+
+  // ------------------------------------------------------------------ online
+  private offNet: (() => void) | null = null;
+  private mirror = new MirrorState();
+  private seq = 0;
+  private sendT = 0;
+  private lastSent = { mx: 9, my: 9 };
+  private history: { seq: number; x: number; y: number }[] = [];
+  private snaps: Snapshot[] = [];
+  disconnected = false;
+
+  static mirrorMatch(cfg: SessionConfig): Match {
+    const o = cfg.online!;
+    const players: PlayerSlot[] = o.roster.slice().sort((a, b) => a.heroEntityId - b.heroEntityId)
+      .map((r) => ({ heroId: r.heroId, name: r.name, team: r.team, isBot: false, skinId: r.skinId, human: r.heroEntityId === o.you }));
+    const m = new Match({ mode: cfg.mode, arenaId: cfg.arenaId, seed: cfg.seed, players });
+    m.brains.clear();
+    m.humanId = o.you;
+    return m;
+  }
+
+  private onNet(msg: ServerMsg) {
+    if (msg.t === 'snap') this.snaps.push(msg.s);
+    else if (msg.t === 'end') {
+      const m = this.match;
+      const me = m.human;
+      if (me && msg.stats[me.id]) me.stats = msg.stats[me.id];
+      for (const hh of m.heroes) if (msg.stats[hh.id]) hh.stats = msg.stats[hh.id];
+      m.result = msg.result; m.score = [msg.result.score[0], msg.result.score[1]]; m.phase = 'ended';
+    } else if (msg.t === 'error' && msg.msg === 'disconnected' && !this.ended && this.match.phase !== 'ended') {
+      this.disconnected = true;
+      this.hud.showAnnounce('CONNEXION PERDUE', 'Un bot a pris le relais de votre héros', '#ff6b7a', 2500);
+      setTimeout(() => this.forfeit(), 2500);
+    }
+  }
+
+  private updateOnline(dt: number) {
+    const m = this.match, o = this.cfg.online!, me = m.human;
+    // 1) inputs -> server (movement 30 Hz, actions immediately)
+    if (me) {
+      this.input.apply(me.cmd, { attack: me.def.attack.range, ability: Math.max(me.def.ability.range, 300), ult: Math.max(me.def.ultimate.range, 300) });
+      const c = me.cmd;
+      for (const slot of ['attack', 'ability', 'ult'] as const) if (c[slot]) { o.client.send({ t: 'act', s: this.seq, slot, ax: c.aimX, ay: c.aimY, ad: c.aimDist }); c[slot] = false; if (slot === 'attack') me.anim.attackT = 0.22; }
+      c.aimX = c.aimY = c.aimDist = 0;
+      this.sendT -= dt;
+      if (this.sendT <= 0 || Math.abs(c.mx - this.lastSent.mx) > 0.2 || Math.abs(c.my - this.lastSent.my) > 0.2) {
+        this.sendT = 1 / 30;
+        this.seq++;
+        o.client.send({ t: 'in', s: this.seq, mx: Math.round(c.mx * 100) / 100, my: Math.round(c.my * 100) / 100 });
+        this.lastSent = { mx: c.mx, my: c.my };
+        this.history.push({ seq: this.seq, x: me.x, y: me.y });
+        if (this.history.length > 120) this.history.shift();
+      }
+      // 2) client-side prediction of our own movement
+      const canMove = me.alive && !me.leap && !me.dash && me.stunUntil <= m.time && (m.phase === 'play' || m.phase === 'overtime');
+      if (canMove) {
+        let speed = me.def.speed * (me.carrying && me.def.passive.id !== 'porter' ? 0.85 : 1);
+        if (me.speedBuffUntil > m.time) speed *= 1 + me.speedBuff;
+        const l = Math.hypot(c.mx, c.my) || 1, k = Math.min(1, l);
+        me.x += (c.mx / l) * k * speed * dt; me.y += (c.my / l) * k * speed * dt;
+        if (l > 0.1 && k > 0.1) { me.facing = Math.atan2(c.my, c.mx); me.anim.walk += dt * speed * 0.03; }
+        m.collideWalls(me, me.phaseUntil > m.time);
+      }
+    }
+    // 3) apply server snapshots (+ reconciliation)
+    for (const s of this.snaps) {
+      const predicting = !!me && me.alive && !me.leap && !me.dash;
+      applySnapshot(m, s, this.mirror, predicting ? m.humanId : -1);
+      for (const e of s.ev) this.handleEvent(e);
+      if (me && predicting) {
+        const row = s.h.find((r) => r[0] === me.id);
+        if (row) {
+          const sx = row[5] as number, sy = row[6] as number;
+          const hist = this.history.find((hh) => hh.seq === s.ack);
+          this.history = this.history.filter((hh) => hh.seq > s.ack);
+          const bx = hist ? hist.x : me.x, by = hist ? hist.y : me.y;
+          const ex = sx - bx, ey = sy - by, err = Math.hypot(ex, ey);
+          if (err > 160) { me.x = sx; me.y = sy; this.history = []; }
+          else if (err > 2) { me.x += ex * 0.35; me.y += ey * 0.35; for (const hh of this.history) { hh.x += ex * 0.35; hh.y += ey * 0.35; } }
+        }
+      }
+    }
+    this.snaps.length = 0;
+    // 4) dead-reckoning between snapshots for smooth remote motion
+    for (const hh of m.heroes) if (hh !== me && hh.alive && !hh.leap) { hh.x += hh.vx * dt; hh.y += hh.vy * dt; }
+    for (const r of m.rifts) if (r.carrier < 0 && r.state !== 'PORTAL' && r.state !== 'IDLE') { r.x += r.vx * dt; r.y += r.vy * dt; }
+    for (const p of m.projectiles) if (p.active) { if (p.kind === 'lob' || p.kind === 'shell') { p.t = Math.min(p.dur, p.t + dt); const k = p.t / p.dur; p.x = p.sx + (p.tx - p.sx) * k; p.y = p.sy + (p.ty - p.sy) * k; } else { p.x += p.vx * dt; p.y += p.vy * dt; } }
+    for (const hh of m.heroes) { hh.anim.attackT = Math.max(0, hh.anim.attackT - dt); hh.anim.castT = Math.max(0, hh.anim.castT - dt); hh.anim.hitT = Math.max(0, hh.anim.hitT - dt); }
   }
 
   private openPause() {
@@ -94,6 +189,7 @@ export class GameSession {
 
   forfeit() {
     if (this.ended) return;
+    if (this.cfg.online) this.cfg.online.client.leave();
     const me = this.match.human;
     this.match.finish(me ? (me.team === 0 ? 1 : 0) : -1);
     this.finish(true);
@@ -101,7 +197,8 @@ export class GameSession {
 
   update(dt: number) {
     const m = this.match;
-    if (!this.paused && m.phase !== 'ended') {
+    if (this.cfg.online) { if (m.phase !== 'ended') this.updateOnline(dt); }
+    else if (!this.paused && m.phase !== 'ended') {
       const me = m.human;
       if (me) this.input.apply(me.cmd, { attack: me.def.attack.range, ability: Math.max(me.def.ability.range, 300), ult: Math.max(me.def.ultimate.range, 300) });
       this.acc += Math.min(dt, 0.1);
@@ -224,6 +321,7 @@ export class GameSession {
   }
 
   dispose() {
+    this.offNet?.();
     this.input.dispose();
     this.hud.dispose();
     this.r.setAim(false);

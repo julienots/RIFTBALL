@@ -5,9 +5,11 @@ const config: CapacitorConfig = {
   appName: 'RIFTBALL',
   webDir: 'dist',
   backgroundColor: '#000000',
+  server: { androidScheme: 'https', cleartext: true },
   android: {
     backgroundColor: '#000000',
-    allowMixedContent: false,
+    // allows ws:// / http:// game servers on a local network for testing (production should use wss://)
+    allowMixedContent: true,
     webContentsDebuggingEnabled: false,
   },
 };

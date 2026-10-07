@@ -61,9 +61,32 @@ Flux : achat → confirmation Google Play → **validation serveur** → attribu
 
 En mode développement (`npm run dev`), une boutique simulée permet de tester tous les cas sans paiement.
 
+## Jeu en ligne
+
+```
+JOUEUR → FILE D'ATTENTE (par mode) → MATCHMAKING (vrais joueurs pendant 8 s max, niveau proche) → BOTS pour compléter → MATCH
+```
+
+- Serveur **autoritaire** (`server/src/GameServer.ts`, WebSocket `/v1/play`) : il fait tourner la même simulation déterministe que le jeu à 60 Hz et envoie l'état 20 fois/s. Le client envoie seulement ses commandes ; son propre héros est prédit localement puis réconcilié.
+- **Pas d'autres joueurs → bots** : après `QUEUE_WAIT_MS` (8 s par défaut), les places libres sont remplies par des bots (niveau selon les trophées). Un joueur qui se déconnecte est remplacé par un bot (et peut revenir dans son match) ; quitter un match classé compte comme une défaite.
+- Les récompenses d'un match en ligne ne sont accordées que si le **résultat officiel du serveur** correspond.
+- Sans serveur ou sans réseau, le jeu bascule automatiquement sur des matchs locaux contre des bots.
+
+### Mettre le serveur en ligne
+
+```bash
+npm run server:start                      # local : http://localhost:8787 (WebSocket ws://localhost:8787/v1/play)
+docker build -t riftball-server . && docker run -p 8787:8787 riftball-server
+```
+- **Render** (gratuit, WebSocket OK) : *New + → Blueprint* → choisir ce dépôt (`render.yaml`).
+- **Fly.io** : `fly launch --copy-config && fly deploy` (`fly.toml`).
+
+Puis dans le jeu : **Options → Jeu en ligne → Serveur**, coller l'adresse (ex. `https://riftball-server.onrender.com`), ou la figer dans l'APK : `VITE_SERVER_URL=https://… npm run android:release`.
+Test multi-joueur local : `npm run server:start` puis `npm run dev:online` dans deux onglets.
+
 ## Ce qui est simulé hors ligne
 
-Matchmaking (rempli de bots), classements, amis, crews et chat sont **simulés localement** derrière des interfaces prêtes pour le serveur (`networking/`, `leaderboard/`, `friends/`, `clans/`). Le jeu complet fonctionne sans connexion.
+Hors ligne, le matchmaking est rempli de bots. Classements, amis, crews et chat sont encore **simulés localement** derrière des interfaces prêtes pour le serveur (`networking/`, `leaderboard/`, `friends/`, `clans/`). Le jeu complet fonctionne sans connexion.
 
 ## Android
 

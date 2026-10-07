@@ -57,6 +57,20 @@ export function validateMatchReport(r: MatchReport, alreadyProcessed: (id: strin
   return { accepted: true };
 }
 
+/** Uses the remote server when one is configured (can change at runtime from the settings), else local rules. */
+export class AutoAuthority implements Authority {
+  private local = new LocalAuthority();
+  constructor(private token: () => string) {}
+  get kind() { return BuildConfig.serverUrl ? 'remote' as const : 'local' as const; }
+  private get impl(): Authority { return BuildConfig.serverUrl ? new RemoteAuthority(BuildConfig.serverUrl, this.token) : this.local; }
+  validateMatch(r: MatchReport, p: (id: string) => boolean) {
+    // offline matches are validated locally even when a server exists; online ones only by the server
+    if (BuildConfig.serverUrl && r.matchId.startsWith('online-')) return this.impl.validateMatch(r, p).catch(() => ({ accepted: false, reason: 'server_unreachable' }));
+    return this.local.validateMatch(r, p);
+  }
+  fetchRevocations() { return BuildConfig.serverUrl ? this.impl.fetchRevocations().catch(() => []) : Promise.resolve([]); }
+}
+
 export class RemoteAuthority implements Authority {
   readonly kind = 'remote' as const;
   constructor(private base = BuildConfig.serverUrl, private token: () => string = () => '') {}

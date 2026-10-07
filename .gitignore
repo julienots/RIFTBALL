@@ -17,3 +17,4 @@ android/app/src/main/assets/public/
 android/capacitor-cordova-android-plugins/build/
 server/data/
 server/service-account*.json
+server/dist/

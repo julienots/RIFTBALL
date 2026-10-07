@@ -4,11 +4,12 @@ const env = (typeof import.meta !== 'undefined' && (import.meta as any).env) || 
 export const BuildConfig = {
   appName: 'RIFTBALL',
   studio: 'SuperEssence',
-  version: '1.0.1',
+  version: '1.0.2',
   /** Dev builds expose the debug menu and the mock billing store. */
   isDev: !!env.DEV,
-  /** Base URL of the authoritative game server. Empty = offline/local authority. */
+  /** Base URL of the authoritative game server (online play). Empty = offline, bots only. Overridable in settings. */
   serverUrl: (env.VITE_SERVER_URL as string) || '',
+  defaultServerUrl: (env.VITE_SERVER_URL as string) || '',
   /** Allow the mock store (simulated purchases) — only in dev builds or when explicitly enabled. */
   allowMockStore: !!env.DEV || env.VITE_MOCK_STORE === '1',
   saveKey: 'riftball.save',

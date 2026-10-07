@@ -15,7 +15,8 @@ import { MockBillingProvider, NativeBillingProvider, type BillingProvider } from
 import { DevReceiptValidator, RemoteReceiptValidator, type ReceiptValidator } from '../iap/ReceiptValidator';
 import { Analytics } from '../analytics/Analytics';
 import { Connectivity } from '../networking/Connectivity';
-import { LocalAuthority, RemoteAuthority, type Authority } from '../networking/Authority';
+import { AutoAuthority, type Authority } from '../networking/Authority';
+import { OnlineClient } from '../networking/OnlineClient';
 import { CollectionService } from '../collection/CollectionService';
 import { CosmeticsService } from '../cosmetics/CosmeticsService';
 import { ProfileService } from '../profile/ProfileService';
@@ -58,14 +59,16 @@ export class App {
   readonly crew: CrewService;
   readonly matchmaker: Matchmaker;
   readonly billing: BillingProvider;
+  readonly online = new OnlineClient();
 
   constructor(o: AppOptions) {
     this.save = new SaveSystem(o.kv, BuildConfig.saveKey);
+    if (this.save.data.settings.serverUrl) BuildConfig.serverUrl = this.save.data.settings.serverUrl;
     this.notes = new NotificationCenter(this.save, this.bus);
     this.inventory = new Inventory(this.save, this.bus, this.notes);
     this.events = new EventService();
     this.net = new Connectivity(this.bus);
-    this.authority = o.authority ?? (BuildConfig.serverUrl ? new RemoteAuthority(BuildConfig.serverUrl, () => this.save.data.playerId) : new LocalAuthority());
+    this.authority = o.authority ?? new AutoAuthority(() => this.save.data.playerId);
     this.analytics = new Analytics(o.kv, () => this.save.data.playerId);
     this.pass = new BattlePassService(this.save, this.inventory, this.bus, this.notes);
     this.missions = new MissionService(this.save, this.inventory, this.bus, this.notes, this.events);
@@ -73,7 +76,7 @@ export class App {
     this.shop = new ShopService(this.save, this.inventory, this.events, this.notes, this.bus, () => this.save.data.level);
     const prices = Object.fromEntries(PRODUCTS.map((p) => [p.id, p.fallbackPrice]));
     this.billing = o.billing ?? (NativeBillingProvider.isAvailable() ? new NativeBillingProvider() : new MockBillingProvider(prices));
-    const validator = o.validator ?? (this.billing.name === 'mock' ? new DevReceiptValidator() : new RemoteReceiptValidator(BuildConfig.serverUrl, () => this.save.data.playerId));
+    const validator = o.validator ?? (this.billing.name === 'mock' ? new DevReceiptValidator() : new RemoteReceiptValidator(undefined, () => this.save.data.playerId));
     this.iap = new IapService(this.billing, validator, this.inventory, this.save, this.shop, this.notes, this.analytics, this.net, this.authority, o.requireNetworkForIap ?? true);
     this.collection = new CollectionService(this.save);
     this.cosmetics = new CosmeticsService(this.save);

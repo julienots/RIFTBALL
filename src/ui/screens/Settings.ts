@@ -9,6 +9,19 @@ import { BuildConfig } from '../../core/config';
 export function settingsScreen(c: Controller): Screen {
   const body = h('div.scroll', { style: 'flex:1;min-height:0;padding:0 .9em .9em' });
   const { el, off } = shell(c, 'OPTIONS', body, { currencies: false });
+  const serverField = () => {
+    const input = h('input.text-input', { value: c.data.settings.serverUrl || BuildConfig.serverUrl, placeholder: 'https://…', style: 'width:16em', inputMode: 'url' }) as HTMLInputElement;
+    const test = h('button.btn.tiny.green', { onclick: async () => {
+      const v = input.value.trim().replace(/\/$/, '');
+      if (v && !/^https?:\/\//.test(v)) { c.ui.toast('⚠', 'Adresse invalide', 'Elle doit commencer par http:// ou https://'); return; }
+      c.data.settings.serverUrl = v; BuildConfig.serverUrl = v || BuildConfig.defaultServerUrl; c.app.save.save();
+      c.app.online.close();
+      await c.app.net.ping();
+      c.ui.toast(c.app.net.online ? '🟢' : '🔴', c.app.net.online ? 'Serveur connecté !' : 'Serveur injoignable', c.app.net.online ? 'Le matchmaking en ligne est actif.' : 'Les matchs se joueront contre des bots.');
+      render();
+    } }, 'OK');
+    return h('div.row', { style: 'gap:.4em' }, input, test);
+  };
   const render = () => {
     body.innerHTML = '';
     const s = c.data.settings;
@@ -27,7 +40,9 @@ export function settingsScreen(c: Controller): Screen {
       row('Vibrations', toggle(s.haptics, (v) => (s.haptics = v))),
       h('div.title', { style: 'margin:.5em 0 .3em' }, '🛒 ACHATS & COMPTE'),
       row('Restaurer les achats', h('button.btn.tiny.purple', { onclick: async () => { const r = await c.app.iap.restore(); c.ui.alert('RESTAURATION', r.message); } }, 'RESTAURER'), 'Récupère les achats Google Play liés à ce compte'),
-      row('Connexion', h('span.small-text', c.app.net.online ? '🟢 En ligne' : c.app.net.networkUp ? '🟡 Serveur non configuré — mode local' : '🔴 Hors ligne')),
+      h('div.title', { style: 'margin:.5em 0 .3em' }, '🌐 JEU EN LIGNE'),
+      row('Serveur', serverField(), 'Adresse du serveur RIFTBALL (ex : https://riftball.onrender.com). Vide = matchs contre bots uniquement.'),
+      row('Connexion', h('span.small-text', c.app.net.online ? `🟢 En ligne${c.app.net.lastPingMs >= 0 ? ` · ${c.app.net.lastPingMs} ms` : ''}` : BuildConfig.serverUrl ? '🔴 Serveur injoignable — matchs contre bots' : '🟡 Aucun serveur — matchs contre bots')),
       row('Sauvegarde', h('span.small-text', `v${c.data.version} · ${new Date(c.data.updatedAt).toLocaleString('fr-FR')}`), 'Synchronisation cloud : disponible avec un compte (bientôt)'),
       row('Rejouer le tutoriel', h('button.btn.tiny.green', { onclick: () => c.screens.tutorial() }, 'TUTORIEL')),
       row('Réinitialiser la progression', h('button.btn.tiny.red', { onclick: async () => {

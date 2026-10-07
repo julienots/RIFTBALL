@@ -26,6 +26,8 @@ export interface GameSettings {
   language: 'fr' | 'en';
   leftHanded: boolean;
   botDifficulty: 'EASY' | 'NORMAL' | 'HARD' | 'EXPERT';
+  /** custom online server (empty = build default) */
+  serverUrl: string;
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -37,4 +39,5 @@ export const DEFAULT_SETTINGS: GameSettings = {
   language: 'fr',
   leftHanded: false,
   botDifficulty: 'NORMAL',
+  serverUrl: '',
 };

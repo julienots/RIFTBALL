@@ -1,0 +1,12 @@
+# One-click deploy on Render (https://render.com): New + > Blueprint > select this repository.
+services:
+  - type: web
+    name: riftball-server
+    runtime: docker
+    plan: free
+    healthCheckPath: /v1/health
+    envVars:
+      - key: QUEUE_WAIT_MS
+        value: "8000"
+      - key: PACKAGE_NAME
+        value: com.superessence.riftball

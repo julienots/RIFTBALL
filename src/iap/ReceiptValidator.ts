@@ -16,7 +16,8 @@ export interface ReceiptValidator { validate(p: StorePurchase): Promise<Validati
  * (purchases.products.get) and records it, then returns which items to grant. See /server.
  */
 export class RemoteReceiptValidator implements ReceiptValidator {
-  constructor(private base = BuildConfig.serverUrl, private playerId: () => string) {}
+  constructor(private baseOverride: string | undefined, private playerId: () => string) {}
+  private get base() { return this.baseOverride || BuildConfig.serverUrl; }
   async validate(p: StorePurchase): Promise<ValidationResult> {
     if (!this.base) return { valid: false, transient: true, reason: 'no_server' };
     try {
