@@ -1,0 +1,334 @@
+import { h } from './dom';
+import type { Match } from '../game/Match';
+import type { Hero, MatchEvent } from '../game/entities';
+import type { WorldRenderer } from '../game/render/WorldRenderer';
+import { formatClock } from '../core/Time';
+import { getMutation } from '../data/mutations';
+import { getCosmetic } from '../data/cosmetics';
+
+const RIFT_STATE_FR: Record<string, string> = {
+  IDLE: 'EN ATTENTE', ROAM: 'ERRANT', FLEE: 'EN FUITE', CHASE: 'CURIEUX', ATTRACTED: 'ATTIRÉ', CARRIED: 'CAPTURÉ', DROPPED: 'LIBRE',
+  FRENZY: 'FRÉNÉSIE', MUTATING: 'MUTATION...', CLONING: 'DIVISION', PORTAL: 'PORTAIL',
+};
+
+interface HpEl { root: HTMLElement; fill: HTMLElement; shield: HTMLElement; num: HTMLElement | null; carry: HTMLElement; lastHp: number; lastCarry: boolean }
+
+/** In-match DOM HUD: scoreboard, timer, Rift status, health bars, damage numbers, buttons, minimap. */
+export class HUD {
+  readonly el: HTMLElement;
+  readonly ctrl: HTMLElement;
+  readonly joyBase: HTMLElement;
+  readonly joyKnob: HTMLElement;
+  readonly btn: { attack: HTMLElement; ability: HTMLElement; ult: HTMLElement };
+  private scoreB: HTMLElement; private scoreR: HTMLElement; private clock: HTMLElement; private riftPill: HTMLElement;
+  private announce: HTMLElement; private mutBanner: HTMLElement | null = null; private killfeed: HTMLElement;
+  private hpEls = new Map<number, HpEl>();
+  private hpLayer: HTMLElement;
+  private dmgPool: HTMLElement[] = [];
+  private dmgActive: { el: HTMLElement; t: number; x: number; y: number; vy: number }[] = [];
+  private offscreen: HTMLElement;
+  private meHp: HTMLElement; private meUlt: HTMLElement; private meHpTxt: HTMLElement;
+  private abCd: HTMLElement; private abCdN: HTMLElement; private ultRing: HTMLElement;
+  private vignette: HTMLElement; private flash: HTMLElement;
+  private respawnEl: HTMLElement;
+  private minimap: HTMLCanvasElement; private mmCtx: CanvasRenderingContext2D; private mmT = 0;
+  private emoteWheel: HTMLElement | null = null;
+  private tmp = { x: 0, y: 0, visible: true };
+  private lastScore = [0, 0];
+  private hurtT = 0;
+  onPause: () => void = () => {};
+  onEmote: (glyph: string) => void = () => {};
+
+  constructor(private m: Match, private r: WorldRenderer, private portrait: string, private emotes: string[], private teamNames: [string, string] = ['BLUE', 'RED']) {
+    this.scoreB = h('span.n', '0'); this.scoreR = h('span.n', '0');
+    this.clock = h('div.clock', formatClock(m.clock));
+    this.riftPill = h('div.rift-pill', h('i.ro'), h('span', 'RIFT'));
+    this.announce = h('div.hud-announce');
+    this.killfeed = h('div.killfeed');
+    this.hpLayer = h('div', { style: 'position:absolute;inset:0;pointer-events:none' });
+    this.offscreen = h('div.offscreen', { style: 'display:none' });
+    this.meHp = h('i', { style: 'width:100%' }); this.meUlt = h('i', { style: 'width:0%' }); this.meHpTxt = h('span', '');
+    this.abCd = h('div.cd'); this.abCdN = h('div.cdn');
+    this.ultRing = h('div.ring');
+    this.vignette = h('div.vignette.hurt'); this.flash = h('div.vignette.flash');
+    this.respawnEl = h('div.respawn.stroke', { style: 'display:none' });
+    this.minimap = h('canvas.minimap') as HTMLCanvasElement;
+    const mmW = 132, mmH = Math.round((mmW * m.arena.h) / m.arena.w);
+    this.minimap.width = mmW * 2; this.minimap.height = mmH * 2;
+    this.minimap.style.width = mmW + 'px'; this.minimap.style.height = mmH + 'px';
+    this.mmCtx = this.minimap.getContext('2d')!;
+    this.joyKnob = h('div.joy-knob');
+    this.joyBase = h('div.joy-base.hint', this.joyKnob);
+    this.btn = {
+      attack: h('div.hud-btn.attack', { 'data-slot': 'attack' }, h('span.ic', '🎯'), h('div.aim-knob', { style: 'display:none' }), h('span.lbl', 'ATTAQUE')),
+      ability: h('div.hud-btn.ability', { 'data-slot': 'ability' }, h('span.ic', '⚡'), this.abCd, this.abCdN, h('span.lbl', 'CAPACITÉ')),
+      ult: h('div.hud-btn.ult', { 'data-slot': 'ult' }, this.ultRing, h('span.ic', '★'), h('span.lbl', 'ULTIME')),
+    };
+    const me = m.human;
+    const mode = m.mode;
+    this.ctrl = h('div.hud-ctrl', this.joyBase, h('div.hud-btns', this.btn.attack, this.btn.ability, this.btn.ult));
+    this.el = h('div#hud',
+      this.hpLayer, this.vignette, this.flash, this.ctrl,
+      h('div.hud-top',
+        h('div.scoreboard',
+          h('div.team.b', h('span.stroke-s', teamNames[0]), this.scoreB),
+          this.clock,
+          h('div.team.r', this.scoreR, h('span.stroke-s', mode.id === 'RIFT_BOSS' ? 'BOSS' : mode.id === 'SURVIVAL' ? 'VAGUES' : teamNames[1]))),
+        this.riftPill),
+      this.minimap, this.killfeed, this.announce, this.offscreen, this.respawnEl,
+      h('div.hud-me', h('div.portrait', h('img', { src: portrait })),
+        h('div.bars', h('div.bar.hp', this.meHp, this.meHpTxt), h('div.bar.ult', this.meUlt))),
+      h('div.hud-ui',
+        h('button.btn.small.dark.hud-btn-ui', { onclick: () => this.onPause() }, '⏸'),
+        h('button.btn.small.dark.hud-btn-ui', { onclick: () => this.toggleEmotes() }, '😀')),
+    );
+    this.el.id = 'hud';
+    if (me) this.meHpTxt.textContent = String(Math.ceil(me.hp));
+    for (let i = 0; i < 24; i++) { const d = h('div.dmg', { style: 'display:none' }); this.dmgPool.push(d); this.el.appendChild(d); }
+    setTimeout(() => this.joyBase.classList.remove('hint'), 4000);
+  }
+
+  private toggleEmotes() {
+    if (this.emoteWheel) { this.emoteWheel.remove(); this.emoteWheel = null; return; }
+    this.emoteWheel = h('div.emote-wheel.panel', this.emotes.map((id) => {
+      const c = getCosmetic(id);
+      return h('button.hud-btn-ui', { onclick: () => { this.onEmote(c?.visual.glyph ?? '🙂'); this.toggleEmotes(); } }, c?.visual.glyph ?? '🙂');
+    }));
+    this.el.appendChild(this.emoteWheel);
+  }
+
+  showAnnounce(big: string, sub = '', color = '#fff', ms = 1600) {
+    this.announce.innerHTML = '';
+    this.announce.appendChild(h('div.big.stroke', { style: `color:${color}` }, big));
+    if (sub) this.announce.appendChild(h('div.sub.stroke-s', sub));
+    const el = this.announce.firstElementChild;
+    clearTimeout((this as any)._annT);
+    (this as any)._annT = setTimeout(() => { if (this.announce.firstElementChild === el) this.announce.innerHTML = ''; }, ms);
+  }
+
+  screenFlash(color: string) {
+    this.flash.style.setProperty('--fc', color);
+    this.flash.style.opacity = '1';
+    setTimeout(() => (this.flash.style.opacity = '0'), 220);
+  }
+
+  onEvent(e: MatchEvent) {
+    const m = this.m;
+    switch (e.t) {
+      case 'hit': case 'heal': {
+        const t = m.heroById(e.target);
+        if (!t || !m.isVisibleTo(t, m.human?.team ?? 0)) break;
+        if (e.t === 'hit' && e.source !== m.humanId && e.target !== m.humanId && Math.random() < 0.5) break; // declutter
+        this.damageNumber(t, e.amount, e.t === 'heal' ? 'heal' : e.target === m.humanId ? 'me' : '');
+        if (e.t === 'hit' && e.target === m.humanId) { this.hurtT = 0.4; }
+        break;
+      }
+      case 'kill': {
+        const k = m.heroById(e.killer), v = m.heroById(e.victim);
+        if (!v || (v.pve && v.def.id === 'minion' && !(k && k.id === m.humanId))) break;
+        const row = h('div.kf', k ? h('span', { class: k.team === 0 ? 'b' : 'r' }, k.name) : h('span', '☠'), h('span', '⚔'), h('span', { class: v.team === 0 ? 'b' : 'r' }, v.name));
+        this.killfeed.prepend(row);
+        while (this.killfeed.children.length > 4) this.killfeed.lastElementChild?.remove();
+        setTimeout(() => row.remove(), 4500);
+        if (e.killer === m.humanId && !v.pve) this.showAnnounce('ÉLIMINATION !', '', '#ffe14d', 900);
+        break;
+      }
+      case 'countdown': this.showAnnounce(String(e.n), '', '#fff', 900); break;
+      case 'kickoff': this.showAnnounce(m.overtime ? 'SUDDEN DEATH' : 'GO !', m.overtime ? 'Le prochain point gagne !' : '', m.overtime ? '#ff6b7a' : '#ffe14d', 1100); break;
+      case 'goal': {
+        if (m.mode.id === 'RIFT_BOSS') { this.showAnnounce('IMPACT !', 'Le Colosse vacille !', '#ffe14d', 1400); break; }
+        if (m.mode.id === 'SURVIVAL') { this.showAnnounce('NOVA !', 'Équipe soignée, créatures repoussées', '#5cff9d', 1400); break; }
+        const mine = e.team === (m.human?.team ?? 0);
+        const scorer = m.heroById(e.scorer);
+        this.showAnnounce(mine ? 'BUT !' : 'BUT ADVERSE', scorer ? `${scorer.name} marque !` : '', mine ? '#ffe14d' : '#ff6b7a', 2200);
+        this.screenFlash(mine ? 'rgba(47,155,255,0.55)' : 'rgba(255,59,78,0.55)');
+        break;
+      }
+      case 'sudden_death': this.showAnnounce('SUDDEN DEATH', 'Égalité ! Le prochain point gagne.', '#ff6b7a', 2500); break;
+      case 'mutation_warn': {
+        const mu = getMutation(e.mutation);
+        this.showAnnounce('⚠ RIFT MUTATION', mu.name, mu.color, 1800);
+        this.screenFlash('rgba(255,61,245,0.45)');
+        break;
+      }
+      case 'mutation_start': {
+        const mu = getMutation(e.mutation);
+        this.showAnnounce(mu.name, mu.tagline, mu.color, 1800);
+        this.screenFlash(mu.color + '99');
+        this.mutBanner?.remove();
+        this.mutBanner = h('div.mut-banner', { style: `--mc:${mu.color}` }, h('div.mb-t.stroke-s', '⚠ ' + mu.name), h('div.small-text', mu.tagline), h('div.bar', h('i', { style: 'width:100%;background:#fff' })));
+        this.el.appendChild(this.mutBanner);
+        break;
+      }
+      case 'mutation_end': this.mutBanner?.remove(); this.mutBanner = null; break;
+      case 'wave': this.showAnnounce(`VAGUE ${e.n}`, 'Les créatures du Rift arrivent !', '#5cff9d', 2000); break;
+      case 'capture': {
+        const c = m.heroById(e.hero);
+        if (c && e.hero === m.humanId) this.showAnnounce('RIFT CAPTURÉ !', 'Fonce vers le portail ennemi !', '#e0aaff', 1200);
+        else if (c && e.interception && c.team === m.human?.team) this.showAnnounce('INTERCEPTION !', '', '#7cc4ff', 900);
+        break;
+      }
+      case 'emote': {
+        const hero = m.heroById(e.hero);
+        if (!hero) break;
+        const b = h('div.emote-bubble', e.emote);
+        this.el.appendChild(b);
+        const t0 = performance.now();
+        const follow = () => {
+          if (!b.isConnected) return;
+          const p = this.r.toScreen(this.r.heroRenderPos(hero).x, this.r.heroRenderPos(hero).y, this.r.heroScreenHeight(hero) + 0.6, this.tmp);
+          b.style.transform = `translate(${p.x - 20}px, ${p.y - 60}px)`;
+          if (performance.now() - t0 < 1800) requestAnimationFrame(follow); else b.remove();
+        };
+        follow();
+        break;
+      }
+    }
+  }
+
+  private damageNumber(t: Hero, amount: number, cls: string) {
+    const el = this.dmgPool.pop();
+    if (!el) return;
+    el.className = 'dmg ' + cls;
+    el.textContent = (cls === 'heal' ? '+' : '') + amount;
+    el.style.display = '';
+    const p = this.r.toScreen(t.x, t.y, this.r.heroScreenHeight(t), this.tmp);
+    this.dmgActive.push({ el, t: 0, x: p.x + (Math.random() - 0.5) * 40, y: p.y - 10, vy: -90 });
+  }
+
+  update(dt: number) {
+    const m = this.m;
+    const me = m.human;
+    // score / clock / rift
+    if (m.mode.id === 'RIFT_BOSS') {
+      const boss = m.heroes.find((x) => x.def.id === 'boss_golem');
+      this.scoreR.textContent = boss ? Math.ceil((boss.hp / boss.maxHp) * 100) + '%' : '0%';
+      this.scoreB.textContent = String(m.score[0]);
+    } else if (m.mode.id === 'SURVIVAL') {
+      this.scoreR.textContent = `${(m.modeRules as any).wave ?? 0}/8`;
+      this.scoreB.textContent = String(m.heroes.filter((x) => x.team === 0 && x.alive).length);
+    } else if (this.lastScore[0] !== m.score[0] || this.lastScore[1] !== m.score[1]) {
+      this.scoreB.textContent = String(m.score[0]); this.scoreR.textContent = String(m.score[1]);
+      this.lastScore = [m.score[0], m.score[1]];
+    }
+    this.clock.textContent = m.phase === 'countdown' && m.time < 3.1 ? formatClock(m.clock) : formatClock(m.clock);
+    this.clock.classList.toggle('low', m.clock <= 15 && m.phase !== 'ended');
+    const rift = m.mainRift();
+    if (rift) {
+      const mu = getMutation(m.mutation);
+      const carrier = rift.carrier >= 0 ? m.heroById(rift.carrier) : null;
+      const label = carrier ? `RIFT · ${carrier.team === (me?.team ?? 0) ? 'ALLIÉ' : 'ENNEMI'}` : `RIFT · ${RIFT_STATE_FR[rift.state] ?? rift.state}`;
+      (this.riftPill.lastElementChild as HTMLElement).textContent = m.mutation !== 'NORMAL' ? `${label} · ${mu.name}` : label;
+      this.riftPill.style.setProperty('--rc', m.mutation !== 'NORMAL' ? mu.color : carrier ? (carrier.team === 0 ? '#2f9bff' : '#ff3b4e') : '#b388ff');
+    }
+    if (this.mutBanner && m.mutation !== 'NORMAL') {
+      const mu = getMutation(m.mutation);
+      const i = this.mutBanner.querySelector('.bar > i') as HTMLElement;
+      if (i) i.style.width = (100 * m.mutationTimeLeft) / mu.duration + '%';
+    }
+    // me
+    if (me) {
+      this.meHp.style.width = (100 * Math.max(0, me.hp)) / me.maxHp + '%';
+      this.meHpTxt.textContent = String(Math.max(0, Math.ceil(me.hp)));
+      this.meUlt.style.width = me.ult + '%';
+      const abReady = me.abCd <= 0;
+      this.btn.ability.classList.toggle('cool', !abReady);
+      this.abCd.style.setProperty('--p', abReady ? '0%' : (100 * me.abCd) / me.def.ability.cooldown + '%');
+      this.abCdN.textContent = abReady ? '' : String(Math.ceil(me.abCd));
+      this.ultRing.style.setProperty('--p', me.ult + '%');
+      this.btn.ult.classList.toggle('ready', me.ult >= 100);
+      this.btn.attack.classList.toggle('carry', me.carrying);
+      (this.btn.attack.querySelector('.ic') as HTMLElement).textContent = me.carrying ? '🔮' : '🎯';
+      (this.btn.attack.querySelector('.lbl') as HTMLElement).textContent = me.carrying ? 'LANCER' : 'ATTAQUE';
+      if (!me.alive) {
+        this.respawnEl.style.display = '';
+        this.respawnEl.textContent = me.respawnAt === Infinity ? 'K.O.' : `RÉAPPARITION DANS ${Math.max(0, Math.ceil(me.respawnAt - m.time))}`;
+      } else this.respawnEl.style.display = 'none';
+    }
+    this.hurtT = Math.max(0, this.hurtT - dt);
+    this.vignette.style.opacity = me && me.alive && (me.hp < me.maxHp * 0.3 || this.hurtT > 0) ? String(Math.max(this.hurtT * 2, me.hp < me.maxHp * 0.3 ? 0.6 : 0)) : '0';
+
+    // floating hp bars
+    const viewTeam = me?.team ?? 0;
+    const seen = new Set<number>();
+    for (const hero of m.heroes) {
+      if (!hero.alive || !m.isVisibleTo(hero, viewTeam)) continue;
+      seen.add(hero.id);
+      let e = this.hpEls.get(hero.id);
+      if (!e) {
+        const isMe = hero.id === m.humanId;
+        const fill = h('i'), shield = h('u');
+        const num = isMe || hero.def.id === 'boss_golem' ? h('div.hpn.stroke-s') : null;
+        const carry = h('div.carry', { style: 'display:none' }, '🔮 RIFT');
+        const color = isMe ? '#3ddc84' : hero.team === viewTeam ? '#2f9bff' : '#ff3b4e';
+        const root = h('div.hpbar' + (isMe ? '.me' : ''), { style: `--hc:${color}` }, carry, h('div.nm', { style: `color:${isMe ? '#ffe14d' : '#fff'}` }, hero.name), h('div.hb', { style: hero.def.id === 'boss_golem' ? 'width:12em;height:1em' : '' }, fill, shield), num);
+        this.hpLayer.appendChild(root);
+        e = { root, fill, shield, num, carry, lastHp: -1, lastCarry: false };
+        this.hpEls.set(hero.id, e);
+      }
+      const rp = this.r.heroRenderPos(hero);
+      const p = this.r.toScreen(rp.x, rp.y, this.r.heroScreenHeight(hero), this.tmp);
+      e.root.style.display = p.visible ? '' : 'none';
+      e.root.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -100%)`;
+      if (e.lastHp !== hero.hp) {
+        e.lastHp = hero.hp;
+        e.fill.style.width = (100 * Math.max(0, hero.hp)) / hero.maxHp + '%';
+        if (e.num) e.num.textContent = String(Math.ceil(hero.hp));
+      }
+      e.shield.style.width = hero.shield > 0 && hero.shieldUntil > m.time ? Math.min(100, (100 * hero.shield) / hero.maxHp) + '%' : '0%';
+      if (e.lastCarry !== hero.carrying) { e.lastCarry = hero.carrying; e.carry.style.display = hero.carrying ? '' : 'none'; }
+    }
+    for (const [id, e] of this.hpEls) if (!seen.has(id)) { e.root.remove(); this.hpEls.delete(id); }
+
+    // damage numbers
+    for (let i = this.dmgActive.length - 1; i >= 0; i--) {
+      const d = this.dmgActive[i];
+      d.t += dt; d.y += d.vy * dt; d.vy += 140 * dt;
+      d.el.style.transform = `translate(${d.x}px, ${d.y}px) translate(-50%, -50%) scale(${d.t < 0.1 ? 1 + (0.1 - d.t) * 6 : 1})`;
+      d.el.style.opacity = String(Math.max(0, 1 - Math.max(0, d.t - 0.5) * 2.5));
+      if (d.t > 0.9) { d.el.style.display = 'none'; this.dmgPool.push(d.el); this.dmgActive.splice(i, 1); }
+    }
+
+    // off-screen rift indicator
+    if (rift && rift.alive) {
+      const p = this.r.toScreen(rift.x, rift.y, 0.6, this.tmp);
+      const W = window.innerWidth, H = window.innerHeight, pad = 40;
+      const off = p.x < pad || p.x > W - pad || p.y < pad + 30 || p.y > H - pad;
+      this.offscreen.style.display = off ? '' : 'none';
+      if (off) {
+        const cx = W / 2, cy = H / 2;
+        const a = Math.atan2(p.y - cy, p.x - cx);
+        const x = Math.max(pad, Math.min(W - pad, p.x)), y = Math.max(pad + 40, Math.min(H - pad, p.y));
+        this.offscreen.style.transform = `translate(${x - 18}px, ${y - 18}px) rotate(${a}rad)`;
+      }
+    }
+
+    // minimap @ 10 Hz
+    this.mmT -= dt;
+    if (this.mmT <= 0) { this.mmT = 0.1; this.drawMinimap(); }
+  }
+
+  private drawMinimap() {
+    const m = this.m, c = this.mmCtx, W = this.minimap.width, H = this.minimap.height;
+    const sx = W / m.arena.w, sy = H / m.arena.h;
+    c.clearRect(0, 0, W, H);
+    c.fillStyle = 'rgba(255,255,255,0.18)';
+    for (const w of m.arena.walls) if (!w.border) c.fillRect(w.x * sx, w.y * sy, w.w * sx, w.h * sy);
+    c.fillStyle = 'rgba(80,200,90,0.35)';
+    for (const b of m.arena.bushes) c.fillRect(b.x * sx, b.y * sy, b.w * sx, b.h * sy);
+    for (const p of m.arena.portals) { c.fillStyle = p.team === 0 ? '#2f9bff' : '#ff3b4e'; c.fillRect(p.x * sx, p.y * sy, p.w * sx, p.h * sy); }
+    const team = m.human?.team ?? 0;
+    for (const hero of m.heroes) {
+      if (!hero.alive || !m.isVisibleTo(hero, team)) continue;
+      c.fillStyle = hero.id === m.humanId ? '#ffe14d' : hero.team === team ? '#7cc4ff' : '#ff6b7a';
+      c.beginPath(); c.arc(hero.x * sx, hero.y * sy, hero.id === m.humanId ? 7 : hero.def.id === 'boss_golem' ? 10 : 5, 0, Math.PI * 2); c.fill();
+    }
+    for (const r of m.rifts) {
+      if (!r.alive) continue;
+      c.fillStyle = '#e0aaff'; c.strokeStyle = '#fff'; c.lineWidth = 2;
+      c.beginPath(); c.arc(r.x * sx, r.y * sy, r.clone ? 4 : 7, 0, Math.PI * 2); c.fill(); c.stroke();
+    }
+  }
+
+  dispose() { this.el.remove(); }
+}
