@@ -92,3 +92,9 @@ Hors ligne, le matchmaking est rempli de bots. Classements, amis, crews et chat 
 
 - Package `com.superessence.riftball`, version 1.0.0 (code 1), paysage, plein écran immersif, icône et splash noir (enchaîné avec l'intro animée SuperEssence).
 - `releases/` contient les APK debug/release et l'AAB du dernier build. ⚠️ Ces builds release ont été signés avec une clé temporaire générée dans l'environnement de build : pour publier sur Google Play, générez **votre propre clé** (`scripts/create-keystore.sh`) et conservez-la précieusement.
+
+## iPhone (version web installable)
+
+Le serveur Render sert aussi le jeu en version web : sur iPhone, ouvrir `https://riftball-server.onrender.com` dans **Safari**,
+puis **Partager → Sur l'écran d'accueil**. L'icône RIFTBALL lance le jeu en plein écran (paysage), en ligne sur le même serveur.
+Une vraie app iOS (.ipa / App Store) demande un Mac avec Xcode et un compte Apple Developer (99 $/an) : `npx cap add ios`, puis build dans Xcode.

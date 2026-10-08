@@ -5,10 +5,10 @@ test('boot -> home -> tutorial -> match -> results, no runtime errors', async ({
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/?skipintro');
   await page.waitForSelector('.home', { timeout: 90_000 });
-  await expect(page.locator('text=JOUER')).toBeVisible();
+  await expect(page.locator('.play-btn')).toBeVisible();
 
   // first PLAY starts the tutorial
-  await page.click('text=JOUER');
+  await page.click('.play-btn');
   await page.waitForSelector('.tut', { timeout: 30_000 });
   await expect(page.locator('.tut .st')).toContainText('1/8');
 

@@ -8,7 +8,9 @@
  *  POST /v1/match/report            validate a match report (plausibility + de-dup)
  *  POST /v1/analytics               anonymous analytics batch
  *
- * Env: PORT, PACKAGE_NAME (com.superessence.riftball), GOOGLE_SERVICE_ACCOUNT (path to JSON key with
+ *  GET  /*                        the web build of the game (WEB_DIR), installable on iPhone from Safari
+ *
+ * Env: PORT, WEB_DIR (folder with the Vite build, default ./web), PACKAGE_NAME (com.superessence.riftball), GOOGLE_SERVICE_ACCOUNT (path to JSON key with
  * androidpublisher scope), DATA_DIR. Without a service account the server refuses purchases (never trusts the client).
  */
 import http from 'node:http';
@@ -101,12 +103,37 @@ function report(body, playerId) {
   return [200, verdict];
 }
 
+// ------------------------------------------------------------- web (PWA, iPhone)
+const WEB_DIR = path.resolve(process.env.WEB_DIR || path.join(path.dirname(new URL(import.meta.url).pathname), 'web'));
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2', '.woff': 'font/woff', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wasm': 'application/wasm' };
+
+/** Serves the game's static files. Unknown paths fall back to index.html. Returns false when no web build is present. */
+function serveWeb(pathname, req, res) {
+  if (!fs.existsSync(path.join(WEB_DIR, 'index.html'))) return false;
+  let rel;
+  try { rel = decodeURIComponent(pathname); } catch { rel = '/'; }
+  let file = path.resolve(WEB_DIR, '.' + rel);
+  if (!file.startsWith(WEB_DIR + path.sep) && file !== WEB_DIR) file = path.join(WEB_DIR, 'index.html');
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(WEB_DIR, 'index.html');
+  const ext = path.extname(file).toLowerCase();
+  const hashed = file.includes(path.sep + 'assets' + path.sep);
+  res.writeHead(200, {
+    'content-type': MIME[ext] || 'application/octet-stream',
+    'cache-control': hashed ? 'public, max-age=31536000, immutable' : 'no-cache',
+  });
+  if (req.method === 'HEAD') res.end(); else fs.createReadStream(file).pipe(res);
+  return true;
+}
+
 // ------------------------------------------------------------- http
 const server = http.createServer(async (req, res) => {
   res.setHeader('access-control-allow-origin', '*');
   res.setHeader('access-control-allow-headers', 'content-type, authorization');
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
   const url = new URL(req.url, 'http://x');
+  if ((req.method === 'GET' || req.method === 'HEAD') && !url.pathname.startsWith('/v1/') && serveWeb(url.pathname, req, res)) return;
   const playerId = (req.headers.authorization || '').replace('Bearer ', '') || 'anon';
   let raw = '';
   for await (const chunk of req) { raw += chunk; if (raw.length > 256 * 1024) { res.writeHead(413); return res.end(); } }
