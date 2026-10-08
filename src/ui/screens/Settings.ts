@@ -43,6 +43,7 @@ export function settingsScreen(c: Controller): Screen {
       h('div.title', { style: 'margin:.5em 0 .3em' }, '🌐 JEU EN LIGNE'),
       row('Serveur', serverField(), 'Adresse du serveur RIFTBALL (ex : https://riftball.onrender.com). Vide = matchs contre bots uniquement.'),
       row('Connexion', h('span.small-text', c.app.net.online ? `🟢 En ligne${c.app.net.lastPingMs >= 0 ? ` · ${c.app.net.lastPingMs} ms` : ''}` : BuildConfig.serverUrl ? '🔴 Serveur injoignable — matchs contre bots' : '🟡 Aucun serveur — matchs contre bots')),
+      row('Confidentialité', h('button.btn.tiny.dark', { onclick: () => window.open('https://riftball-server.onrender.com/privacy.html', '_blank') }, 'POLITIQUE DE CONFIDENTIALITÉ')),
       row('Sauvegarde', h('span.small-text', `v${c.data.version} · ${new Date(c.data.updatedAt).toLocaleString('fr-FR')}`), 'Synchronisation cloud : disponible avec un compte (bientôt)'),
       row('Rejouer le tutoriel', h('button.btn.tiny.green', { onclick: () => c.screens.tutorial() }, 'TUTORIEL')),
       row('Réinitialiser la progression', h('button.btn.tiny.red', { onclick: async () => {

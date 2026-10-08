@@ -422,7 +422,7 @@ input { font: inherit; }
 .hero-card.rarity-MYTHIC { box-shadow: 0 0 0 .18em #ff3d7f, 0 0 1.2em #ff3d7f; animation: mythicGlow 2.4s linear infinite; }
 .hero-card.rarity-MYTHIC .rar { background: linear-gradient(90deg, #ff3d7f, #ffbe0b, #00f5d4, #9b5de5, #ff3d7f); background-size: 300% 100%; animation: mythicBg 3s linear infinite; color: #fff; text-shadow: 0 .08em 0 #000; }
 .hero-card.rarity-LEGENDARY { box-shadow: 0 0 0 .15em #ffcc33; }
-@keyframes mythicGlow { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
+@keyframes mythicGlow { 0%, 100% { box-shadow: 0 0 0 .18em #ff3d7f, 0 0 1.2em #ff3d7f; } 33% { box-shadow: 0 0 0 .18em #ffbe0b, 0 0 1.2em #ffbe0b; } 66% { box-shadow: 0 0 0 .18em #00f5d4, 0 0 1.2em #00f5d4; } }
 @keyframes mythicBg { 0% { background-position: 0% 0; } 100% { background-position: 300% 0; } }
 .mythic-title { background: linear-gradient(90deg, #ff3d7f, #ffbe0b, #00f5d4, #9b5de5, #ff3d7f); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: mythicBg 3s linear infinite; }
 /* challenges */

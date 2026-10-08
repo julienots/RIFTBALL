@@ -41,7 +41,7 @@ export function heroesScreen(c: Controller): Screen {
         owned ? h('div.mast', '⭐' + hp.masteryLevel) : null,
         owned ? null : h('div.lock.stroke-s', '🔒', h('br'), unlockText(c, hero.id)),
         h('span.rar', RARITY_LABEL[hero.rarity ?? 'COMMON']),
-        NEW_HEROES.includes(hero.id) ? h('span.tagx.red', { style: 'position:absolute;bottom:2.6em;left:50%;transform:translateX(-50%)' }, 'NOUVEAU') : null));
+        NEW_HEROES.includes(hero.id) ? h('span.tagx.red', { style: 'position:absolute;top:1.7em;left:50%;transform:translateX(-50%);font-size:.6em' }, 'NOUVEAU') : null));
     }
   };
   return { el, onShow: render, refresh: render, onHide: off };

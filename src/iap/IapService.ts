@@ -7,7 +7,7 @@ import type { NotificationCenter } from '../notifications/NotificationCenter';
 import type { Analytics } from '../analytics/Analytics';
 import type { Connectivity } from '../networking/Connectivity';
 import type { Authority } from '../networking/Authority';
-import { PRODUCTS, getProduct } from '../data/products';
+import { getProduct, storeIdFor, storeIds } from '../data/products';
 
 export interface IapOutcome { status: PurchaseStatus | 'validated' | 'validation_failed' | 'validation_pending' | 'offline'; message: string }
 
@@ -45,22 +45,25 @@ export class IapService {
 
   async init() {
     this.ready = await this.provider.init();
-    if (this.ready) this.products = await this.provider.getProducts(PRODUCTS.map((p) => p.id));
+    if (this.ready) this.products = await this.provider.getProducts(storeIds());
     if (this.ready) await this.processOutstanding();
     await this.syncRevocations();
     return this.ready;
   }
 
   priceOf(productId: string) {
-    return this.products.find((p) => p.id === productId)?.price ?? getProduct(productId)?.fallbackPrice ?? '—';
+    const id = storeIdFor(productId);
+    return this.products.find((p) => p.id === id)?.price ?? getProduct(id)?.fallbackPrice ?? '—';
   }
 
   isOwnedOneTime(productId: string) {
-    const p = getProduct(productId);
-    return !!p?.oneTimeKey && this.save.data.processedPurchases.some((x) => x.startsWith(productId + ':'));
+    const id = storeIdFor(productId); // seasonal: the current season's product
+    const p = getProduct(id);
+    return !!p?.oneTimeKey && this.save.data.processedPurchases.some((x) => x.startsWith(id + ':'));
   }
 
-  async purchase(productId: string): Promise<IapOutcome> {
+  async purchase(logicalId: string): Promise<IapOutcome> {
+    const productId = storeIdFor(logicalId);
     const product = getProduct(productId);
     if (!product) return { status: 'unavailable', message: MESSAGES.unavailable };
     if (this.requireNetwork && !this.net.networkUp) return { status: 'offline', message: MESSAGES.offline };

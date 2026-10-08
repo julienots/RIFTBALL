@@ -135,3 +135,23 @@ describe('In-app purchases', () => {
     expect(app.data.gems).toBe(0);
   });
 });
+
+describe('Seasonal products', () => {
+  it('the Rift Pass is a separate Play product each season and grants that season', async () => {
+    const { Clock } = await import('../../src/core/Time');
+    const { getProduct, storeIdFor } = await import('../../src/data/products');
+    expect(getProduct('battle_pass')!.grants[0]).toEqual({ kind: 'cosmetic', id: 'pass_premium_s1' });
+    expect(getProduct('battle_pass_s2')!.grants[0]).toEqual({ kind: 'cosmetic', id: 'pass_premium_s2' });
+    const real = Clock.now;
+    try {
+      (Clock as any).now = () => Date.parse('2026-12-10T00:00:00Z');
+      expect(storeIdFor('battle_pass')).toBe('battle_pass_s2');
+      const { app } = makeApp();
+      await app.iap.init();
+      expect((await app.iap.purchase('battle_pass')).status).toBe('validated');
+      expect(app.pass.hasPremium).toBe(true);
+      expect(app.pass.season.id).toBe('s2');
+      expect(app.iap.isOwnedOneTime('battle_pass')).toBe(true);
+    } finally { (Clock as any).now = real; }
+  });
+});

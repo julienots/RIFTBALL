@@ -28,6 +28,8 @@ const db = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))
 const persist = () => fs.writeFileSync(DB_FILE + '.tmp', JSON.stringify(db)) || fs.renameSync(DB_FILE + '.tmp', DB_FILE);
 
 const PRODUCTS = new Set(['gems_small', 'gems_medium', 'gems_large', 'gems_xlarge', 'starter_pack', 'season_pack', 'special_bundle', 'battle_pass', 'battle_pass_plus']);
+// seasonal products exist once per season: battle_pass_s2, battle_pass_plus_s3, season_pack_s4...
+const isKnownProduct = (id) => PRODUCTS.has(id) || /^(battle_pass|battle_pass_plus|season_pack)_s\d{1,2}$/.test(String(id));
 
 // ------------------------------------------------------------- Google OAuth (service account JWT)
 let tokenCache = { token: '', exp: 0 };
@@ -58,7 +60,7 @@ async function playGetProduct(productId, token) {
 // ------------------------------------------------------------- handlers
 async function verify(body) {
   const { playerId, productId, purchaseToken } = body;
-  if (!playerId || !PRODUCTS.has(productId) || typeof purchaseToken !== 'string') return [400, { valid: false, reason: 'bad_request' }];
+  if (!playerId || !isKnownProduct(productId) || typeof purchaseToken !== 'string') return [400, { valid: false, reason: 'bad_request' }];
   const existing = db.purchases[purchaseToken];
   if (existing) {
     // a token can only ever belong to one player

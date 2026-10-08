@@ -1,3 +1,4 @@
+import { storeIdFor } from '../data/products';
 import type { SaveSystem } from '../save/SaveSystem';
 import type { Inventory, GrantedItem } from '../progression/Inventory';
 import type { EventService } from '../events/EventService';
@@ -94,7 +95,7 @@ export class ShopService {
       return true;
     }).map((o) => {
       const left = Math.max(0, o.limit - this.purchasesIn(o));
-      const ownedAll = o.items.every((i) => i.kind === 'cosmetic' && (i.id.startsWith('pass_') ? this.inv.hasEntitlement(i.id) : this.inv.owns(i.id)));
+      const ownedAll = o.items.every((i) => i.kind === 'cosmetic' && (i.id.startsWith('pass_') ? this.inv.hasEntitlement(i.id.replace('{season}', currentSeason(now).id)) : this.inv.owns(i.id)));
       return { offer: o, left, endsAt: this.windowEnd(o, now), value: this.valueOf(o.items), available: left > 0 && !ownedAll };
     });
   }
@@ -130,7 +131,7 @@ export class ShopService {
   /** Mark a real-money offer window as consumed (called by IapService after validation). */
   markOfferPurchasedForProduct(productId: string) {
     for (const o of OFFERS) {
-      if ('productId' in o.price && o.price.productId === productId) {
+      if ('productId' in o.price && (o.price.productId === productId || storeIdFor(o.price.productId) === productId)) {
         const wkey = `${o.id}@${this.windowKey(o)}`;
         this.d.shop.purchases[wkey] = (this.d.shop.purchases[wkey] ?? 0) + 1;
       }

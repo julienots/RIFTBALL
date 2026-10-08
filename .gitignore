@@ -18,3 +18,7 @@ android/capacitor-cordova-android-plugins/build/
 server/data/
 server/service-account*.json
 server/dist/
+
+# Play Store kit archive (rebuilt from store/ + releases/)
+store/*.zip
+store/*.aab

@@ -184,6 +184,8 @@ export interface ProductData {
   grants: RewardItem[];
   /** One-time products (starter pack, passes) */
   oneTimeKey?: string;
+  /** once per season (consumable on the store, ids contain {season}) */
+  seasonal?: boolean;
 }
 
 export interface ShopOfferData {
