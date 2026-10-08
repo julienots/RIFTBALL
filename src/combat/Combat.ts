@@ -2,6 +2,10 @@ import type { Match } from '../game/Match';
 import { Hero, Projectile, type ProjectileKind } from '../game/entities';
 import { clamp, dist2, segmentHitsRect } from '../core/math';
 import type { TeamId } from '../data/types';
+import { isBoss } from '../data/characters';
+
+/** Bosses and turrets never get knocked back. */
+const immovable = (h: Hero) => isBoss(h) || h.def.id === 'turret';
 
 export interface DamageOpts {
   kbX?: number; kbY?: number; kb?: number;
@@ -26,8 +30,10 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
   if (source && source.powerUntil > m.time) dmg *= 1.25;
   if (source && source.def.passive.id === 'steady' && dist2(source.x, source.y, target.x, target.y) > source.def.passive.params.range ** 2) dmg *= 1 + source.def.passive.params.mul;
   if (source && source.def.passive.id === 'chill' && !opts.slow) { opts = { ...opts, slow: source.def.passive.params.slow, slowDuration: 1 }; }
+  if (source && source.avatarUntil > m.time) dmg *= 1 + (source.def.ultimate.params.damage ?? 0.4);
   if (target.dmgReductionUntil > m.time) dmg *= 1 - target.dmgReduction;
-  if (target.pve && target.def.id === 'boss_golem') dmg *= m.bossArmor;
+  if (target.def.passive.id === 'thick_hide' && target.hp > target.maxHp * target.def.passive.params.threshold) dmg *= 1 - target.def.passive.params.reduction;
+  if (isBoss(target)) dmg *= m.bossArmor;
   dmg = Math.round(dmg);
 
   if (target.absorbUntil > m.time) target.ult = clamp(target.ult + dmg * target.absorbConvert, 0, 100);
@@ -41,8 +47,13 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
   target.revealedUntil = m.time + 1.2;
   target.anim.hitT = 0.18;
 
+  // summons (turrets) credit their owner
+  const credit = source && source.ownerId >= 0 ? m.heroById(source.ownerId) ?? source : source;
+  if (credit) {
+    credit.stats.damage += amount;
+    if (isBoss(target)) credit.stats.bossDamage += dmg;
+  }
   if (source) {
-    source.stats.damage += amount;
     target.lastHitBy = source.id;
     target.recentAttackers.set(source.id, m.time);
     if (!opts.noUlt) {
@@ -50,24 +61,25 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
       source.ult = clamp(source.ult + source.def.ultChargePerHit * mul * (opts.ultScale ?? 1) * (source.overdriveUntil > m.time ? 1.2 : 1), 0, 100);
     }
   }
-  if (opts.kb && opts.kb > 0 && !(target.pve && target.def.id === 'boss_golem')) {
+  const unstoppable = target.avatarUntil > m.time;
+  if (opts.kb && opts.kb > 0 && !immovable(target) && !unstoppable) {
     const l = Math.hypot(opts.kbX ?? 0, opts.kbY ?? 0) || 1;
     target.kx += ((opts.kbX ?? 0) / l) * opts.kb;
     target.ky += ((opts.kbY ?? 0) / l) * opts.kb;
   }
-  if (opts.slow && opts.slow > 0) {
+  if (opts.slow && opts.slow > 0 && !unstoppable) {
     const active = target.slowUntil > m.time;
     target.slowMul = active ? Math.min(target.slowMul, 1 - opts.slow) : 1 - opts.slow;
     target.slowUntil = Math.max(target.slowUntil, m.time + (opts.slowDuration ?? 1));
   }
-  if (opts.stun && opts.stun > 0 && !(target.pve && target.def.id === 'boss_golem')) {
+  if (opts.stun && opts.stun > 0 && !isBoss(target) && !unstoppable) {
     // limited stun: never more than 1.2s, and stun immunity right after
     const cap = Math.min(opts.stun, 1.2);
     if (target.stunUntil < m.time - 0.6) target.stunUntil = m.time + cap;
     if (target.carrying) m.dropCarried(target);
   }
   m.emit({ t: 'hit', x: target.x, y: target.y, target: target.id, amount: Math.round(amount), source: source ? source.id : -1 });
-  if (target.pve && target.def.id === 'boss_golem') m.emit({ t: 'boss_hit', amount: dmg });
+  if (isBoss(target)) m.emit({ t: 'boss_hit', amount: dmg });
 
   if (target.hp <= 0) killHero(m, target, source);
   return dmg;
@@ -80,11 +92,34 @@ export function healHero(m: Match, target: Hero, amount: number, source: Hero | 
   const done = target.hp - before;
   if (done > 0) {
     if (source) { source.stats.heal += done; source.ult = clamp(source.ult + done / 160, 0, 100); }
+    // LUNA: healed allies get a short speed boost
+    if (source && source !== target && source.def.passive.id === 'moonlight') {
+      const p = source.def.passive.params;
+      if (target.speedBuffUntil < m.time || target.speedBuff < p.speedBonus) { target.speedBuff = p.speedBonus; target.speedBuffUntil = m.time + p.duration; }
+    }
     m.emit({ t: 'heal', x: target.x, y: target.y, target: target.id, amount: Math.round(done) });
   }
 }
 
 export function killHero(m: Match, victim: Hero, killer: Hero | null) {
+  // SERAPH: once per match, come back instead of dying
+  if (victim.def.passive.id === 'resurrection' && !victim.reviveUsed && !victim.pve) {
+    victim.reviveUsed = true;
+    victim.hp = Math.round(victim.maxHp * victim.def.passive.params.hp);
+    victim.phaseUntil = m.time + 1.5;
+    victim.stunUntil = 0;
+    m.emit({ t: 'revive', hero: victim.id });
+    m.emit({ t: 'explosion', x: victim.x, y: victim.y, radius: 220, color: '#ffe66d' });
+    return;
+  }
+  if (killer && killer.ownerId >= 0) killer = m.heroById(killer.ownerId) ?? killer;
+  // summons simply break
+  if (victim.def.id === 'turret') {
+    victim.hp = 0; victim.alive = false; victim.respawnAt = Infinity;
+    m.emit({ t: 'explosion', x: victim.x, y: victim.y, radius: 90, color: '#f77f00' });
+    m.emit({ t: 'kill', killer: -1, victim: victim.id, x: victim.x, y: victim.y });
+    return;
+  }
   victim.hp = 0;
   victim.alive = false;
   victim.stats.deaths++;
@@ -158,7 +193,7 @@ export function performAttack(m: Match, h: Hero, dx: number, dy: number, aimDist
   const ox = h.x + dx * h.radius * 0.8, oy = h.y + dy * h.radius * 0.8;
   switch (a.kind) {
     case 'bolt': case 'boomerang': case 'wave': {
-      const kind = a.kind === 'bolt' ? (h.pve ? 'boss' : 'bolt') : a.kind;
+      const kind = a.kind === 'bolt' ? (isBoss(h) ? 'boss' : 'bolt') : a.kind;
       const p = spawnProjectile(m, h, kind, ox, oy, dx, dy, a.projectileSpeed, a.range, a.radius ?? 12, a.damage);
       p.pierce = !!a.pierce || h.pierceNext; p.healAllies = a.healAllies ?? 0; p.knockback = a.knockback ?? 0;
       if (h.pierceNext) { h.pierceNext = false; p.radius *= 1.5; p.color = '#ffbe0b'; }

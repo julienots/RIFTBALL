@@ -17,6 +17,7 @@ import { profileScreen } from './Profile';
 import { settingsScreen } from './Settings';
 import { collectionScreen } from './Collection';
 import { missionsModal, eventsModal, inboxModal } from './Missions';
+import { challengesScreen } from './Challenges';
 import { BOT_PROFILES } from '../../data/bots';
 import { modesScreen } from './Modes';
 import { guideScreen, showNews } from './Guide';
@@ -94,6 +95,7 @@ export function homeScreen(c: Controller): Screen {
 
     const bottomLeft = h('div', { style: 'position:absolute;left:calc(.9em + var(--safe-l));bottom:.9em;display:flex;gap:.6em;align-items:flex-end' },
       iconBtn('📋', 'MISSIONS', () => missionsModal(c, render), missionsClaim, 'linear-gradient(#80ed99,#2d9b5a)'),
+      iconBtn('💎', 'DÉFIS', () => c.ui.push(challengesScreen(c)), c.app.missions.claimableChallenges, 'linear-gradient(#4cc9f0,#3a0ca3)'),
       iconBtn('🎉', 'ÉVÉNEMENTS', () => eventsModal(c), events.length, 'linear-gradient(#ff7b00,#d00000)'),
       iconBtn('📖', 'GUIDE', () => c.ui.push(guideScreen(c)), 0, 'linear-gradient(#a78bfa,#6d28d9)'));
 

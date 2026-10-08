@@ -31,7 +31,38 @@ export const MISSIONS: MissionData[] = [
   { id: 'e_chaos', scope: 'event', eventId: 'chaos_week', text: 'Vivre 10 mutations', stat: 'mutations_seen', target: 10, reward: [{ kind: 'cosmetic', id: 'spray_flame' }] },
   { id: 'e_winter', scope: 'event', eventId: 'winter_rift', text: 'Gagner 5 parties pendant Winter Rift', stat: 'wins', target: 5, reward: [{ kind: 'cosmetic', id: 'emote_snow' }] },
   { id: 'e_boss', scope: 'event', eventId: 'boss_invasion', text: 'Jouer 3 parties RIFT BOSS', stat: 'mode_RIFT_BOSS', target: 3, reward: [{ kind: 'cosmetic', id: 'icon_skull' }] },
+
+  // GEM CHALLENGES (DÉFIS) — permanent, harder goals rewarded with gems (earned, never bought)
+  { id: 'c_boss1', scope: 'challenge', tier: 1, text: 'Vaincre le Colosse une première fois', stat: 'boss_wins', target: 1, reward: [{ kind: 'gems', amount: 10 }] },
+  { id: 'c_boss5', scope: 'challenge', tier: 3, text: 'Vaincre le Colosse 5 fois', stat: 'boss_wins', target: 5, reward: [{ kind: 'gems', amount: 30 }] },
+  { id: 'c_bosstop', scope: 'challenge', tier: 2, text: 'Finir n°1 des dégâts au Colosse 3 fois', stat: 'boss_top', target: 3, reward: [{ kind: 'gems', amount: 20 }] },
+  { id: 'c_bossdmg', scope: 'challenge', tier: 3, text: 'Infliger 250 000 dégâts au Colosse', stat: 'boss_damage', target: 250000, reward: [{ kind: 'gems', amount: 40 }] },
+  { id: 'c_king3', scope: 'challenge', tier: 2, text: 'Gagner 3 parties ROI DU RIFT', stat: 'king_wins', target: 3, reward: [{ kind: 'gems', amount: 15 }] },
+  { id: 'c_kingpts', scope: 'challenge', tier: 2, text: 'Régner 300 secondes en tant que Roi', stat: 'king_points', target: 300, reward: [{ kind: 'gems', amount: 25 }] },
+  { id: 'c_waves', scope: 'challenge', tier: 2, text: 'Survivre à 40 vagues en SURVIVAL', stat: 'survival_waves', target: 40, reward: [{ kind: 'gems', amount: 25 }] },
+  { id: 'c_mythic10', scope: 'challenge', tier: 1, text: 'Jouer 10 matchs avec un héros Mythique', stat: 'mythic_matches', target: 10, reward: [{ kind: 'gems', amount: 20 }] },
+  { id: 'c_mythicw', scope: 'challenge', tier: 3, text: 'Gagner 15 matchs avec un héros Mythique', stat: 'mythic_wins', target: 15, reward: [{ kind: 'gems', amount: 40 }] },
+  { id: 'c_streak5', scope: 'challenge', tier: 3, text: 'Gagner 5 parties d\'affilée', stat: 'win_streak', target: 5, reward: [{ kind: 'gems', amount: 30 }] },
+  { id: 'c_perfect', scope: 'challenge', tier: 2, text: 'Gagner 5 parties sans mourir une seule fois', stat: 'perfect_wins', target: 5, reward: [{ kind: 'gems', amount: 25 }] },
+  { id: 'c_mvp10', scope: 'challenge', tier: 2, text: 'Être MVP 10 fois', stat: 'mvps', target: 10, reward: [{ kind: 'gems', amount: 20 }] },
+  { id: 'c_gadget', scope: 'challenge', tier: 1, text: 'Utiliser 100 pouvoirs uniques', stat: 'gadgets', target: 100, reward: [{ kind: 'gems', amount: 15 }] },
+  { id: 'c_goals', scope: 'challenge', tier: 1, text: 'Marquer 100 points', stat: 'goals', target: 100, reward: [{ kind: 'gems', amount: 20 }] },
+  { id: 'c_kills', scope: 'challenge', tier: 2, text: 'Éliminer 250 adversaires', stat: 'kills', target: 250, reward: [{ kind: 'gems', amount: 30 }] },
+  { id: 'c_inter', scope: 'challenge', tier: 2, text: 'Intercepter 50 passes', stat: 'interceptions', target: 50, reward: [{ kind: 'gems', amount: 25 }] },
+  { id: 'c_heal', scope: 'challenge', tier: 2, text: 'Soigner 200 000 PV', stat: 'heal', target: 200000, reward: [{ kind: 'gems', amount: 30 }] },
+  { id: 'c_wins50', scope: 'challenge', tier: 4, text: 'Gagner 50 parties', stat: 'wins', target: 50, reward: [{ kind: 'gems', amount: 50 }] },
+  { id: 'c_dmg', scope: 'challenge', tier: 4, text: 'Infliger 1 000 000 de dégâts', stat: 'damage', target: 1000000, reward: [{ kind: 'gems', amount: 50 }] },
+  { id: 'c_legend', scope: 'challenge', tier: 4, text: 'Jouer 300 matchs', stat: 'matches', target: 300, reward: [{ kind: 'gems', amount: 100 }] },
+  // WEEKLY GEM CHALLENGES — all active, renewed every Monday
+  { id: 'cw_boss', scope: 'challenge_weekly', tier: 2, text: 'Vaincre le Colosse 2 fois', stat: 'boss_wins', target: 2, reward: [{ kind: 'gems', amount: 15 }] },
+  { id: 'cw_king', scope: 'challenge_weekly', tier: 2, text: 'Gagner 2 parties ROI DU RIFT', stat: 'king_wins', target: 2, reward: [{ kind: 'gems', amount: 10 }] },
+  { id: 'cw_wins', scope: 'challenge_weekly', tier: 3, text: 'Gagner 15 parties', stat: 'wins', target: 15, reward: [{ kind: 'gems', amount: 15 }] },
+  { id: 'cw_mvp', scope: 'challenge_weekly', tier: 2, text: 'Être MVP 3 fois', stat: 'mvps', target: 3, reward: [{ kind: 'gems', amount: 10 }] },
+  { id: 'cw_gadget', scope: 'challenge_weekly', tier: 1, text: 'Utiliser 25 pouvoirs uniques', stat: 'gadgets', target: 25, reward: [{ kind: 'gems', amount: 5 }] },
 ];
+
+/** Stats whose challenge progress is a best value (not a sum). */
+export const MAX_STATS = new Set(['win_streak']);
 
 export const DAILY_COUNT = 3;
 export const WEEKLY_COUNT = 3;

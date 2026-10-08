@@ -1,3 +1,4 @@
+import { getCharacter } from '../data/characters';
 import type { SaveSystem } from '../save/SaveSystem';
 import type { Inventory, GrantedItem } from './Inventory';
 import type { BattlePassService } from '../battlepass/BattlePassService';
@@ -140,6 +141,17 @@ export class ProgressionService {
       matches: 1, wins: win ? 1 : 0, goals: r.stats.goals, abilities: r.stats.abilities, ults: r.stats.ults, kills: r.stats.kills, captures: r.stats.captures,
       damage: r.stats.damage, heal: r.stats.heal, mutations_seen: r.mutationsSeen, throws: r.stats.throws, interceptions: r.stats.interceptions,
       [`mode_${r.mode}`]: 1,
+      gadgets: r.stats.gadgets ?? 0, mvps: r.mvp ? 1 : 0,
+      boss_damage: r.mode === 'RIFT_BOSS' ? Math.round(r.stats.bossDamage ?? 0) : 0,
+      boss_wins: r.mode === 'RIFT_BOSS' && win ? 1 : 0,
+      boss_top: r.mode === 'RIFT_BOSS' && r.extra?.bossRank === 1 && (r.stats.bossDamage ?? 0) > 0 ? 1 : 0,
+      king_points: r.mode === 'RIFT_KING' ? r.stats.kingPoints ?? 0 : 0,
+      king_wins: r.mode === 'RIFT_KING' && win ? 1 : 0,
+      survival_waves: r.mode === 'SURVIVAL' ? r.extra?.waves ?? 0 : 0,
+      mythic_matches: getCharacter(r.heroId).rarity === 'MYTHIC' ? 1 : 0,
+      mythic_wins: getCharacter(r.heroId).rarity === 'MYTHIC' && win ? 1 : 0,
+      win_streak: s.streak,
+      perfect_wins: win && r.stats.deaths === 0 && r.duration >= 60 ? 1 : 0,
     };
     const missionsCompleted = this.missions.record(delta);
     const unlocked = this.checkTrophyRoad();

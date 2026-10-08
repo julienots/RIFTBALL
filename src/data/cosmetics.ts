@@ -68,6 +68,38 @@ const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; sourc
     { id: 'ember_ash', name: 'Ember Cendrée', rarity: 'EPIC', source: 'pass_premium', season: 's1', visual: { primary: '#6c757d', secondary: '#212529', accent: '#ff6b35' } },
     { id: 'ember_phoenix', name: 'Ember Phénix', rarity: 'MYTHIC', source: 'pass_plus', season: 's1', visual: { primary: '#ffba08', secondary: '#d00000', accent: '#ffffff', hat: 'halo' } },
   ],
+  zip: [
+    { id: 'zip_racer', name: 'Zip Pilote', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#e63946', secondary: '#1d3557', accent: '#f1faee', hat: 'helmet' } },
+    { id: 'zip_mint', name: 'Zip Menthe', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#80ffdb', secondary: '#006466', accent: '#ffffff' } },
+  ],
+  grill: [
+    { id: 'grill_bbq', name: 'Grill Barbecue', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#6f1d1b', secondary: '#432818', accent: '#ffe6a7' } },
+    { id: 'grill_royal', name: 'Chef Royal', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ffd60a', secondary: '#7b2cbf', accent: '#ffffff', hat: 'crown' } },
+  ],
+  koko: [
+    { id: 'koko_snow', name: 'Koko des Neiges', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#f8f9fa', secondary: '#4895ef', accent: '#caf0f8', skin: '#adb5bd', hat: 'beanie' } },
+    { id: 'koko_lava', name: 'Koko Volcan', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#370617', secondary: '#9d0208', accent: '#ffba08', skin: '#6a040f', hat: 'horns' } },
+  ],
+  luna: [
+    { id: 'luna_sun', name: 'Luna Solaire', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#ffbe0b', secondary: '#9d0208', accent: '#ffffff', hat: 'halo' } },
+    { id: 'luna_dark', name: 'Luna Nouvelle Lune', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#3c096c', secondary: '#10002b', accent: '#e0aaff' } },
+  ],
+  gear: [
+    { id: 'gear_steam', name: 'Gear Steampunk', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#99582a', secondary: '#432818', accent: '#ffe6a7', hat: 'tricorn' } },
+    { id: 'gear_neon', name: 'Gear Néon', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#39ff14', secondary: '#0b0c10', accent: '#ff00e6' } },
+  ],
+  chronos: [
+    { id: 'chronos_void', name: 'Chronos du Néant', rarity: 'MYTHIC', source: 'shop', priceGems: 499, visual: { primary: '#7209b7', secondary: '#000000', accent: '#f72585', hat: 'halo' } },
+    { id: 'chronos_silver', name: 'Chronos Argenté', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ced4da', secondary: '#212529', accent: '#00f5d4' } },
+  ],
+  seraph: [
+    { id: 'seraph_fallen', name: 'Seraph Déchue', rarity: 'MYTHIC', source: 'shop', priceGems: 499, visual: { primary: '#14141f', secondary: '#9d0208', accent: '#ff4d6d', hat: 'horns' } },
+    { id: 'seraph_aurora', name: 'Seraph Aurore', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ffc8dd', secondary: '#bde0fe', accent: '#a2d2ff', hat: 'halo' } },
+  ],
+  riftborn: [
+    { id: 'riftborn_gold', name: 'Riftborn Doré', rarity: 'MYTHIC', source: 'shop', priceGems: 499, visual: { primary: '#ffd60a', secondary: '#3c1642', accent: '#ffffff', hat: 'crown' } },
+    { id: 'riftborn_toxic', name: 'Riftborn Toxique', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#70e000', secondary: '#004b23', accent: '#ccff33' } },
+  ],
 };
 
 const skins: CosmeticData[] = [];

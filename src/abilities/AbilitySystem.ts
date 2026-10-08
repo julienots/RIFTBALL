@@ -3,7 +3,11 @@ import type { Hero } from '../game/entities';
 import type { AbilityData } from '../data/types';
 import { applyDamage, healHero, nearestEnemy, spawnLob } from '../combat/Combat';
 import { dist2 } from '../core/math';
-import { setRiftState } from '../rift/Rift';
+import { createRift, setRiftState } from '../rift/Rift';
+import { Hero as HeroClass } from '../game/entities';
+import { getCharacter, isBoss } from '../data/characters';
+import { BotBrain } from '../bots/BotBrain';
+import { BOT_PROFILES } from '../data/bots';
 
 /**
  * Ability / ultimate implementations keyed by AbilityData.effect.
@@ -299,11 +303,173 @@ export function castAbility(m: Match, h: Hero, ab: AbilityData, isUlt: boolean, 
       healHero(m, h, h.maxHp * P.heal, h);
       break;
 
+    // ---------------------------------------------------------------- v1.0.4 heroes
+    case 'vines': m.addZone('vines', h, px, py, P.radius, P.duration, { damage: P.damage, stun: P.root, slow: 0.4, tickEvery: 0.5 }); break;
+
+    case 'stampede':
+      h.dash = { dx, dy, remaining: P.distance, speed: 1700, dmg: P.damage, kb: P.knockback, stun: P.stun, kind: 'charge', hit: new Set() };
+      h.dmgReduction = P.reduction; h.dmgReductionUntil = m.time + 1.6;
+      break;
+
+    case 'harden':
+      h.dmgReduction = P.reduction; h.dmgReductionUntil = m.time + P.duration;
+      break;
+
+    case 'snatch_dash':
+      h.dash = { dx, dy, remaining: P.distance, speed: 1600, dmg: P.damage, kb: 150, stun: 0, kind: 'snatch', hit: new Set() };
+      break;
+
+    case 'turbo':
+      h.speedBuff = P.speedBonus; h.speedBuffUntil = m.time + P.duration;
+      h.slowUntil = 0; h.rollCd = 0;
+      break;
+
+    case 'smoke': m.addZone('smoke', h, h.x, h.y, P.radius, P.duration, { slow: P.slow, tickEvery: 0.25 }); break;
+
+    case 'grease':
+      m.arena.addTempHazard('ice', { x: px - P.radius, y: py - P.radius, w: P.radius * 2, h: P.radius * 2 }, m.time + P.duration);
+      m.addZone('oil', h, px, py, P.radius, P.duration, { damage: P.damage, slow: 0.15, tickEvery: 0.5 });
+      break;
+
+    case 'feast':
+      for (const a of m.heroes) {
+        if (!a.alive || a.team !== h.team || a.pve) continue;
+        healHero(m, a, a.maxHp * P.heal, h);
+        a.powerUntil = Math.max(a.powerUntil, m.time + P.duration);
+      }
+      m.emit({ t: 'explosion', x: h.x, y: h.y, radius: 320, color: '#fcbf49' });
+      break;
+
+    case 'moon_well':
+      m.addZone('moon_well', h, px, py, P.radius, P.duration, { heal: P.heal / (P.duration / 0.5), tickEvery: 0.5 });
+      for (const a of m.heroes) if (a.alive && a.team === h.team && dist2(a.x, a.y, px, py) < P.radius * P.radius) a.slowUntil = 0;
+      break;
+
+    case 'eclipse': m.addZone('eclipse', h, px, py, P.radius, P.duration, { damage: P.damage, slow: P.slow, tickEvery: 0.5 }); break;
+
+    case 'ally_warp': {
+      let best: Hero | null = null, br = 2;
+      for (const a of m.heroes) {
+        if (a === h || !a.alive || a.team !== h.team || a.pve || dist2(a.x, a.y, h.x, h.y) > P.range * P.range) continue;
+        const ratio = a.hp / a.maxHp - (a.carrying ? 0.3 : 0);
+        if (ratio < br) { br = ratio; best = a; }
+      }
+      if (!best) return false;
+      const fx = h.x, fy = h.y;
+      const ang = Math.atan2(h.y - best.y, h.x - best.x);
+      h.x = best.x + Math.cos(ang) * (best.radius + h.radius + 8); h.y = best.y + Math.sin(ang) * (best.radius + h.radius + 8);
+      m.collideWalls(h, false);
+      for (const t of [h, best]) { t.shield = Math.max(t.shield, P.shield); t.shieldUntil = m.time + P.duration; }
+      m.emit({ t: 'teleport', hero: h.id, fx, fy, x: h.x, y: h.y });
+      break;
+    }
+
+    case 'deploy_turret': {
+      // one turret per GEAR: the old one breaks
+      for (const t of m.heroes) if (t.def.id === 'turret' && t.ownerId === h.id && t.alive) { t.expireAt = m.time; }
+      const [tx, ty] = m.castToFree(h, dx, dy, Math.min(ab.range, Math.max(60, pointDist)));
+      const t = new HeroClass(m.nextHeroId(), h.team, getCharacter('turret'), 'Tourelle', true, 'turret_default');
+      t.pve = true; t.ownerId = h.id; t.x = tx; t.y = ty; t.facing = h.facing;
+      t.maxHp = t.hp = P.hp; t.expireAt = m.time + P.duration; t.canCarry = false;
+      m.addHero(t);
+      m.brains.set(t.id, new BotBrain(m, t, BOT_PROFILES.HARD));
+      m.emit({ t: 'wall', x: tx - 30, y: ty - 30, w: 60, h: 60 });
+      break;
+    }
+
+    case 'rewind': {
+      // history: [t, x, y, hp] every 0.25 s — find the snapshot P.seconds ago
+      const H = h.history, target = m.time - P.seconds;
+      let i = 0;
+      while (i + 4 < H.length && H[i + 4] <= target) i += 4;
+      if (H.length < 4) return false;
+      const fx = h.x, fy = h.y;
+      h.x = H[i + 1]; h.y = H[i + 2];
+      h.hp = Math.max(h.hp, Math.min(h.maxHp, H[i + 3]));
+      h.slowUntil = 0; h.stunUntil = 0; h.dash = null;
+      if (h.carrying) m.dropCarried(h);
+      m.collideWalls(h, false);
+      m.emit({ t: 'teleport', hero: h.id, fx, fy, x: h.x, y: h.y });
+      break;
+    }
+
+    case 'time_stop': {
+      for (const e of m.heroes) {
+        if (!e.alive || e.team === h.team || dist2(e.x, e.y, h.x, h.y) > (P.radius + e.radius) ** 2) continue;
+        if (isBoss(e)) { e.slowMul = 0.3; e.slowUntil = m.time + P.duration; continue; }
+        if (e.avatarUntil > m.time) continue;
+        e.stunUntil = m.time + P.duration; e.dash = null;
+        if (e.carrying) m.dropCarried(e);
+      }
+      for (const r of m.rifts) if (r.alive && r.carrier < 0 && dist2(r.x, r.y, h.x, h.y) < P.radius * P.radius) { r.frozenUntil = m.time + P.duration; r.vx = r.vy = 0; }
+      m.emit({ t: 'time_stop', x: h.x, y: h.y, radius: P.radius, dur: P.duration });
+      break;
+    }
+
+    case 'haste':
+      for (const a of m.heroes) {
+        if (!a.alive || a.team !== h.team || dist2(a.x, a.y, h.x, h.y) > P.radius * P.radius) continue;
+        a.speedBuff = Math.max(a.speedBuffUntil > m.time ? a.speedBuff : 0, P.speedBonus); a.speedBuffUntil = m.time + P.duration;
+        a.atkCd = 0;
+      }
+      m.emit({ t: 'explosion', x: h.x, y: h.y, radius: P.radius * 0.6, color: '#4cc9f0' });
+      break;
+
+    case 'judgement': {
+      const tx = Math.max(60, Math.min(m.arena.w - 60, px)), ty = Math.max(60, Math.min(m.arena.h - 60, py));
+      h.leap = { fx: h.x, fy: h.y, tx, ty, t: 0, dur: P.duration, dmg: P.damage, r: P.radius, heal: P.heal };
+      h.phaseUntil = m.time + P.duration;
+      if (h.carrying) m.dropCarried(h);
+      break;
+    }
+
+    case 'sanctuary': {
+      const z = m.addZone('sanctuary', h, h.x, h.y, P.radius, P.duration, { heal: P.heal / (P.duration / 0.5), tickEvery: 0.5 });
+      z.reduce = P.reduction;
+      break;
+    }
+
+    case 'rift_call': {
+      let best = null as ReturnType<Match['mainRift']> | null, bd = P.range * P.range;
+      for (const r of m.rifts) {
+        if (!r.alive || r.decoy || r.state === 'PORTAL' || r.state === 'MUTATING' || r.state === 'CLONING') continue;
+        if (r.carrier >= 0) { const c = m.heroById(r.carrier); if (!c || c.team === h.team || dist2(h.x, h.y, r.x, r.y) > P.steal * P.steal) continue; }
+        const d = dist2(h.x, h.y, r.x, r.y);
+        if (d < bd) { bd = d; best = r; }
+      }
+      if (!best || h.carrying) return false;
+      if (best.carrier >= 0) { const c = m.heroById(best.carrier); if (c) m.dropCarried(c); }
+      m.emit({ t: 'zap', x: best.x, y: best.y, tx: h.x, ty: h.y });
+      best.x = h.x; best.y = h.y; best.vx = best.vy = 0; best.attractUntil = 0;
+      best.pickupLockUntil = 0;
+      setRiftState(m, best, 'DROPPED');
+      break;
+    }
+
+    case 'avatar':
+      h.avatarUntil = m.time + P.duration;
+      healHero(m, h, h.maxHp * P.heal, h);
+      h.stunUntil = 0; h.slowUntil = 0;
+      m.emit({ t: 'avatar', hero: h.id });
+      m.emit({ t: 'explosion', x: h.x, y: h.y, radius: 260, color: '#9b5de5' });
+      break;
+
+    case 'rift_decoy': {
+      for (const r of m.rifts) if (r.decoy && r.decoy.owner === h.id) r.alive = false; // one decoy at a time
+      const c = createRift(m.nextRiftId(), h.x + dx * 60, h.y + dy * 60, true);
+      c.vx = dx * 650; c.vy = dy * 650; c.state = 'DROPPED';
+      c.dieAt = m.time + P.life;
+      c.decoy = { team: h.team, owner: h.id, damage: P.damage, stun: P.stun };
+      c.lastTouchTeam = -1;
+      m.rifts.push(c);
+      break;
+    }
+
     default:
       console.warn('Unknown ability effect', ab.effect);
       return false;
   }
-  if (isUlt) h.stats.ults++; else h.stats.abilities++;
+  if (isUlt) h.stats.ults++; else if (isGadget) h.stats.gadgets++; else h.stats.abilities++;
   if (ab.effect !== 'vanish' && ab.effect !== 'ice_block') h.revealedUntil = m.time + 1;
   if (isGadget) m.emit({ t: 'gadget', hero: h.id, effect: ab.effect, x: px, y: py });
   else m.emit({ t: 'ability', hero: h.id, effect: ab.effect, x: px, y: py, ult: isUlt });
@@ -337,6 +503,11 @@ export function updateDash(m: Match, h: Hero, dt: number) {
       if (!e.alive || e.team === h.team || d.hit.has(e.id)) continue;
       if (dist2(h.x, h.y, e.x, e.y) <= (h.radius + e.radius + 10) ** 2) {
         d.hit.add(e.id);
+        // ZIP: snatch the Rift from the carrier
+        if (d.kind === 'snatch' && e.carrying && !h.carrying && h.canCarry) {
+          const r = m.rifts.find((q) => q.carrier === e.id);
+          if (r) { e.carrying = false; r.carrier = h.id; h.carrying = true; r.lastTouchTeam = h.team; r.carryTime = 0; r.charged = false; h.stats.captures++; h.stats.interceptions++; m.emit({ t: 'capture', hero: h.id, rift: r.id, interception: true }); }
+        }
         applyDamage(m, e, d.dmg, h, { kb: d.kb, kbX: d.dx, kbY: d.dy, stun: d.stun });
       }
     }
@@ -352,8 +523,10 @@ export function updateLeap(m: Match, h: Hero, dt: number) {
   h.y = L.fy + (L.ty - L.fy) * k;
   if (k >= 1) {
     h.leap = null;
-    radial(m, h, h.x, h.y, 150, L.dmg, 300, 0);
-    m.emit({ t: 'explosion', x: h.x, y: h.y, radius: 150, color: h.def.palette.accent });
+    const rad = L.r ?? 150;
+    if (L.dmg > 0) radial(m, h, h.x, h.y, rad, L.dmg, 300, L.r ? 0.5 : 0);
+    if (L.heal) for (const a of m.heroes) if (a.alive && a.team === h.team && dist2(a.x, a.y, h.x, h.y) < rad * rad) healHero(m, a, L.heal, h);
+    if (L.dmg > 0 || L.heal) m.emit({ t: 'explosion', x: h.x, y: h.y, radius: rad, color: h.def.palette.accent });
     m.unstickFromWalls();
   }
 }

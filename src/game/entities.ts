@@ -19,9 +19,10 @@ export interface Pickup { id: number; kind: PickupKind; x: number; y: number; al
 export interface HeroStats {
   kills: number; deaths: number; goals: number; assists: number; damage: number; heal: number;
   abilities: number; ults: number; captures: number; throws: number; interceptions: number;
+  gadgets: number; bossDamage: number; kingPoints: number;
 }
 
-export const emptyStats = (): HeroStats => ({ kills: 0, deaths: 0, goals: 0, assists: 0, damage: 0, heal: 0, abilities: 0, ults: 0, captures: 0, throws: 0, interceptions: 0 });
+export const emptyStats = (): HeroStats => ({ kills: 0, deaths: 0, goals: 0, assists: 0, damage: 0, heal: 0, abilities: 0, ults: 0, captures: 0, throws: 0, interceptions: 0, gadgets: 0, bossDamage: 0, kingPoints: 0 });
 
 export class Hero {
   x = 0; y = 0;
@@ -46,7 +47,7 @@ export class Hero {
   dmgMulNext = 1;           // shade ult
   absorbUntil = 0; absorbConvert = 0;
   overdriveUntil = 0;
-  leap: { fx: number; fy: number; tx: number; ty: number; t: number; dur: number; dmg: number } | null = null;
+  leap: { fx: number; fy: number; tx: number; ty: number; t: number; dur: number; dmg: number; r?: number; heal?: number } | null = null;
   dash: { dx: number; dy: number; remaining: number; speed: number; dmg: number; kb: number; stun: number; kind: string; hit: Set<number> } | null = null;
   lastDamageAt = -99;
   lastHitBy = -1;
@@ -78,6 +79,22 @@ export class Hero {
   /** roll i-frames */
   dodgeUntil = 0;
   worth = 0;
+  /** ECLIPSE: no ability / ult / gadget */
+  silenceUntil = 0;
+  /** RIFTBORN ult: giant form */
+  avatarUntil = 0;
+  /** boss: busy casting a telegraphed attack (cannot move) */
+  channelUntil = 0;
+  /** summons (turrets) disappear at this time */
+  expireAt = Infinity;
+  /** summon owner (turret -> GEAR) */
+  ownerId = -1;
+  /** SERAPH passive used */
+  reviveUsed = false;
+  /** CHRONOS rewind history: [time, x, y, hp] every 0.25 s */
+  history: number[] = [];
+  /** RIFT KING: currently crowned */
+  king = false;
 
   constructor(
     public id: number,
@@ -122,7 +139,8 @@ export class Projectile {
   id = 0;
 }
 
-export type ZoneKind = 'magnet_field' | 'storm' | 'heal' | 'slow' | 'black_hole' | 'fire' | 'eruption' | 'electric_trail' | 'lava_burst' | 'mine' | 'ice_floor' | 'blizzard';
+export type ZoneKind = 'magnet_field' | 'storm' | 'heal' | 'slow' | 'black_hole' | 'fire' | 'eruption' | 'electric_trail' | 'lava_burst' | 'mine' | 'ice_floor' | 'blizzard'
+  | 'vines' | 'smoke' | 'eclipse' | 'sanctuary' | 'moon_well' | 'oil' | 'boss_warn' | 'gravity_well';
 
 export class Zone {
   active = false;
@@ -140,7 +158,8 @@ export class Zone {
   slow = 0;
   stun = 0;
   delay = 0;          // eruption delay before damage
-  burst = 0;          // one-shot damage (mines)
+  burst = 0;          // one-shot damage (mines, boss telegraphs)
+  reduce = 0;         // damage reduction granted to allies inside (sanctuary)
   id = 0;
 }
 
@@ -164,6 +183,10 @@ export interface RiftEntity {
   portalTeam: TeamId | -1;   // portal being entered (PORTAL state)
   carryTime: number;         // seconds carried by the same team (overcharge)
   charged: boolean;          // overcharged Rift = goal worth 2
+  /** CHRONOS time stop */
+  frozenUntil?: number;
+  /** RIFTBORN decoy: explodes on enemy pickup, never scores */
+  decoy?: { team: TeamId; owner: number; damage: number; stun: number };
   look: number;              // eye direction (visual)
   mood: number;              // -1 scared .. 1 angry (visual)
 }
@@ -206,4 +229,11 @@ export type MatchEvent =
   | { t: 'jump'; hero: number; x: number; y: number; tx: number; ty: number }
   | { t: 'crate_break'; x: number; y: number }
   | { t: 'laser'; x: number; y: number; tx: number; ty: number; team: TeamId }
+  | { t: 'boss_phase'; phase: number }
+  | { t: 'boss_attack'; name: string; x: number; y: number }
+  | { t: 'beam_warn'; x: number; y: number; tx: number; ty: number; dur: number; width: number }
+  | { t: 'revive'; hero: number }
+  | { t: 'time_stop'; x: number; y: number; radius: number; dur: number }
+  | { t: 'avatar'; hero: number }
+  | { t: 'king'; hero: number; team: TeamId }
   | { t: 'end' };

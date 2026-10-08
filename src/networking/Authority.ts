@@ -21,6 +21,8 @@ export interface MatchReport {
   ranked: boolean;
   mutationsSeen: number;
   vsBots: boolean;
+  /** mode-specific facts used by challenges (boss damage rank, survival waves) */
+  extra?: Record<string, number>;
 }
 
 export interface ReportVerdict { accepted: boolean; reason?: string }
@@ -46,7 +48,8 @@ export function validateMatchReport(r: MatchReport, alreadyProcessed: (id: strin
   const s = r.stats;
   const perMin = Math.max(1, r.duration / 60);
   if (s.goals > 12 * perMin || s.kills > 25 * perMin || s.damage > 120000 * perMin || s.captures > 60 * perMin) return { accepted: false, reason: 'implausible_stats' };
-  if (r.score[0] < 0 || r.score[1] < 0 || r.score[0] + r.score[1] > 40 * perMin) return { accepted: false, reason: 'implausible_score' };
+  const scoreCap = (r.mode === 'RIFT_KING' ? 75 : 40) * perMin; // king: 1 point per second of reign
+  if (r.score[0] < 0 || r.score[1] < 0 || r.score[0] + r.score[1] > scoreCap) return { accepted: false, reason: 'implausible_score' };
   const my = r.score[r.myTeam], their = r.score[r.myTeam === 0 ? 1 : 0];
   const pve = r.mode === 'RIFT_BOSS' || r.mode === 'SURVIVAL';
   if (!pve) {

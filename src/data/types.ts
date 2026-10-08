@@ -67,7 +67,10 @@ export interface CharacterData {
   gadget?: AbilityData & { charges: number };
   ultChargePerHit: number;   // % gained per successful hit
   palette: { primary: string; secondary: string; accent: string; skin: string; eyes: string };
-  model: 'magnet' | 'blink' | 'block' | 'shade' | 'volt' | 'flux' | 'titan' | 'arc' | 'pulse' | 'vortex' | 'ember' | 'nova' | 'frost' | 'golem' | 'minion';
+  model: 'magnet' | 'blink' | 'block' | 'shade' | 'volt' | 'flux' | 'titan' | 'arc' | 'pulse' | 'vortex' | 'ember' | 'nova' | 'frost'
+    | 'koko' | 'zip' | 'mecha' | 'luna' | 'chef' | 'chronos' | 'seraph' | 'riftborn' | 'golem' | 'minion' | 'turret';
+  /** Collection rarity (display only — never affects stats). */
+  rarity?: Rarity;
   /** How it is obtained. Characters are NEVER sold for premium currency (anti pay-to-win). */
   unlock: { type: 'starter' } | { type: 'trophies'; trophies: number } | { type: 'coins'; price: number } | { type: 'season'; season: string; passTier: number };
   hidden?: boolean;       // bosses / minions
@@ -117,7 +120,7 @@ export interface ArenaData {
 
 // ---------------------------------------------------------------- Modes
 
-export type ModeId = 'RIFTBALL' | 'RIFT_RUSH' | 'RIFT_CHAOS' | 'RIFT_DUEL' | 'RIFT_BOSS' | 'SURVIVAL' | 'TUTORIAL';
+export type ModeId = 'RIFTBALL' | 'RIFT_RUSH' | 'RIFT_CHAOS' | 'RIFT_DUEL' | 'RIFT_BOSS' | 'SURVIVAL' | 'RIFT_KING' | 'TUTORIAL';
 
 export interface ModeData {
   id: ModeId;
@@ -227,12 +230,16 @@ export interface BattlePassRewardData {
 
 export type MissionStat =
   | 'matches' | 'wins' | 'goals' | 'abilities' | 'ults' | 'kills' | 'captures' | 'damage' | 'heal'
-  | 'mutations_seen' | 'mode_RIFTBALL' | 'mode_RIFT_RUSH' | 'mode_RIFT_CHAOS' | 'mode_RIFT_DUEL' | 'mode_RIFT_BOSS' | 'mode_SURVIVAL'
-  | 'throws' | 'interceptions';
+  | 'mutations_seen' | 'mode_RIFTBALL' | 'mode_RIFT_RUSH' | 'mode_RIFT_CHAOS' | 'mode_RIFT_DUEL' | 'mode_RIFT_BOSS' | 'mode_SURVIVAL' | 'mode_RIFT_KING'
+  | 'throws' | 'interceptions' | 'gadgets' | 'mvps' | 'boss_damage' | 'boss_wins' | 'boss_top' | 'king_points' | 'king_wins' | 'survival_waves'
+  | 'mythic_matches' | 'mythic_wins' | 'win_streak' | 'perfect_wins';
 
 export interface MissionData {
   id: string;
-  scope: 'daily' | 'weekly' | 'season' | 'event';
+  /** challenge = permanent gem challenge (never resets) · challenge_weekly = gem challenge renewed every week */
+  scope: 'daily' | 'weekly' | 'season' | 'event' | 'challenge' | 'challenge_weekly';
+  /** challenges: difficulty tier shown in the UI */
+  tier?: 1 | 2 | 3 | 4;
   text: string;
   stat: MissionStat;
   target: number;

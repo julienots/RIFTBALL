@@ -40,7 +40,7 @@ describe('New mechanics', () => {
       const r = m.mainRift()!; r.x = a.x + 300; r.y = a.y + 150; r.state = 'ROAM';
       expect(a.gadgetCharges).toBe(3);
       a.cmd.gadget = true; m.step(1 / 60);
-      expect(a.gadgetCharges, c.id + ' gadget').toBe(2);
+      if (c.gadget!.effect !== 'ally_warp') expect(a.gadgetCharges, c.id + ' gadget').toBe(2); // needs an ally in 1v1
       runUntil(m, () => false, 2.2);
       for (const h of m.heroes) expect(Number.isFinite(h.x) && Number.isFinite(h.y)).toBe(true);
     }

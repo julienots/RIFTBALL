@@ -312,6 +312,12 @@ export class GameSession {
       case 'jump': audio.play('throw', { vol: this.vol(e.x, e.y) }); break;
       case 'crate_break': audio.play('wall', { vol: this.vol(e.x, e.y) }); break;
       case 'laser': audio.play('ult', { vol: 0.9 }); this.r.addShake(0.25); break;
+      case 'boss_attack': audio.play('mutation_warn', { vol: 0.8 }); break;
+      case 'boss_phase': audio.play('mutation'); haptic('heavy', this.app.data.settings.haptics); break;
+      case 'beam_warn': audio.play('ability', { vol: 0.6 }); break;
+      case 'time_stop': audio.play('mutation', { vol: 0.8 }); this.r.addShake(0.2); break;
+      case 'revive': case 'avatar': audio.play('ult'); break;
+      case 'king': audio.play('goal', { vol: 0.7 }); break;
     }
   }
 
@@ -325,6 +331,11 @@ export class GameSession {
       matchId: this.cfg.matchId, mode: m.mode.id, arena: m.arena.data.id, heroId: me.def.id, outcome,
       score: res.score, myTeam: me.team, duration: Math.max(1, m.time), stats: { ...me.stats }, mvp: res.mvp === me.id,
       ranked: m.mode.ranked && !this.cfg.training, mutationsSeen: this.mutationsSeen, vsBots: this.cfg.vsBots,
+      extra: {
+        // boss damage rank among the players (1 = top damage dealer)
+        bossRank: m.mode.id === 'RIFT_BOSS' ? 1 + m.heroes.filter((x) => !x.pve && x.team === me.team && x.stats.bossDamage > me.stats.bossDamage).length : 0,
+        waves: res.extra?.waves ?? 0,
+      },
     };
     this.app.analytics.track('match_end', { mode: m.mode.id, outcome, duration: Math.round(m.time), forfeit });
     this.onEnd({ match: m, report, forfeit });

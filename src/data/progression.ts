@@ -38,8 +38,22 @@ export const TROPHY_ROAD: TrophyRoadReward[] = [
   { trophies: 1700, reward: { kind: 'hero', id: 'nova' } },
   { trophies: 1850, reward: { kind: 'cosmetic', id: 'emote_trophy' } },
   { trophies: 2000, reward: { kind: 'hero', id: 'frost' } },
-  { trophies: 2200, reward: { kind: 'cosmetic', id: 'banner_champion' } },
+  { trophies: 2100, reward: { kind: 'cosmetic', id: 'banner_champion' } },
+  { trophies: 2200, reward: { kind: 'hero', id: 'zip' } },
+  { trophies: 2300, reward: { kind: 'gems', amount: 30 } },
+  { trophies: 2400, reward: { kind: 'hero', id: 'grill' } },
   { trophies: 2500, reward: { kind: 'cosmetic', id: 'title_legend' } },
+  { trophies: 2600, reward: { kind: 'hero', id: 'koko' } },
+  { trophies: 2700, reward: { kind: 'coins', amount: 2000 } },
+  { trophies: 2800, reward: { kind: 'hero', id: 'luna' } },
+  { trophies: 2900, reward: { kind: 'crate', id: 'crate_big', count: 1 } },
+  { trophies: 3000, reward: { kind: 'hero', id: 'gear' } },
+  { trophies: 3250, reward: { kind: 'gems', amount: 50 } },
+  { trophies: 3500, reward: { kind: 'hero', id: 'chronos' } },
+  { trophies: 3800, reward: { kind: 'coins', amount: 3000 } },
+  { trophies: 4200, reward: { kind: 'hero', id: 'seraph' } },
+  { trophies: 4600, reward: { kind: 'gems', amount: 80 } },
+  { trophies: 5000, reward: { kind: 'hero', id: 'riftborn' } },
 ];
 
 /** Hero mastery levels: xp per level and rewards. */
@@ -65,3 +79,5 @@ function masterySkin(heroId: string) {
 
 /** Unlock prices of heroes with free coins (alternative to trophy road). Never premium currency. */
 export const HERO_COIN_PRICE = 3000;
+/** Coin price (free currency) to unlock a hero early — mythics cost more, never premium currency. */
+export const heroCoinPrice = (rarity?: string) => rarity === "MYTHIC" ? 12000 : rarity === "LEGENDARY" || rarity === "EPIC" ? 4500 : HERO_COIN_PRICE;

@@ -15,6 +15,7 @@ import { NavGrid } from '../bots/NavGrid';
 import { BOT_PROFILES } from '../data/bots';
 import type { BotProfile } from '../data/types';
 import { createModeRules, type ModeRules } from '../gamemodes/ModeRules';
+import { isBoss } from '../data/characters';
 
 export interface PlayerSlot {
   heroId: string;
@@ -309,7 +310,7 @@ export class Match {
     for (const h of this.heroes) {
       if (h.pve) continue;
       const s = h.stats;
-      const v = s.goals * 3 + s.kills * 1.5 + s.assists + s.captures * 0.5 + s.damage / 2500 + s.heal / 2000 + s.interceptions;
+      const v = s.goals * 3 + s.kills * 1.5 + s.assists + s.captures * 0.5 + s.damage / 2500 + s.heal / 2000 + s.interceptions + s.kingPoints * 0.25 + s.bossDamage / 4000;
       if (v > best) { best = v; mvp = h.id; }
     }
     this.result = {
@@ -370,6 +371,7 @@ export class Match {
 
     for (const r of this.rifts) {
       if (!r.alive) continue;
+      if (r.frozenUntil && r.frozenUntil > this.time && r.carrier < 0) { r.vx = r.vy = 0; checkPickup(this, r); continue; }
       updateRift(this, r, dt);
       if (!r.alive) continue;
       checkPickup(this, r);
@@ -401,7 +403,17 @@ export class Match {
       if (this.time >= h.respawnAt && this.phase !== 'ended') this.respawn(h);
       return;
     }
-    h.atkCd -= dt; h.abCd -= dt; h.gadgetCd -= dt; h.rollCd -= dt; h.jumpCd -= dt;
+    // summons (turrets) expire
+    if (h.expireAt <= this.time) { h.alive = false; h.hp = 0; h.respawnAt = Infinity; h.lastDamageAt = this.time; this.emit({ t: 'explosion', x: h.x, y: h.y, radius: 80, color: '#f77f00' }); return; }
+    const cdMul = h.def.passive.id === 'timekeeper' ? h.def.passive.params.mul : 1;
+    h.atkCd -= dt; h.abCd -= dt * cdMul; h.gadgetCd -= dt * cdMul; h.rollCd -= dt; h.jumpCd -= dt;
+    // CHRONOS: remember where we were (rewind)
+    if (h.def.ability.effect === 'rewind' && this.frame % 15 === 0) {
+      h.history.push(this.time, h.x, h.y, h.hp);
+      if (h.history.length > 96) h.history.splice(0, 4);
+    }
+    // RIFTBORN: the Rift heals its child
+    if (h.carrying && h.def.passive.id === 'rift_bond') h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.def.passive.params.regen * dt);
     if (h.blazeUntil > this.time && this.frame % 12 === 0 && h.def.gadget) this.addZone('fire', h, h.x, h.y, 75, 2.2, { damage: h.def.gadget.params.damage ?? 150, tickEvery: 0.5 });
     if (h.shieldUntil <= this.time) h.shield = 0;
     if (canAct && !h.pve) h.ult = Math.min(100, h.ult + dt * 0.9);
@@ -433,12 +445,13 @@ export class Match {
     if (h.leap) { updateLeap(this, h, dt); this.updateBush(h); return; }
     if (h.dash) { updateDash(this, h, dt); this.collideWalls(h, h.phaseUntil > this.time); this.updateBush(h); return; }
 
-    const stunned = h.stunUntil > this.time || !canAct;
+    const stunned = h.stunUntil > this.time || h.channelUntil > this.time || !canAct;
     const c = h.cmd;
     // movement
     let speed = h.def.speed;
     if (h.carrying) {
-      const slow = h.def.passive.id === 'porter' ? 0 : 0.15;
+      const pid = h.def.passive.id;
+      const slow = pid === 'porter' || pid === 'rift_bond' ? 0 : pid === 'courier' ? -h.def.passive.params.carryBonus : 0.15;
       speed *= 1 - slow + (this.mutation === 'FURY' ? this.mutationParams.carrierSpeed ?? 0 : 0);
     }
     if (h.carrying) { const cr = this.rifts.find((q) => q.carrier === h.id); if (cr?.charged) { speed *= 0.9; h.revealedUntil = this.time + 0.2; } }
@@ -484,6 +497,8 @@ export class Match {
         this.emit({ t: 'roll', hero: h.id });
       }
     }
+    // ECLIPSE: silenced heroes can only move, attack and roll
+    if (h.silenceUntil > this.time) { c.ability = c.ult = c.gadget = false; }
     // unique power (gadget)
     if (c.gadget) {
       c.gadget = false;
@@ -520,6 +535,11 @@ export class Match {
         const l = Math.hypot(ax, ay) || 1;
         performAttack(this, h, ax / l, ay / l, c.aimDist);
         h.atkCd = h.def.attack.cooldown;
+        // GEAR: faster attacks next to his turret
+        if (h.def.passive.id === 'overclock') {
+          const P2 = h.def.passive.params;
+          if (this.heroes.some((t) => t.alive && t.ownerId === h.id && dist2(t.x, t.y, h.x, h.y) < P2.range * P2.range)) h.atkCd *= P2.mul;
+        }
       }
     }
     if (c.ability) {
@@ -590,7 +610,7 @@ export class Match {
         if (d2 >= r * r || d2 < 1e-6) continue;
         const d = Math.sqrt(d2), push = (r - d) / 2;
         const nx = dx / d, ny = dy / d;
-        const wa = a.pve && a.def.id === 'boss_golem' ? 0.05 : 1, wb = b.pve && b.def.id === 'boss_golem' ? 0.05 : 1;
+        const wa = isBoss(a) || a.def.id === 'turret' ? 0.05 : 1, wb = isBoss(b) || b.def.id === 'turret' ? 0.05 : 1;
         a.x -= nx * push * wa; a.y -= ny * push * wa;
         b.x += nx * push * wb; b.y += ny * push * wb;
       }
@@ -669,18 +689,37 @@ export class Match {
       case 'power': h.powerUntil = this.time + 6; break;
       case 'ult': h.ult = Math.min(100, h.ult + 35); break;
     }
+    if (h.def.passive.id === 'hearty') healHero(this, h, h.maxHp * h.def.passive.params.heal, h);
   }
 
   private updateZones() {
     for (const z of this.zones) {
       if (!z.active) continue;
-      if (this.time >= z.until) { z.active = false; continue; }
       const owner = z.owner >= 0 ? this.heroById(z.owner) ?? null : null;
+      if (this.time >= z.until) {
+        // boss telegraph: the hit lands when the warning circle is full
+        if (z.kind === 'boss_warn') {
+          for (const h of this.heroes) if (h.alive && h.team !== z.team && dist2(z.x, z.y, h.x, h.y) <= (z.radius + h.radius) ** 2) applyDamage(this, h, z.burst, owner, { stun: z.stun, kb: 420, kbX: h.x - z.x, kbY: h.y - z.y, noUlt: true });
+          this.emit({ t: 'explosion', x: z.x, y: z.y, radius: z.radius, color: '#ff2e63' });
+        }
+        z.active = false; continue;
+      }
+      if (z.kind === 'boss_warn') continue;
+      // auras refreshed every frame
+      if (z.kind === 'smoke' || z.kind === 'sanctuary' || z.kind === 'eclipse') {
+        for (const h of this.heroes) {
+          if (!h.alive || dist2(z.x, z.y, h.x, h.y) > (z.radius + h.radius) ** 2) continue;
+          if (h.team === z.team) {
+            if (z.kind === 'smoke' && !h.carrying) h.invisUntil = Math.max(h.invisUntil, this.time + 0.25);
+            if (z.kind === 'sanctuary') { h.dmgReduction = Math.max(h.dmgReductionUntil > this.time ? h.dmgReduction : 0, z.reduce); h.dmgReductionUntil = this.time + 0.3; }
+          } else if (z.kind === 'eclipse' && !isBoss(h)) h.silenceUntil = this.time + 0.3;
+        }
+      }
       // continuous pull (heroes + rift)
       if (z.pull > 0) {
         const dt = 1 / 60;
         for (const h of this.heroes) {
-          if (!h.alive || h.team === z.team || h.pve && h.def.id === 'boss_golem') continue;
+          if (!h.alive || h.team === z.team || isBoss(h) || h.def.id === 'turret' || h.avatarUntil > this.time) continue;
           const dx = z.x - h.x, dy = z.y - h.y, d = Math.hypot(dx, dy);
           if (d < z.radius && d > 10) { h.x += (dx / d) * z.pull * dt; h.y += (dy / d) * z.pull * dt; }
         }
@@ -709,7 +748,8 @@ export class Match {
         if (h.team === z.team) { if (z.heal > 0) healHero(this, h, z.heal, owner); continue; }
         let dmg = z.damage;
         if (z.kind === 'eruption' && z.delay > 0) dmg += z.delay;
-        if (dmg > 0 || z.slow > 0) applyDamage(this, h, dmg, owner, { slow: z.slow, slowDuration: 0.6, stun: first ? z.stun : 0, noUlt: true });
+        if (dmg > 0) applyDamage(this, h, dmg, owner, { slow: z.slow, slowDuration: 0.6, stun: first ? z.stun : 0, noUlt: true });
+        else if (z.slow > 0 && h.avatarUntil <= this.time && !isBoss(h)) { h.slowMul = h.slowUntil > this.time ? Math.min(h.slowMul, 1 - z.slow) : 1 - z.slow; h.slowUntil = Math.max(h.slowUntil, this.time + 0.6); }
       }
       if (z.kind === 'eruption' && z.delay > 0) { this.emit({ t: 'explosion', x: z.x, y: z.y, radius: z.radius, color: '#ff6b35' }); z.delay = 0; }
     }

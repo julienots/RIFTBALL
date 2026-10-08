@@ -1,3 +1,5 @@
+import { getCharacter } from '../../data/characters';
+import { getCosmetic } from '../../data/cosmetics';
 import * as THREE from 'three';
 import type { Match } from '../Match';
 import type { Hero, MatchEvent, Projectile, RiftEntity, Zone } from '../entities';
@@ -29,7 +31,22 @@ interface HeroView {
   px: number; py: number;
   wasAlive: boolean;
   skinKey: string;
+  crown: THREE.Group | null;
+  mythic: boolean;
+  avatarK: number;
 }
+
+const WARN_FS = `uniform float time; uniform float progress; varying vec2 vUv;
+  void main(){
+    float d = length(vUv - 0.5) * 2.0;
+    if (d > 1.0) discard;
+    float edge = smoothstep(0.9, 0.97, d) * (1.0 - smoothstep(0.97, 1.0, d));
+    float fill = step(d, progress) * 0.38;
+    float front = smoothstep(progress - 0.05, progress, d) * (1.0 - step(progress, d)) * 0.8;
+    float stripes = step(0.5, fract((vUv.x + vUv.y) * 9.0 - time * 1.5)) * 0.08;
+    float a = max(max(edge, fill + stripes), front) * (0.75 + 0.25 * sin(time * 18.0));
+    gl_FragColor = vec4(mix(vec3(1.0, 0.2, 0.3), vec3(1.0, 0.85, 0.3), front), a);
+  }`;
 
 interface RiftView { beam: THREE.Mesh | null; xray: THREE.Sprite; rift: RiftEntity; group: THREE.Group; core: THREE.Mesh; eyes: THREE.Group; rings: THREE.Mesh[]; aura: THREE.Sprite; shadow: THREE.Mesh; light: THREE.PointLight | null; px: number; py: number }
 
@@ -53,13 +70,13 @@ const SWIRL_FS = `uniform float time; uniform vec3 color; uniform float intensit
     gl_FragColor = vec4(color * (0.6 + s * 0.8) + ring * 0.5, (s * 0.55 + 0.25) * edge * intensity + ring * intensity); }`;
 const UV_VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
 
-const LAVA_FS = `uniform float time; uniform float active; uniform float warn; varying vec2 vUv;
+const LAVA_FS = `uniform float time; uniform float uActive; uniform float warn; varying vec2 vUv;
   void main(){ vec2 p = vUv * 6.0; float n = sin(p.x * 1.7 + time * 1.3) * cos(p.y * 1.9 - time) + sin((p.x + p.y) * 2.3 + time * 2.0) * 0.5;
     vec3 hot = mix(vec3(1.0, 0.25, 0.0), vec3(1.0, 0.85, 0.2), smoothstep(-0.6, 1.0, n));
     vec3 crust = mix(vec3(0.16, 0.08, 0.07), vec3(0.4, 0.12, 0.05), smoothstep(0.3, 1.2, n));
     crust += vec3(0.9, 0.3, 0.0) * warn * (0.5 + 0.5 * sin(time * 18.0));
     vec2 e = min(vUv, 1.0 - vUv); float edge = smoothstep(0.0, 0.06, min(e.x, e.y));
-    gl_FragColor = vec4(mix(crust, hot, active), 0.95 * edge + 0.05); }`;
+    gl_FragColor = vec4(mix(crust, hot, uActive), 0.95 * edge + 0.05); }`;
 
 const ICE_FS = `uniform float time; varying vec2 vUv;
   void main(){ float s = pow(sin((vUv.x * 3.0 + vUv.y * 2.0) * 6.2831 + time * 0.8) * 0.5 + 0.5, 12.0);
@@ -88,6 +105,9 @@ export class WorldRenderer {
   private shockwaves: { mesh: THREE.Mesh; t: number; dur: number; r0: number; r1: number }[] = [];
   private bolts: { line: THREE.Line; t: number }[] = [];
   private beams: { mesh: THREE.Mesh; t: number }[] = [];
+  private warnBeams: { mesh: THREE.Mesh; t: number; dur: number }[] = [];
+  private warnViews = new Map<object, THREE.Mesh>();
+  private warnPool: THREE.Mesh[] = [];
   private pickupViews = new Map<number, THREE.Group>();
   private animated: { mat: THREE.ShaderMaterial }[] = [];
   private portalViews: THREE.Group[] = [];
@@ -440,7 +460,17 @@ export class WorldRenderer {
     stun.position.y = h.radius * WS * 4.4; stun.visible = false;
     group.add(stun);
     this.matchRoot.add(group);
-    v = { hero: h, group, body, outline, mat, outlineMat, u, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key };
+    const mythic = h.def.rarity === 'MYTHIC' || getCosmetic(h.skinId)?.rarity === 'MYTHIC';
+    u.uIri.value = mythic ? 1 : 0;
+    if (mythic) {
+      // mythic aura: double glowing ring under the hero
+      for (const [r0, r1, o] of [[1.45, 1.6, 0.8], [1.75, 1.82, 0.5]] as const) {
+        const aura = new THREE.Mesh(new THREE.RingGeometry(h.radius * WS * r0, h.radius * WS * r1, 40), new THREE.MeshBasicMaterial({ color: '#ff3d7f', transparent: true, opacity: o, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+        aura.rotation.x = -Math.PI / 2; aura.position.y = 0.05; aura.userData.ownMat = true; aura.userData.mythicAura = true;
+        group.add(aura);
+      }
+    }
+    v = { hero: h, group, body, outline, mat, outlineMat, u, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key, crown: null, mythic, avatarK: 1 };
     this.heroViews.set(h.id, v);
     return v;
   }
@@ -562,7 +592,8 @@ export class WorldRenderer {
       mesh.rotation.x = -Math.PI / 2;
       this.matchRoot.add(mesh);
     }
-    const col: Record<string, string> = { magnet_field: '#ff4d6d', storm: '#ffe600', heal: '#5cff9d', slow: '#4cc9f0', black_hole: '#7b2ff7', fire: '#ff6b35', eruption: '#ff3d00', electric_trail: '#00f0ff', lava_burst: '#ff5400', mine: '#ffd23f', ice_floor: '#bde0fe', blizzard: '#e0fbfc' };
+    const col: Record<string, string> = { magnet_field: '#ff4d6d', storm: '#ffe600', heal: '#5cff9d', slow: '#4cc9f0', black_hole: '#7b2ff7', fire: '#ff6b35', eruption: '#ff3d00', electric_trail: '#00f0ff', lava_burst: '#ff5400', mine: '#ffd23f', ice_floor: '#bde0fe', blizzard: '#e0fbfc',
+      vines: '#52b788', smoke: '#6c757d', eclipse: '#7b2cbf', sanctuary: '#ffe66d', moon_well: '#e0aaff', oil: '#fcbf49', gravity_well: '#ff00a0' };
     const mat = mesh.material as THREE.ShaderMaterial;
     mat.uniforms.color.value.set(col[z.kind] ?? '#ffffff');
     mesh.scale.setScalar(z.radius * WS);
@@ -635,7 +666,7 @@ export class WorldRenderer {
       let mesh = this.hazardViews.get(h);
       if (!mesh) {
         let mat: THREE.Material;
-        if (h.kind === 'lava') mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, active: { value: 1 }, warn: { value: 0 } }, vertexShader: UV_VS, fragmentShader: LAVA_FS, transparent: true, depthWrite: false });
+        if (h.kind === 'lava') mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, uActive: { value: 1 }, warn: { value: 0 } }, vertexShader: UV_VS, fragmentShader: LAVA_FS, transparent: true, depthWrite: false });
         else if (h.kind === 'ice') mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 } }, vertexShader: UV_VS, fragmentShader: ICE_FS, transparent: true, depthWrite: false });
         else mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, color: { value: new THREE.Color(h.kind === 'boost' ? '#ffd166' : h.kind === 'jump' ? '#ff7b00' : h.pair % 2 ? '#4cc9f0' : '#f72585') }, intensity: { value: 1 } }, vertexShader: UV_VS, fragmentShader: SWIRL_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
         if (mat instanceof THREE.ShaderMaterial) this.animated.push({ mat });
@@ -651,7 +682,7 @@ export class WorldRenderer {
       }
       const mat = mesh.material as THREE.ShaderMaterial;
       if (h.kind === 'lava') {
-        mat.uniforms.active.value += ((h.active ? 1 : 0) - mat.uniforms.active.value) * 0.2;
+        mat.uniforms.uActive.value += ((h.active ? 1 : 0) - mat.uniforms.uActive.value) * 0.2;
         mat.uniforms.warn.value = m.arena.lavaWarning(h, m.time) ? 1 : 0;
         if (h.active && Math.random() < 0.3 * this.q.particleMul) this.particles.emit((h.x + Math.random() * h.w) * WS, 0.05, (h.y + Math.random() * h.h) * WS, 0, 1.5 + Math.random(), 0, '#ff9e00', 0.18, 0.6, -1);
       }
@@ -715,6 +746,23 @@ export class WorldRenderer {
 
     // zones
     for (const z of m.zones) {
+      if (z.kind === 'boss_warn') {
+        let w = this.warnViews.get(z);
+        if (!z.active) { if (w) { w.visible = false; this.warnPool.push(w); this.warnViews.delete(z); } continue; }
+        if (!w) {
+          w = this.warnPool.pop() ?? (() => {
+            const mm = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, progress: { value: 0 } }, vertexShader: UV_VS, fragmentShader: WARN_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+            mm.rotation.x = -Math.PI / 2; mm.userData.ownMat = true; this.matchRoot.add(mm); return mm;
+          })();
+          this.warnViews.set(z, w);
+        }
+        w.visible = true;
+        w.scale.setScalar(z.radius * WS); w.position.set(z.x * WS, 0.07, z.y * WS);
+        const wm = w.material as THREE.ShaderMaterial;
+        wm.uniforms.time.value = this.time;
+        wm.uniforms.progress.value = Math.min(1, (m.time - z.born) / Math.max(0.01, z.until - z.born));
+        continue;
+      }
       let mesh = this.zoneViews.get(z);
       if (!z.active) { if (mesh) { mesh.visible = false; this.zonePool.push(mesh); this.zoneViews.delete(z); } continue; }
       if (!mesh) { mesh = this.acquireZone(z); this.zoneViews.set(z, mesh); }
@@ -724,12 +772,24 @@ export class WorldRenderer {
       mat.uniforms.intensity.value = Math.min(1, life * 4) * (z.kind === 'eruption' && z.delay > 0 ? 0.5 + 0.5 * Math.sin(this.time * 30) : 1);
       if (z.kind === 'storm' && Math.random() < 0.25) this.particles.emit((z.x + (Math.random() - 0.5) * z.radius * 1.6) * WS, 2.5, (z.y + (Math.random() - 0.5) * z.radius * 1.6) * WS, 0, -9, 0, '#fff59d', 0.3, 0.3, 0, 0);
       if ((z.kind === 'fire' || z.kind === 'eruption') && Math.random() < 0.5 * this.q.particleMul) this.particles.emit((z.x + (Math.random() - 0.5) * z.radius) * WS, 0.1, (z.y + (Math.random() - 0.5) * z.radius) * WS, 0, 2, 0, Math.random() < 0.5 ? '#ff6b35' : '#ffd166', 0.25, 0.5, 0.5);
+      if ((z.kind === 'sanctuary' || z.kind === 'moon_well') && Math.random() < 0.35) this.particles.emit((z.x + (Math.random() - 0.5) * z.radius) * WS, 0.1, (z.y + (Math.random() - 0.5) * z.radius) * WS, 0, 1.8, 0, z.kind === 'sanctuary' ? '#ffe66d' : '#e0aaff', 0.2, 0.8, 0);
+      if (z.kind === 'smoke' && Math.random() < 0.6 * this.q.particleMul) this.particles.emit((z.x + (Math.random() - 0.5) * z.radius * 1.4) * WS, 0.2 + Math.random() * 0.8, (z.y + (Math.random() - 0.5) * z.radius * 1.4) * WS, 0, 0.3, 0, Math.random() < 0.5 ? '#adb5bd' : '#6c757d', 0.6, 1.1, 0);
+      if (z.kind === 'vines' && Math.random() < 0.3) this.particles.emit((z.x + (Math.random() - 0.5) * z.radius) * WS, 0.1, (z.y + (Math.random() - 0.5) * z.radius) * WS, 0, 1.2, 0, '#52b788', 0.22, 0.6, 0);
+      if (z.kind === 'eclipse' && Math.random() < 0.4) this.particles.emit((z.x + (Math.random() - 0.5) * z.radius) * WS, 0.1, (z.y + (Math.random() - 0.5) * z.radius) * WS, 0, 1, 0, '#3c096c', 0.3, 0.8, 0);
       if (z.kind === 'heal' && Math.random() < 0.3) this.particles.emit((z.x + (Math.random() - 0.5) * z.radius) * WS, 0.1, (z.y + (Math.random() - 0.5) * z.radius) * WS, 0, 1.4, 0, '#5cff9d', 0.2, 0.7, 0);
     }
 
     this.syncWalls(m);
     this.syncHazards(m);
     this.syncPickups(m);
+    for (let i = this.warnBeams.length - 1; i >= 0; i--) {
+      const b = this.warnBeams[i];
+      b.t += dt;
+      const k = b.t / b.dur;
+      (b.mesh.material as THREE.MeshBasicMaterial).opacity = (0.25 + 0.35 * k) * (0.7 + 0.3 * Math.sin(this.time * 24));
+      b.mesh.scale.z = 0.3 + 0.7 * Math.min(1, k * 1.5);
+      if (k >= 1) { this.matchRoot.remove(b.mesh); b.mesh.geometry.dispose(); (b.mesh.material as THREE.Material).dispose(); this.warnBeams.splice(i, 1); }
+    }
     for (let i = this.beams.length - 1; i >= 0; i--) {
       const b = this.beams[i];
       b.t -= dt;
@@ -806,7 +866,10 @@ export class WorldRenderer {
     const atk = h.anim.attackT > 0 ? Math.sin((h.anim.attackT / 0.22) * Math.PI) * 0.12 : 0;
     const cast = h.anim.castT > 0 ? Math.sin((h.anim.castT / 0.35) * Math.PI) * 0.18 : 0;
     inner.position.y = bob * v.scale * 4;
-    inner.scale.set(v.scale * (1 + atk * 0.25 + cast * 0.2), v.scale * (1 - atk * 0.15 + cast * 0.4), v.scale * (1 + atk * 0.25 + cast * 0.2));
+    // RIFTBORN avatar: giant form
+    v.avatarK += ((h.avatarUntil > m.time ? 1.4 : 1) - v.avatarK) * Math.min(1, dt * 6);
+    const S0 = v.scale * v.avatarK;
+    inner.scale.set(S0 * (1 + atk * 0.25 + cast * 0.2), S0 * (1 - atk * 0.15 + cast * 0.4), S0 * (1 + atk * 0.25 + cast * 0.2));
     inner.rotation.z = moving ? -0.12 : 0; // lean into the run
     // limb animation (vertex shader) + hit flash
     const u = v.u;
@@ -834,6 +897,36 @@ export class WorldRenderer {
     if (h.powerUntil > m.time && Math.random() < 0.35) this.particles.emit(v.px * WS, 0.2 + Math.random() * 0.8, v.py * WS, 0, 1, 0, '#ff4d6d', 0.16, 0.5, 0);
     if (h.blazeUntil > m.time && Math.random() < 0.6) this.particles.emit(v.px * WS, 0.15, v.py * WS, 0, 1.6, 0, Math.random() < 0.5 ? '#ff6b35' : '#ffd166', 0.26, 0.5, 0.5);
     if (h.overdriveUntil > m.time && Math.random() < 0.3) this.particles.emit(v.px * WS, 0.1, v.py * WS, 0, 1.6, 0, '#ff70a6', 0.18, 0.6, 0);
+    // status visuals
+    const u2 = v.u;
+    const stopped = h.stunUntil > m.time + 0.9; // time stop / long freeze
+    u2.uTintK.value = h.silenceUntil > m.time ? 0.25 : stopped ? 0.35 : h.avatarUntil > m.time ? 0.12 : 0;
+    u2.uTint.value.set(h.silenceUntil > m.time ? '#3c096c' : stopped ? '#4cc9f0' : '#c77dff');
+    if (h.silenceUntil > m.time && Math.random() < 0.3) this.particles.emit(v.px * WS + (Math.random() - 0.5) * 0.6, 1.6, v.py * WS + (Math.random() - 0.5) * 0.6, 0, 0.5, 0, '#7b2cbf', 0.2, 0.6, 0);
+    if (h.avatarUntil > m.time && Math.random() < 0.7 * this.q.particleMul) this.particles.emit(v.px * WS + (Math.random() - 0.5), 0.2 + Math.random() * 2, v.py * WS + (Math.random() - 0.5), 0, 1.2, 0, Math.random() < 0.5 ? '#9b5de5' : '#00f5d4', 0.22, 0.6, 0);
+    if (h.dmgReductionUntil > m.time && Math.random() < 0.25) this.particles.emit(v.px * WS, 0.3 + Math.random(), v.py * WS, 0, 0.4, 0, '#e9c46a', 0.18, 0.5, 0);
+    if (v.mythic) {
+      const hue = (this.time * 0.15 + h.id * 0.1) % 1;
+      for (const c of v.group.children) if (c.userData.mythicAura) { ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).color.setHSL(hue, 0.9, 0.6); c.rotation.z = this.time * (c === v.group.children[v.group.children.length - 1] ? -0.8 : 0.6); }
+      if (Math.random() < 0.18 * this.q.particleMul) { const a = Math.random() * 6.28, rr = h.radius * WS * 1.6; this.particles.emit(v.px * WS + Math.cos(a) * rr, 0.1, v.py * WS + Math.sin(a) * rr, 0, 1.5, 0, this.tmpColor.setHSL(hue, 0.9, 0.65).getStyle(), 0.14, 0.8, 0); }
+    }
+    // RIFT KING crown
+    if (h.king && !v.crown) {
+      const crown = new THREE.Group();
+      const gold = toon('#ffd60a', { emissive: '#ffb703', emissiveIntensity: 0.6 });
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.22, 18, 1, true), gold); band.userData.ownMat = true;
+      crown.add(band);
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; const sp = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 6), gold); sp.position.set(Math.cos(a) * 0.42, 0.25, Math.sin(a) * 0.42); crown.add(sp); }
+      crown.position.y = h.radius * WS * 5.6;
+      v.group.add(crown);
+      v.crown = crown;
+    }
+    if (v.crown) {
+      v.crown.visible = h.king;
+      v.crown.rotation.y += dt * 1.5;
+      v.crown.position.y = h.radius * WS * 5.6 * v.avatarK + Math.sin(this.time * 4) * 0.08;
+      if (h.king && Math.random() < 0.4) this.particles.emit(v.px * WS, h.radius * WS * 5.6, v.py * WS, (Math.random() - 0.5), 0.5, (Math.random() - 0.5), '#ffd60a', 0.16, 0.6, 0);
+    }
   }
 
   private updateRift(v: RiftView, m: Match, dt: number, mutColor: string) {
@@ -857,7 +950,9 @@ export class WorldRenderer {
     }
     (v.xray.material as THREE.SpriteMaterial).opacity = 0.4 + Math.sin(this.time * 5) * 0.1;
     const isMut = r.state === 'MUTATING' || r.state === 'CLONING';
-    const base = r.charged ? '#ffd23f' : r.clone ? '#00f5d4' : m.mutation !== 'NORMAL' ? mutColor : '#b388ff';
+    const frozen = !!r.frozenUntil && r.frozenUntil > m.time;
+    const base = frozen ? '#caf0f8' : r.charged ? '#ffd23f' : r.clone ? '#00f5d4' : m.mutation !== 'NORMAL' ? mutColor : '#b388ff';
+    if (frozen && Math.random() < 0.4) this.particles.emit(x + (Math.random() - 0.5), y, z + (Math.random() - 0.5), 0, 0.2, 0, '#ffffff', 0.15, 0.5, 0);
     const mat = v.core.material as THREE.ShaderMaterial;
     mat.uniforms.time.value = this.time * (r.state === 'FRENZY' ? 2.5 : 1);
     (mat.uniforms.c1.value as THREE.Color).lerp(this.tmpColor.set(isMut ? (Math.sin(this.time * 25) > 0 ? '#ffffff' : '#ff3df5') : base), 0.15);
@@ -1015,6 +1110,34 @@ export class WorldRenderer {
       case 'rift_charged': { const r = m.rifts.find((x) => x.id === e.rift); if (r) { this.addShockwave(r.x, r.y, 0.3, 3.5, '#ffd23f', 0.7); P.burst(r.x * WS, 1.2, r.y * WS, 60, '#ffd23f', 4, 0.35, 0.9, 3, -3); } break; }
       case 'bounty': { const h = m.heroById(e.hero); if (h) P.burst(h.x * WS, 1.4, h.y * WS, 30, '#ffd23f', 2.5, 0.3, 0.8, 3, -2); break; }
       case 'gadget': { const h = m.heroById(e.hero); if (h) { P.burst(h.x * WS, 0.6, h.y * WS, 24, '#3ddc84', 3, 0.28, 0.6, 2, -3); this.addShockwave(h.x, h.y, 0.2, 1.4, '#3ddc84', 0.35); } break; }
+      case 'beam_warn': {
+        const len = Math.hypot(e.tx - e.x, e.ty - e.y) * WS;
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(len, 0.05, e.width * 2 * WS), new THREE.MeshBasicMaterial({ color: '#ff2e63', transparent: true, opacity: 0.3, depthWrite: false }));
+        mesh.geometry.translate(len / 2, 0, 0);
+        mesh.position.set(e.x * WS, 0.08, e.y * WS);
+        mesh.rotation.y = -Math.atan2(e.ty - e.y, e.tx - e.x);
+        this.matchRoot.add(mesh);
+        this.warnBeams.push({ mesh, t: 0, dur: e.dur });
+        break;
+      }
+      case 'time_stop':
+        this.addShockwave(e.x, e.y, 0.5, e.radius * WS, '#4cc9f0', 0.7);
+        this.addShockwave(e.x, e.y, 0.3, e.radius * WS * 0.6, '#ffffff', 0.5);
+        P.burst(e.x * WS, 1, e.y * WS, 60, '#4cc9f0', 6, 0.3, 1, 1, 0);
+        this.addShake(0.2);
+        break;
+      case 'revive':
+      case 'avatar': {
+        const hh = m.heroById(e.hero);
+        if (hh) { this.addShockwave(hh.x, hh.y, 0.3, 3, e.t === 'revive' ? '#ffe66d' : '#9b5de5', 0.6); P.burst(hh.x * WS, 1, hh.y * WS, 50, e.t === 'revive' ? '#ffe66d' : '#00f5d4', 5, 0.3, 0.9, 3, -3); }
+        break;
+      }
+      case 'king': {
+        const hh = m.heroById(e.hero);
+        if (hh) this.addShockwave(hh.x, hh.y, 0.3, 2.6, '#ffd60a', 0.5);
+        break;
+      }
+      case 'boss_phase': this.addShake(0.5); break;
       case 'laser': {
         const len = Math.hypot(e.tx - e.x, e.ty - e.y) * WS;
         const col = e.team === 0 ? '#9fd3ff' : '#ffb3bd';
@@ -1105,6 +1228,7 @@ export class WorldRenderer {
     const geo = heroGeometry(heroId, skinId);
     const g = new THREE.Group();
     this.showcaseU = makeHeroUniforms('#c9a5ff');
+    this.showcaseU.uIri.value = getCharacter(heroId).rarity === 'MYTHIC' || getCosmetic(skinId)?.rarity === 'MYTHIC' ? 1 : 0;
     const body = new THREE.Mesh(geo, makeHeroMaterial(this.showcaseU));
     const ol = new THREE.Mesh(geo, makeHeroOutline(this.showcaseU, 0.05));
     g.add(body, ol);

@@ -3,12 +3,13 @@ import type { Controller } from '../Controller';
 import type { Screen } from '../UIManager';
 import { shell } from './shell';
 import { PLAYABLE, getCharacter } from '../../data/characters';
-import { HERO_COIN_PRICE, MASTERY, TROPHY_ROAD } from '../../data/progression';
+import { heroCoinPrice, MASTERY, TROPHY_ROAD } from '../../data/progression';
 import { audio } from '../../audio/AudioEngine';
 import { RARITY_LABEL } from '../../data/cosmetics';
 import { coin, gem } from '../icons';
 import { shopScreen } from './Shop';
 
+const NEW_HEROES = ['zip', 'grill', 'koko', 'luna', 'gear', 'chronos', 'seraph', 'riftborn'];
 const ROLE_FR: Record<string, string> = { CONTROL: 'CONTRÔLE', ASSASSIN: 'ASSASSIN', BUILDER: 'BÂTISSEUR', STEALTH: 'FURTIF', DAMAGE: 'DÉGÂTS', SUPPORT: 'SOUTIEN', TANK: 'TANK', ARTILLERY: 'ARTILLERIE' };
 
 function unlockText(c: Controller, id: string) {
@@ -25,18 +26,22 @@ export function heroesScreen(c: Controller): Screen {
   const { el, off } = shell(c, 'PERSONNAGES', grid);
   const render = () => {
     grid.innerHTML = '';
-    for (const hero of PLAYABLE) {
+    // mythics last, then by rarity
+    const order = { COMMON: 0, RARE: 1, EPIC: 2, LEGENDARY: 3, MYTHIC: 4 } as Record<string, number>;
+    const list = PLAYABLE.slice().sort((a, b) => (order[a.rarity ?? 'COMMON'] - order[b.rarity ?? 'COMMON']) || 0);
+    for (const hero of list) {
       const hp = c.data.heroes[hero.id];
       const owned = hp?.unlocked;
       const skin = owned ? hp.skin : `${hero.id}_default`;
-      grid.appendChild(h('button.card.hero-card', { style: `background:linear-gradient(160deg,${hero.palette.primary},#2a1d68);${c.heroId === hero.id ? 'outline:.22em solid #ffe14d' : ''}`, onclick: () => { audio.play('click'); c.ui.push(heroDetail(c, hero.id)); } },
+      grid.appendChild(h('button.card.hero-card.rarity-' + (hero.rarity ?? 'COMMON'), { style: `background:linear-gradient(160deg,${hero.palette.primary},#2a1d68);${c.heroId === hero.id ? 'outline:.22em solid #ffe14d' : ''}`, onclick: () => { audio.play('click'); c.ui.push(heroDetail(c, hero.id)); } },
         h('div.art', h('img', { src: c.portrait(hero.id, skin), class: owned ? '' : 'locked' })),
         h('div.name', hero.name),
         h('div.small-text', { style: 'font-size:.62em;opacity:.9' }, ROLE_FR[hero.role]),
         owned ? h('div.tro', '🏆', String(hp.trophies)) : null,
         owned ? h('div.mast', '⭐' + hp.masteryLevel) : null,
         owned ? null : h('div.lock.stroke-s', '🔒', h('br'), unlockText(c, hero.id)),
-        hero.id === 'nova' || hero.id === 'frost' ? h('span.tagx.red', { style: 'position:absolute;bottom:2.6em;left:50%;transform:translateX(-50%)' }, 'NOUVEAU') : null));
+        h('span.rar', RARITY_LABEL[hero.rarity ?? 'COMMON']),
+        NEW_HEROES.includes(hero.id) ? h('span.tagx.red', { style: 'position:absolute;bottom:2.6em;left:50%;transform:translateX(-50%)' }, 'NOUVEAU') : null));
     }
   };
   return { el, onShow: render, refresh: render, onHide: off };
@@ -59,7 +64,8 @@ export function heroDetail(c: Controller, heroId: string): Screen {
     c.renderer.setShowcase(heroId, viewSkin, -1.2);
     const a = hero.attack;
     const left = h('div.panel.col.scroll', { style: 'width:38%;padding:.8em;gap:.45em' },
-      h('div.title.stroke-s', { style: 'font-size:1.2em' }, hero.title),
+      h('div.row', { style: 'gap:.5em' }, h('span.pill', { class: 'rarity-' + (hero.rarity ?? 'COMMON'), style: 'height:1.5em;font-size:.72em;background:var(--rc);color:#10002b' }, RARITY_LABEL[hero.rarity ?? 'COMMON']), h('span.small-text.muted', ROLE_FR[hero.role])),
+      h('div.title.stroke-s' + (hero.rarity === 'MYTHIC' ? '.mythic-title' : ''), { style: 'font-size:1.2em' }, hero.title),
       h('div.small-text.muted', hero.lore),
       stat('PV', hero.hp, 8200, fmt(hero.hp)),
       stat('Vitesse', hero.speed, 340, String(hero.speed)),
@@ -87,12 +93,13 @@ export function heroDetail(c: Controller, heroId: string): Screen {
         if (!owned) {
           const hd = getCharacter(heroId);
           const canCoins = hd.unlock.type === 'trophies';
+          const price = heroCoinPrice(hd.rarity);
           return h('div.col', { style: 'gap:.4em' }, h('div.small-text', { style: 'text-align:center' }, '🔒 ' + unlockText(c, heroId)),
             canCoins ? h('button.btn.yellow', { onclick: async () => {
-              if (await c.ui.confirm('Débloquer ' + hd.name, h('div', 'Débloquer maintenant pour ', h('b', `${HERO_COIN_PRICE} `), coin(), ' (monnaie gratuite) ?'), 'DÉBLOQUER')) {
-                if (c.app.progression.buyHeroWithCoins(heroId, HERO_COIN_PRICE)) { audio.play('unlock'); render(); } else { audio.play('error'); c.ui.toast('🪙', 'Pas assez de coins'); }
+              if (await c.ui.confirm('Débloquer ' + hd.name, h('div', 'Débloquer maintenant pour ', h('b', `${price} `), coin(), ' (monnaie gratuite) ?'), 'DÉBLOQUER')) {
+                if (c.app.progression.buyHeroWithCoins(heroId, price)) { audio.play('unlock'); render(); } else { audio.play('error'); c.ui.toast('🪙', 'Pas assez de coins'); }
               }
-            } }, 'DÉBLOQUER ', h('span.price', HERO_COIN_PRICE + ' ', coin())) : null);
+            } }, 'DÉBLOQUER ', h('span.price', price + ' ', coin())) : null);
         }
         if (sel.owned) return h('div.row', { style: 'gap:.4em' },
           h('button.btn.green.grow', { disabled: sel.equipped && c.heroId === heroId, onclick: () => { audio.play('click'); c.app.cosmetics.equipSkin(heroId, sel.data.id); c.heroId = heroId; c.ui.toast('⚡', `${hero.name} sélectionné`); render(); } }, sel.equipped && c.heroId === heroId ? 'SÉLECTIONNÉ' : 'CHOISIR'));

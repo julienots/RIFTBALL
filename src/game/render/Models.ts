@@ -13,9 +13,9 @@ import { resolvePalette } from '../../cosmetics/CosmeticsService';
  * Model space: facing +X, up +Y, character ~3 units tall.
  */
 
-export const PART = { BODY: 0, LEG_L: 1, LEG_R: 2, ARM_L: 3, ARM_R: 4, HEAD: 5, FLOAT: 6 } as const;
+export const PART = { BODY: 0, LEG_L: 1, LEG_R: 2, ARM_L: 3, ARM_R: 4, HEAD: 5, FLOAT: 6, EYES: 7 } as const;
 const PIVOTS: Record<number, [number, number, number]> = {
-  0: [0, 0, 0], 1: [0, 0.78, 0.27], 2: [0, 0.78, -0.27], 3: [0, 1.38, 0.66], 4: [0, 1.38, -0.66], 5: [0, 1.42, 0], 6: [0, 0, 0],
+  0: [0, 0, 0], 1: [0, 0.78, 0.27], 2: [0, 0.78, -0.27], 3: [0, 1.38, 0.66], 4: [0, 1.38, -0.66], 5: [0, 1.42, 0], 6: [0, 0, 0], 7: [0, 2.1, 0],
 };
 
 type V3 = [number, number, number];
@@ -96,10 +96,12 @@ function face(p: Pal, style: EyeStyle = 'normal', y = 2.1, x = 0.62, spread = 0.
     }
     for (const s of [1, -1]) {
       const sq = style === 'happy' ? 0.55 : style === 'cool' ? 0.8 : 1;
-      add(S(0.21, 16, 12), '#ffffff', [x, y, s * spread], [0, 0, 0], [0.42, 1.12 * sq, 0.9]);
-      add(S(0.13, 12, 10), p.eyes, [x + 0.1, y - 0.01, s * (spread - 0.02)], [0, 0, 0], [0.4, 1.05 * sq, 0.9]);
-      add(S(0.07, 10, 8), '#120a24', [x + 0.15, y - 0.01, s * (spread - 0.03)], [0, 0, 0], [0.4, 1.1 * sq, 0.9]);
-      add(S(0.035, 6, 6), '#ffffff', [x + 0.19, y + 0.06 * sq, s * (spread - 0.07)]);
+      on(PART.EYES, () => {
+        add(S(0.21, 16, 12), '#ffffff', [x, y, s * spread], [0, 0, 0], [0.42, 1.12 * sq, 0.9]);
+        add(S(0.13, 12, 10), p.eyes, [x + 0.1, y - 0.01, s * (spread - 0.02)], [0, 0, 0], [0.4, 1.05 * sq, 0.9]);
+        add(S(0.07, 10, 8), '#120a24', [x + 0.15, y - 0.01, s * (spread - 0.03)], [0, 0, 0], [0.4, 1.1 * sq, 0.9]);
+        add(S(0.035, 6, 6), '#ffffff', [x + 0.19, y + 0.06 * sq, s * (spread - 0.07)], [0, 0, 0], [1, 1, 1], 0.5);
+      }, [x, y, 0]);
       if (style === 'cool') add(B(0.1, 0.07, 0.34), darken(p.skin, 0.75), [x + 0.06, y + 0.17, s * spread], [s * -0.12, 0, 0]);
     }
     if (opts.brows !== false) for (const s of [1, -1]) {
@@ -172,7 +174,7 @@ const BUILDERS: Record<string, (p: Pal) => number> = {
     });
     face(p, 'cool', 2.08, 0.62, 0.29, { mouth: 'smirk', cheeks: true });
     on(PART.HEAD, () => {
-      add(S(0.84, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), p.primary, [-0.04, 2.1, 0], [0, 0, 0.12]); // hair cap
+      add(S(0.84, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.46), p.primary, [-0.04, 2.12, 0], [0, 0, 0.12]); // hair cap
       add(T(0.7, 0.09, Math.PI * 2, 8, 26), '#2b2d42', [0.05, 2.5, 0], [Math.PI / 2, 0.2, 0]);           // goggles strap
       for (const s of [1, -1]) { add(C(0.17, 0.17, 0.14, 14), '#2b2d42', [0.48, 2.55, s * 0.24], [0, 0, Math.PI / 2 - 0.4]); add(C(0.12, 0.12, 0.15, 14), '#9ff3ff', [0.5, 2.56, s * 0.24], [0, 0, Math.PI / 2 - 0.4], [1, 1, 1], 0.7); }
       add(CAP(0.17, 0.7), p.primary, [-0.85, 2.25, 0], [0, 0, 0.9]); // ponytail
@@ -415,6 +417,213 @@ const BUILDERS: Record<string, (p: Pal) => number> = {
     on(PART.FLOAT, () => { for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; add(new THREE.OctahedronGeometry(0.1, 0), '#ffffff', [Math.cos(a) * 1.0, 1.3 + (i % 2) * 0.3, Math.sin(a) * 1.0], [0, 0, 0], [1, 1, 1], 1); } }, [0.9, 0, 0]);
     return 3.1;
   },
+  zip: (p) => {
+    body(p, { shoe: '#ffffff', pants: p.secondary, glove: p.accent, torso: p.primary, sleeve: p.secondary, belt: p.accent });
+    on(PART.BODY, () => {
+      add(RB(0.5, 0.55, 0.3, 0.1), p.accent, [-0.45, 1.05, 0.38], [0.2, 0, 0.1]);                  // courier satchel
+      add(B(0.06, 1.05, 0.08), p.accent, [0.1, 1.15, 0.05], [0.75, 0, 0]);                          // satchel strap
+      add(K(0.18, 0.5, 4), p.accent, [-0.62, 1.2, 0], [0, 0, 1.2], [1, 1, 0.3], 0.7);              // lightning decal
+    });
+    for (const [part, z] of [[PART.LEG_L, 0.27], [PART.LEG_R, -0.27]] as const) on(part, () => {
+      add(K(0.12, 0.45, 4), '#ffffff', [-0.25, 0.25, z * 1.45], [0, 0, 1.4], [1, 1, 0.3], 0.4);    // winged sneakers
+    });
+    on(PART.HEAD, () => {
+      add(S(0.84, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.5), p.secondary, [-0.06, 2.12, 0]);       // hair
+      add(S(0.86, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.32), p.primary, [-0.02, 2.2, 0]);          // cap
+      add(C(0.62, 0.62, 0.05, 20, ), p.primary, [0.5, 2.62, 0], [0, 0, -0.18], [1.1, 1, 0.9]);       // cap visor
+      add(T(0.7, 0.08, Math.PI * 2, 8, 24), '#2b2d42', [0.08, 2.5, 0], [Math.PI / 2, 0.15, 0]);     // goggles strap
+      for (const s2 of [1, -1]) add(C(0.15, 0.15, 0.12, 14), '#9ff3ff', [0.5, 2.55, s2 * 0.24], [0, 0, Math.PI / 2 - 0.3], [1, 1, 1], 0.6);
+      add(CAP(0.14, 0.5), p.secondary, [-0.75, 2.0, 0], [0, 0, 1.0]);                               // ponytail
+    });
+    face(p, 'happy', 2.06, 0.62, 0.29, { mouth: 'smile', cheeks: true });
+    on(PART.FLOAT, () => { for (let i = 0; i < 3; i++) add(B(0.5, 0.04, 0.04), '#ffffff', [-0.9 - i * 0.2, 0.6 + i * 0.35, (i - 1) * 0.4], [0, 0, 0], [1, 1, 1], 0.8); }, [0.6, 0, 0]);
+    return 3.0;
+  },
+  chef: (p) => {
+    body(p, { shoe: '#2b2d42', pants: '#2b2d42', glove: '#ffffff', torso: p.primary, sleeve: p.primary, belt: p.secondary, torsoScale: [1.15, 1, 1.15] });
+    on(PART.BODY, () => {
+      add(RB(0.08, 0.95, 0.85, 0.04), p.secondary, [0.62, 0.95, 0]);                                // apron
+      for (let i = 0; i < 3; i++) add(S(0.06, 8, 6), '#2b2d42', [0.66, 1.15 + i * 0.13, 0.12]);     // buttons
+      add(T(0.55, 0.12, Math.PI * 2, 8, 24), p.secondary, [0.02, 1.52, 0], [Math.PI / 2, 0, 0]);    // neckerchief
+    });
+    on(PART.HEAD, () => {
+      add(C(0.62, 0.55, 0.75, 20), '#ffffff', [-0.05, 3.0, 0]);                                     // toque
+      for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; add(S(0.36, 12, 10), '#ffffff', [Math.cos(a) * 0.38 - 0.05, 3.45, Math.sin(a) * 0.38]); }
+      add(S(0.42, 14, 10), '#ffffff', [-0.05, 3.55, 0]);
+      add(C(0.86, 0.86, 0.14, 24), '#f1f1f1', [-0.03, 2.62, 0]);
+      for (const s2 of [1, -1]) add(CAP(0.055, 0.2), '#4a2c1a', [0.8, 1.86, s2 * 0.13], [s2 * 1.2, 0, 0.3]); // moustache
+    });
+    face(p, 'happy', 2.1, 0.62, 0.29, { mouth: 'none', cheeks: true });
+    on(PART.ARM_R, () => {                                                                           // frying pan
+      add(C(0.05, 0.05, 0.6, 8), '#5c3d2e', [0.35, 0.82, -0.75], [0, 0, Math.PI / 2]);
+      add(C(0.42, 0.36, 0.1, 20), '#2b2d42', [0.95, 0.82, -0.75], [0, 0, Math.PI / 2]);
+      add(C(0.33, 0.33, 0.02, 20), p.accent, [1.0, 0.82, -0.75], [0, 0, Math.PI / 2], [1, 1, 1], 0.3);
+    });
+    on(PART.ARM_L, () => { add(C(0.03, 0.03, 0.6, 6), '#adb5bd', [0.3, 0.82, 0.75], [0, 0, Math.PI / 2]); add(RB(0.25, 0.04, 0.18, 0.02), '#adb5bd', [0.62, 0.82, 0.75]); });
+    return 3.8;
+  },
+  koko: (p) => {
+    for (const [part, z] of [[PART.LEG_L, 0.42], [PART.LEG_R, -0.42]] as const) on(part, () => { add(CAP(0.26, 0.2), p.primary, [0, 0.45, z]); add(RB(0.6, 0.24, 0.45, 0.1), p.skin, [0.12, 0.12, z]); }, [0, 0.7, z]);
+    on(PART.BODY, () => {
+      add(S(1.05, 22, 18), p.primary, [-0.05, 1.35, 0], [0, 0, 0], [1, 1.02, 1.12]);                // huge furry torso
+      add(S(0.72, 18, 14), p.skin, [0.42, 1.25, 0], [0, 0, 0], [0.55, 0.95, 1]);                     // chest
+      add(T(0.95, 0.09, Math.PI * 2, 8, 28), p.secondary, [0, 1.75, 0], [Math.PI / 2 - 0.3, 0, 0.2]); // vine sash
+      for (let i = 0; i < 4; i++) add(K(0.14, 0.35, 5), p.accent, [-0.2 + i * 0.12, 1.98 - i * 0.18, 0.6 - i * 0.35], [0.4, 0, -0.6], [1, 1, 0.4]); // leaves
+    });
+    for (const [part, z] of [[PART.ARM_L, 1.05], [PART.ARM_R, -1.05]] as const) on(part, () => {
+      add(S(0.42, 14, 12), p.primary, [0, 1.75, z * 0.95]);
+      add(CAP(0.27, 0.65), p.primary, [0.05, 1.15, z]);
+      add(S(0.36, 14, 12), p.skin, [0.12, 0.55, z], [0, 0, 0], [1.1, 0.9, 1]);                     // big knuckles
+      add(T(0.28, 0.06, Math.PI * 2, 6, 16), p.secondary, [0.05, 0.85, z], [Math.PI / 2, 0, 0]);  // vine bracelet
+    }, [0, 1.85, z]);
+    on(PART.HEAD, () => {
+      add(S(0.62, 20, 16), p.primary, [0.2, 2.35, 0]);
+      add(S(0.45, 18, 14), p.skin, [0.52, 2.25, 0], [0, 0, 0], [0.75, 0.85, 1.1]);                // muzzle
+      add(RB(0.25, 0.14, 0.62, 0.06), darken(p.primary, 0.8), [0.5, 2.62, 0]);                    // brow ridge
+      for (const s2 of [1, -1]) add(S(0.06, 8, 6), '#120a24', [0.88, 2.18, s2 * 0.1]);              // nostrils
+      for (const s2 of [1, -1]) add(S(0.14, 10, 8), p.skin, [0.1, 2.38, s2 * 0.6]);                // ears
+      add(T(0.55, 0.07, Math.PI * 1.5, 6, 18), p.secondary, [0.1, 2.85, 0], [Math.PI / 2, 0, 0]); // leaf crown
+      for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 1.5; add(K(0.11, 0.3, 5), p.accent, [0.1 + Math.cos(a) * 0.55, 2.95, Math.sin(a) * 0.55], [0, 0, 0], [1, 1, 0.4]); }
+    }, [0, 2.0, 0]);
+    face(p, 'angry', 2.42, 0.58, 0.22, { mouth: 'none', brows: false });
+    return 3.2;
+  },
+  luna: (p) => {
+    body(p, { shoe: p.secondary, pants: p.secondary, glove: p.skin, torso: p.primary, sleeve: p.primary, belt: p.accent });
+    on(PART.BODY, () => {
+      add(lathe([[0, 0.2], [0.85, 0.15], [0.78, 0.55], [0.6, 0.8], [0.5, 0.85]], 22), p.primary, [0, 0, 0]);   // long robe
+      add(T(0.84, 0.05, Math.PI * 2, 6, 28), p.accent, [0, 0.22, 0], [Math.PI / 2, 0, 0], [1, 1, 1], 0.6);
+      add(K(0.75, 1.5, 16), p.secondary, [-0.3, 0.95, 0], [0, 0, 0.2], [0.55, 1, 1.3]);                       // starry cape
+      for (let i = 0; i < 5; i++) add(S(0.04, 6, 6), p.accent, [-0.55, 0.55 + i * 0.22, -0.5 + i * 0.25], [0, 0, 0], [1, 1, 1], 1);
+    });
+    on(PART.HEAD, () => {
+      add(S(0.86, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), '#e5e5e5', [-0.06, 2.12, 0]);                   // silver hair
+      add(CAP(0.24, 1.1), '#e5e5e5', [-0.65, 1.55, 0], [0, 0, 0.18]);                                         // long hair
+      add(T(0.32, 0.07, Math.PI * 1.25, 8, 20), p.accent, [0.45, 2.85, 0], [0, Math.PI / 2, 0.6], [1, 1, 1], 1); // crescent tiara
+      add(S(0.07, 8, 6), '#ffffff', [0.72, 2.45, 0], [0, 0, 0], [1, 1, 1], 1);
+    });
+    face(p, 'happy', 2.06, 0.62, 0.29, { mouth: 'smile', cheeks: true });
+    on(PART.ARM_R, () => {                                                                                    // moon staff
+      add(C(0.05, 0.05, 2.3, 8), '#e5e5e5', [0.25, 1.0, -0.72]);
+      add(T(0.3, 0.07, Math.PI * 1.3, 8, 20), p.accent, [0.25, 2.3, -0.72], [0, Math.PI / 2, 0.3], [1, 1, 1], 1);
+      add(S(0.13, 12, 10), '#ffffff', [0.25, 2.3, -0.72], [0, 0, 0], [1, 1, 1], 1);
+    });
+    on(PART.FLOAT, () => { for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2; add(S(0.12, 10, 8), p.accent, [Math.cos(a) * 1.1, 2.9, Math.sin(a) * 1.1], [0, 0, 0], [1, 1, 1], 1); } }, [1.3, 0, 0]);
+    return 3.1;
+  },
+  mecha: (p) => {
+    body(p, { shoe: '#2b2d42', pants: p.secondary, glove: '#2b2d42', torso: p.primary, sleeve: p.primary, belt: '#2b2d42' });
+    on(PART.BODY, () => {
+      add(RB(0.55, 0.75, 0.75, 0.1), '#6c757d', [-0.58, 1.15, 0]);                                     // jetpack
+      for (const z of [0.22, -0.22]) { add(C(0.15, 0.2, 0.45, 12), '#495057', [-0.62, 0.62, z]); add(C(0.12, 0.05, 0.25, 12), p.accent, [-0.62, 0.32, z], [0, 0, 0], [1, 1, 1], 1); }
+      add(RB(0.06, 0.4, 0.5, 0.03), '#ffbe0b', [0.6, 1.1, 0]);                                         // hazard plate
+      for (let i = 0; i < 3; i++) add(B(0.07, 0.06, 0.52), '#2b2d42', [0.62, 0.98 + i * 0.12, 0], [0.5, 0, 0]);
+    });
+    on(PART.HEAD, () => {
+      add(S(0.84, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.42), p.secondary, [-0.08, 2.16, 0]);
+      add(S(0.87, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.3), darken(p.secondary, 1.4), [-0.02, 2.22, 0]); // welding helmet
+      add(K(0.1, 0.35, 6), p.accent, [-0.1, 2.98, 0], [0, 0, 0], [1, 1, 1], 0.8);                         // antenna
+      add(T(0.72, 0.08, Math.PI * 2, 8, 26), '#2b2d42', [0.05, 2.45, 0], [Math.PI / 2, 0.1, 0]);
+      for (const s2 of [1, -1]) { add(C(0.2, 0.2, 0.16, 14), '#2b2d42', [0.55, 2.42, s2 * 0.27], [0, 0, Math.PI / 2 - 0.25]); add(C(0.15, 0.15, 0.17, 14), p.accent, [0.57, 2.43, s2 * 0.27], [0, 0, Math.PI / 2 - 0.25], [1, 1, 1], 0.8); }
+    });
+    face(p, 'cool', 2.0, 0.62, 0.29, { mouth: 'smile' });
+    on(PART.ARM_R, () => {                                                                             // robotic arm + wrench
+      add(C(0.22, 0.2, 0.55, 12), '#adb5bd', [0, 1.05, -0.72]);
+      add(RB(0.32, 0.32, 0.32, 0.06), '#6c757d', [0.05, 0.75, -0.72]);
+      add(C(0.05, 0.05, 0.8, 8), '#adb5bd', [0.45, 0.78, -0.72], [0, 0, Math.PI / 2]);
+      add(T(0.13, 0.05, Math.PI * 1.5, 6, 12), '#adb5bd', [0.9, 0.78, -0.72], [Math.PI / 2, 0, 0]);
+    });
+    return 3.0;
+  },
+  chronos: (p) => {
+    body(p, { shoe: p.secondary, pants: p.secondary, glove: p.primary, torso: p.secondary, sleeve: p.primary, belt: p.primary });
+    on(PART.BODY, () => {
+      add(lathe([[0, 0.15], [0.9, 0.1], [0.82, 0.55], [0.62, 0.85], [0.5, 0.9]], 22), p.secondary, [0, 0, 0]);   // robe
+      for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; add(B(0.05, 0.05, 0.12), p.primary, [Math.cos(a) * 0.86, 0.14, Math.sin(a) * 0.86], [0, -a, 0], [1, 1, 1], 0.6); }
+      add(C(0.24, 0.24, 0.06, 20), p.primary, [0.6, 1.15, 0], [0, 0, Math.PI / 2], [1, 1, 1], 0.4);              // pocket watch
+      add(B(0.02, 0.16, 0.03), p.secondary, [0.64, 1.18, 0], [0.6, 0, 0]);
+      add(T(0.55, 0.1, Math.PI * 2, 8, 24), p.primary, [0, 1.5, 0], [Math.PI / 2, 0, 0]);
+    });
+    on(PART.HEAD, () => {
+      add(S(0.86, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.5), '#e5e5e5', [-0.06, 2.12, 0]);                       // white hair
+      add(K(0.34, 0.62, 12), '#e5e5e5', [0.66, 1.58, 0], [0, 0, Math.PI - 0.2], [0.6, 1, 1]);                     // beard
+      add(C(0.55, 0.7, 0.18, 24), p.primary, [-0.05, 2.75, 0]);                                                   // circlet
+      add(S(0.1, 8, 6), p.accent, [0.6, 2.78, 0], [0, 0, 0], [1, 1, 1], 1);
+    });
+    face(p, 'glow', 2.18, 0.62, 0.28);
+    on(PART.ARM_R, () => {                                                                                       // hourglass staff
+      add(C(0.05, 0.05, 2.2, 8), p.primary, [0.25, 1.0, -0.72]);
+      add(C(0.22, 0.22, 0.05, 14), p.primary, [0.25, 2.05, -0.72]); add(C(0.22, 0.22, 0.05, 14), p.primary, [0.25, 2.65, -0.72]);
+      add(K(0.18, 0.28, 12), p.accent, [0.25, 2.48, -0.72], [Math.PI, 0, 0], [1, 1, 1], 1); add(K(0.18, 0.28, 12), p.accent, [0.25, 2.22, -0.72], [0, 0, 0], [1, 1, 1], 0.7);
+    });
+    on(PART.FLOAT, () => {                                                                                       // clock halo
+      add(T(0.95, 0.05, Math.PI * 2, 8, 36), p.primary, [-0.55, 2.3, 0], [0, Math.PI / 2, 0], [1, 1, 1], 0.9);
+      for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; add(B(0.04, 0.14, 0.04), p.accent, [-0.55, 2.3 + Math.cos(a) * 0.82, Math.sin(a) * 0.82], [a, 0, 0], [1, 1, 1], 1); }
+      add(B(0.04, 0.6, 0.05), p.accent, [-0.55, 2.55, 0], [0.5, 0, 0], [1, 1, 1], 1);
+      add(B(0.04, 0.4, 0.05), p.accent, [-0.55, 2.45, 0.1], [-1.2, 0, 0], [1, 1, 1], 1);
+    }, [0.4, 0, 0]);
+    return 3.1;
+  },
+  seraph: (p) => {
+    body(p, { shoe: p.secondary, pants: '#e9ecef', glove: p.secondary, torso: p.primary, sleeve: '#ffffff', belt: p.secondary });
+    on(PART.BODY, () => {
+      add(RB(0.25, 0.75, 0.95, 0.1), p.secondary, [0.45, 1.2, 0], [0, 0, 0], [1, 1, 1], 0.2);                     // golden breastplate
+      add(new THREE.OctahedronGeometry(0.15, 0), p.eyes, [0.6, 1.25, 0], [0, 0, 0], [0.6, 1.3, 1], 1);
+      add(lathe([[0, 0.45], [0.75, 0.4], [0.68, 0.72], [0.55, 0.78]], 20), '#ffffff', [0, 0, 0]);
+    });
+    on(PART.FLOAT, () => {                                                                                       // wings
+      for (const s2 of [1, -1]) for (let i = 0; i < 4; i++)
+        add(S(0.5, 12, 8), i % 2 ? p.accent : '#ffffff', [-0.7 - i * 0.12, 1.75 + i * 0.22, s2 * (0.55 + i * 0.32)], [s2 * (0.5 + i * 0.12), 0, 0.3], [0.18, 0.55 + i * 0.12, 1.1], i === 3 ? 0.6 : 0.25);
+    }, [0.8, 0, 0]);
+    on(PART.HEAD, () => {
+      add(S(0.86, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), p.secondary, [-0.06, 2.12, 0]);                     // golden hair
+      add(CAP(0.2, 0.9), p.secondary, [-0.68, 1.75, 0.25], [0.15, 0, 0.25]); add(CAP(0.2, 0.9), p.secondary, [-0.68, 1.75, -0.25], [-0.15, 0, 0.25]);
+      add(K(0.08, 0.4, 6), p.secondary, [0.35, 2.85, 0.35], [0.4, 0, -0.5], [1, 1, 1], 0.5);
+      add(K(0.08, 0.4, 6), p.secondary, [0.35, 2.85, -0.35], [-0.4, 0, -0.5], [1, 1, 1], 0.5);
+    });
+    face(p, 'normal', 2.08, 0.62, 0.29, { mouth: 'smile' });
+    hat('halo', p, 2.95);
+    on(PART.ARM_R, () => {                                                                                       // holy spear
+      add(C(0.045, 0.045, 2.6, 8), p.secondary, [0.25, 1.15, -0.72]);
+      add(new THREE.OctahedronGeometry(0.2, 0), p.accent, [0.25, 2.6, -0.72], [0, 0, 0], [0.6, 1.8, 0.6], 1);
+    });
+    return 3.2;
+  },
+  riftborn: (p) => {
+    for (const [part, z] of [[PART.LEG_L, 0.28], [PART.LEG_R, -0.28]] as const) on(part, () => { add(new THREE.OctahedronGeometry(0.28, 0), p.secondary, [0, 0.45, z], [0, 0, 0], [0.8, 1.6, 0.8]); add(new THREE.OctahedronGeometry(0.2, 0), p.primary, [0.05, 0.1, z], [0, 0, 0], [1.4, 0.6, 1]); });
+    on(PART.BODY, () => {
+      add(new THREE.DodecahedronGeometry(0.62, 0), p.secondary, [0, 1.15, 0], [0.2, 0.3, 0], [0.95, 1.1, 1.05]);
+      add(S(0.3, 16, 12), p.accent, [0.42, 1.2, 0], [0, 0, 0], [0.6, 1, 1], 1);                                   // rift core
+      add(T(0.36, 0.05, Math.PI * 2, 6, 20), p.primary, [0.45, 1.2, 0], [0, Math.PI / 2, 0], [1, 1, 1], 1);
+      for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; add(new THREE.OctahedronGeometry(0.16, 0), p.primary, [Math.cos(a) * 0.62 - 0.1, 1.55, Math.sin(a) * 0.62], [0, 0, 0], [0.6, 1.5, 0.6], 0.6); }
+    });
+    for (const [part, z] of [[PART.ARM_L, 0.72], [PART.ARM_R, -0.72]] as const) on(part, () => {
+      add(new THREE.OctahedronGeometry(0.2, 0), p.secondary, [0, 1.25, z], [0, 0, 0], [0.8, 1.4, 0.8]);
+      add(new THREE.OctahedronGeometry(0.2, 0), p.primary, [0.05, 0.82, z], [0, 0, 0], [1, 1.2, 1], 0.7);
+    });
+    on(PART.HEAD, () => {
+      add(S(0.72, 22, 16), p.skin, [0, 2.12, 0]);
+      for (const s2 of [1, -1]) add(new THREE.OctahedronGeometry(0.22, 0), p.accent, [-0.15, 2.85, s2 * 0.42], [s2 * 0.4, 0, 0.3], [0.5, 1.8, 0.5], 1);    // crystal horns
+      add(new THREE.OctahedronGeometry(0.26, 0), p.primary, [-0.2, 2.95, 0], [0, 0, 0.3], [0.5, 2, 0.5], 0.8);
+    });
+    face(p, 'glow', 2.12, 0.6, 0.27);
+    on(PART.FLOAT, () => { for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; add(new THREE.OctahedronGeometry(0.09 + (i % 2) * 0.05, 0), i % 2 ? p.accent : p.primary, [Math.cos(a) * 1.15, 1.2 + (i % 3) * 0.45, Math.sin(a) * 1.15], [0, 0, 0], [1, 1.6, 1], 1); } }, [2.0, 0, 0]);
+    return 3.2;
+  },
+  turret: (p) => {
+    on(PART.BODY, () => {
+      for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2; add(C(0.07, 0.09, 1.0, 6), '#495057', [Math.cos(a) * 0.45, 0.4, Math.sin(a) * 0.45], [Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5]); }
+      add(C(0.42, 0.5, 0.35, 16), p.primary, [0, 0.95, 0]);
+      add(T(0.46, 0.05, Math.PI * 2, 6, 20), p.accent, [0, 1.12, 0], [Math.PI / 2, 0, 0], [1, 1, 1], 1);
+    });
+    on(PART.HEAD, () => {
+      add(RB(0.8, 0.55, 0.65, 0.12), p.secondary, [0.05, 1.45, 0]);
+      add(C(0.09, 0.09, 0.8, 10), '#2b2d42', [0.7, 1.48, 0.13], [0, 0, Math.PI / 2]);
+      add(C(0.09, 0.09, 0.8, 10), '#2b2d42', [0.7, 1.48, -0.13], [0, 0, Math.PI / 2]);
+      add(S(0.1, 8, 6), p.eyes, [0.47, 1.62, 0], [0, 0, 0], [0.5, 1, 1], 1);
+    }, [0, 1.2, 0]);
+    return 2.0;
+  },
   golem: (p) => {
     on(PART.BODY, () => {
       add(new THREE.DodecahedronGeometry(1.3, 1), p.primary, [0, 1.45, 0], [0.3, 0.4, 0], [1, 1.05, 1.1]);
@@ -463,7 +672,7 @@ export function heroGeometry(heroId: string, skinId?: string) {
 
 // ---------------------------------------------------------------- animated materials
 
-export interface HeroAnimUniforms { uWalk: { value: number }; uMove: { value: number }; uAtk: { value: number }; uCast: { value: number }; uTime: { value: number }; uFlash: { value: number }; uRim: { value: THREE.Color } }
+export interface HeroAnimUniforms { uWalk: { value: number }; uMove: { value: number }; uAtk: { value: number }; uCast: { value: number }; uTime: { value: number }; uFlash: { value: number }; uRim: { value: THREE.Color }; uIri: { value: number }; uTint: { value: THREE.Color }; uTintK: { value: number } }
 
 const ANIM_GLSL = /* glsl */ `
 attribute float part; attribute vec3 pivot; attribute float glow;
@@ -478,12 +687,23 @@ mat3 partRot(){
   if (part < 2.5) return rotZ(-sw * 0.75 * uMove);
   if (part < 3.5) return rotZ(-sw * 0.6 * uMove + uCast * 2.2) * rotX(-uCast * 0.5 - 0.06);
   if (part < 4.5) return rotZ(sw * 0.6 * uMove + uAtk * 1.7 + uCast * 2.2) * rotX(uCast * 0.5 + 0.06);
-  if (part < 5.5) return rotZ(sin(uTime * 1.7) * 0.05 - uMove * 0.08 + uAtk * 0.12) * rotX(sin(uWalk * 2.0) * 0.06 * uMove);
+  if (part < 5.5 || part > 6.5) return rotZ(sin(uTime * 1.7) * 0.05 - uMove * 0.08 + uAtk * 0.12) * rotX(sin(uWalk * 2.0) * 0.06 * uMove);
   return rotX(0.0);
 }
 vec3 animPos(vec3 p){
-  vec3 q = partRot() * (p - pivot) + pivot;
-  if (part > 5.5) { q.y += sin(uTime * 3.0 + pivot.x) * 0.12; q = rotX(0.0) * q; }
+  vec3 q;
+  if (part > 6.5) {
+    // eyes: blink (squash toward the eye centre every ~3.5 s), then follow the head
+    float ph = fract(uTime * 0.29 + pivot.x * 3.1);
+    float blink = 1.0 - smoothstep(0.0, 0.03, ph) * (1.0 - smoothstep(0.03, 0.07, ph)) * 0.92;
+    vec3 e = p; e.y = pivot.y + (p.y - pivot.y) * blink;
+    q = partRot() * (e - vec3(0.0, 1.42, 0.0)) + vec3(0.0, 1.42, 0.0);
+  } else {
+    q = partRot() * (p - pivot) + pivot;
+    if (part > 5.5) { q.y += sin(uTime * 3.0 + pivot.x) * 0.12; }
+  }
+  // idle breathing
+  q.y *= 1.0 + sin(uTime * 2.4) * 0.012 * (1.0 - uMove);
   return q;
 }
 `;
@@ -496,7 +716,7 @@ function patchVertex(shader: THREE.WebGLProgramParametersWithUniforms, u: HeroAn
 }
 
 export function makeHeroUniforms(rim = '#ffffff'): HeroAnimUniforms {
-  return { uWalk: { value: 0 }, uMove: { value: 0 }, uAtk: { value: 0 }, uCast: { value: 0 }, uTime: { value: 0 }, uFlash: { value: 0 }, uRim: { value: new THREE.Color(rim) } };
+  return { uWalk: { value: 0 }, uMove: { value: 0 }, uAtk: { value: 0 }, uCast: { value: 0 }, uTime: { value: 0 }, uFlash: { value: 0 }, uRim: { value: new THREE.Color(rim) }, uIri: { value: 0 }, uTint: { value: new THREE.Color('#ffffff') }, uTintK: { value: 0 } };
 }
 
 /** Toon + team-colored rim light + emissive glow parts + hit flash, with vertex-shader limb animation. */
@@ -504,15 +724,25 @@ export function makeHeroMaterial(u: HeroAnimUniforms) {
   const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), transparent: true });
   m.onBeforeCompile = (shader) => {
     patchVertex(shader, u);
-    shader.fragmentShader = 'varying float vGlow; uniform float uFlash; uniform vec3 uRim;\n' + shader.fragmentShader
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * vGlow * 0.85;')
+    shader.fragmentShader = 'varying float vGlow; uniform float uFlash; uniform vec3 uRim; uniform float uIri; uniform float uTime; uniform vec3 uTint; uniform float uTintK;\n' + shader.fragmentShader
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * vGlow * (0.85 + uIri * 0.4 * sin(uTime * 4.0));')
       .replace('#include <opaque_fragment>', `
-        float rimF = 1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+        vec3 nV = normalize(normal), vV = normalize(vViewPosition);
+        float rimF = 1.0 - clamp(dot(nV, vV), 0.0, 1.0);
+        // soft top light / ground bounce: rounder, more readable volumes
+        outgoingLight *= 0.9 + 0.18 * clamp(nV.y * 0.5 + 0.5, 0.0, 1.0);
+        // toon specular highlight
+        vec3 hV = normalize(vV + vec3(0.35, 0.8, 0.45));
+        outgoingLight += vec3(1.0) * step(0.965, max(dot(nV, hV), 0.0)) * 0.22;
         outgoingLight += uRim * smoothstep(0.55, 0.95, rimF) * 0.55;
+        // MYTHIC heroes: animated iridescent rim
+        vec3 iri = 0.5 + 0.5 * cos(6.2831 * (rimF * 0.8 + uTime * 0.25 + vec3(0.0, 0.33, 0.67)));
+        outgoingLight += iri * smoothstep(0.35, 1.0, rimF) * uIri * 0.9;
+        outgoingLight = mix(outgoingLight, uTint, uTintK);
         outgoingLight = mix(outgoingLight, vec3(1.0), uFlash);
         #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => 'rift-hero-v2';
+  m.customProgramCacheKey = () => 'rift-hero-v3';
   return m;
 }
 

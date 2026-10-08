@@ -35,12 +35,12 @@ describe('Long runs (leaks, invariants, duplication)', () => {
         }
       }
       expect(m.phase, `${mode.id}/${arena.id} ended`).toBe('ended');
-      if (m.mode.id !== 'RIFT_BOSS' && m.mode.id !== 'SURVIVAL') expect(goalsByTeam).toEqual(m.score);
+      if (m.mode.id !== 'RIFT_BOSS' && m.mode.id !== 'SURVIVAL' && m.mode.id !== 'RIFT_KING') expect(goalsByTeam).toEqual(m.score);
       // pools stay bounded (no accumulation)
       expect(maxProj).toBeLessThan(120);
       expect(maxZones).toBeLessThan(40);
       expect(maxHeroes).toBeLessThan(40);
-      expect(maxRifts).toBeLessThanOrEqual(5);
+      expect(maxRifts).toBeLessThanOrEqual(8); // main + clones + decoys
       matches++;
     }
     expect(matches).toBe(modes.length * ARENAS.length * rounds);

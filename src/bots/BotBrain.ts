@@ -93,6 +93,7 @@ export class BotBrain {
     // ----- destination
     switch (this.role) {
       case 'CARRIER': {
+        if (m.mode.id === 'RIFT_KING') { this.kingCarrier(); break; }
         this.goalX = egx; this.goalY = egy;
         // throw when close to the goal with line of sight, or pass when threatened
         const dGoal = dist(h.x, h.y, egx, egy);
@@ -134,8 +135,34 @@ export class BotBrain {
     this.considerAbilities(rift, carrier);
   }
 
+  /** RIFT KING: the King keeps away from enemies, close to teammates; passes only when about to die. */
+  private kingCarrier() {
+    const m = this.m, h = this.h, c = h.cmd;
+    let ex = 0, ey = 0, n = 0, ax = 0, ay = 0, na = 0;
+    for (const o of m.heroes) {
+      if (!o.alive || o === h) continue;
+      if (o.team !== h.team && dist2(o.x, o.y, h.x, h.y) < 900 * 900) { ex += o.x; ey += o.y; n++; }
+      else if (o.team === h.team && !o.pve) { ax += o.x; ay += o.y; na++; }
+    }
+    let gx = na ? ax / na : h.x, gy = na ? ay / na : h.y;
+    if (n) {
+      ex /= n; ey /= n;
+      const dx = h.x - ex, dy = h.y - ey, l = Math.hypot(dx, dy) || 1;
+      gx = h.x + (dx / l) * 380 + (gx - h.x) * 0.3; gy = h.y + (dy / l) * 380 + (gy - h.y) * 0.3;
+    }
+    this.goalX = Math.max(120, Math.min(m.arena.w - 120, gx));
+    this.goalY = Math.max(120, Math.min(m.arena.h - 120, gy));
+    if (h.hp < h.maxHp * 0.3 && n > 0 && na > 0 && m.rng.chance(this.profile.teamwork)) { c.aimX = 0; c.aimY = 0; c.attack = true; }
+  }
+
   private thinkPve() {
     const m = this.m, h = this.h, c = h.cmd;
+    if (h.def.id === 'turret') {
+      const t = nearestEnemy(m, h, h.def.attack.range);
+      this.target = t; this.goalX = h.x; this.goalY = h.y;
+      if (t) { this.aimLead(t); c.attack = true; }
+      return;
+    }
     // chase nearest player, boss also uses slam / summon
     const t = nearestEnemy(m, h, 3000);
     this.target = t;
@@ -177,6 +204,11 @@ export class BotBrain {
           return hurt >= (isUlt ? 2 : 1) || (isUlt && h.carrying);
         }
         case 'rift_play': {
+          if (h.def.gadget?.effect === 'rift_decoy') {
+            const chaser = m.heroes.find((e) => e.alive && e.team !== h.team && dist2(e.x, e.y, h.x, h.y) < 500 * 500);
+            if (!chaser) return false;
+            this.aimAt(chaser.x, chaser.y, 0); return true;
+          }
           if (!rift || rift.carrier >= 0 && (!carrier || carrier.team === h.team)) return false;
           if (dRift > 700) return false;
           if (h.def.gadget?.effect === 'rift_gust') { const ep = m.arena.enemyPortal(h.team); this.aimAt(ep.x + ep.w / 2, ep.y + ep.h / 2, 0); return true; }
@@ -207,6 +239,7 @@ export class BotBrain {
       if (!r.alive || r.state === 'PORTAL') continue;
       // the main rift matters more than clones
       const d = dist2(h.x, h.y, r.x, r.y) * (r.clone ? 1.6 : 1);
+      if (r.decoy && r.decoy.team === h.team) continue;
       if (r.carrier >= 0) { const c = m.heroById(r.carrier); if (c && c.team === h.team && c !== h && r.clone) continue; }
       if (d < bd) { bd = d; best = r; }
     }

@@ -4,7 +4,7 @@ import type { EventBus } from '../core/EventBus';
 import type { AppEvents } from '../core/AppEvents';
 import type { NotificationCenter } from '../notifications/NotificationCenter';
 import type { EventService } from '../events/EventService';
-import { DAILY_COUNT, MISSIONS, WEEKLY_COUNT } from '../data/missions';
+import { DAILY_COUNT, MAX_STATS, MISSIONS, WEEKLY_COUNT } from '../data/missions';
 import type { MissionData, MissionStat } from '../data/types';
 import { Clock, DAY_MS, utcDayIndex, utcWeekIndex } from '../core/Time';
 import { hashString, Rng } from '../core/Rng';
@@ -24,7 +24,7 @@ export class MissionService {
       for (const ms of MISSIONS) if (ms.scope === scope) { delete d.progress[ms.id]; d.claimed = d.claimed.filter((c) => !c.startsWith(ms.id + '@')); }
     };
     if (d.dailyKey !== dk) { resetScope('daily'); d.dailyKey = dk; }
-    if (d.weeklyKey !== wk) { resetScope('weekly'); d.weeklyKey = wk; }
+    if (d.weeklyKey !== wk) { resetScope('weekly'); resetScope('challenge_weekly'); d.weeklyKey = wk; }
     if (d.seasonKey !== sk) { resetScope('season'); d.seasonKey = sk; }
     this.save.save();
   }
@@ -33,6 +33,18 @@ export class MissionService {
     const rng = new Rng(hashString(key + this.save.data.playerId));
     return rng.shuffle(MISSIONS.filter((x) => x.scope === scope)).slice(0, n);
   }
+
+  /** Gem challenges: weekly ones first, then the permanent list. */
+  challenges(): MissionView[] {
+    this.refresh();
+    const nextWeek = (utcWeekIndex(Clock.now()) + 1) * 7 * DAY_MS - 3 * DAY_MS;
+    return MISSIONS.filter((x) => x.scope === 'challenge_weekly' || x.scope === 'challenge').map((data) => {
+      const progress = Math.min(data.target, this.m.progress[data.id] ?? 0);
+      return { data, progress, done: progress >= data.target, claimed: this.m.claimed.includes(this.claimKey(data)), endsAt: data.scope === 'challenge' ? Infinity : nextWeek };
+    });
+  }
+
+  get claimableChallenges() { return this.challenges().filter((v) => v.done && !v.claimed).length; }
 
   active(): MissionView[] {
     this.refresh();
@@ -52,23 +64,25 @@ export class MissionService {
   }
 
   private claimKey(m: MissionData) {
-    const k = m.scope === 'daily' ? this.m.dailyKey : m.scope === 'weekly' ? this.m.weeklyKey : m.scope === 'season' ? this.m.seasonKey : m.eventId;
+    const k = m.scope === 'daily' ? this.m.dailyKey : m.scope === 'weekly' || m.scope === 'challenge_weekly' ? this.m.weeklyKey : m.scope === 'season' ? this.m.seasonKey : m.scope === 'challenge' ? 'perm' : m.eventId;
     return `${m.id}@${k}`;
   }
 
   /** Feed match statistics; returns completed mission ids. */
   record(delta: Partial<Record<MissionStat, number>>): string[] {
     const done: string[] = [];
-    for (const v of this.active()) {
+    for (const v of [...this.active(), ...this.challenges()]) {
       if (v.done || v.claimed) continue;
       const inc = delta[v.data.stat] ?? 0;
       if (inc <= 0) continue;
-      const next = Math.min(v.data.target, (this.m.progress[v.data.id] ?? 0) + inc);
+      const cur = this.m.progress[v.data.id] ?? 0;
+      const next = Math.min(v.data.target, MAX_STATS.has(v.data.stat) ? Math.max(cur, inc) : cur + inc);
+      if (next === cur) continue;
       this.m.progress[v.data.id] = next;
       if (next >= v.data.target) {
         done.push(v.data.id);
         this.bus.emit('missionComplete', { id: v.data.id, text: v.data.text });
-        this.notes.push('mission', 'Mission terminée !', v.data.text);
+        this.notes.push('mission', v.data.scope.startsWith('challenge') ? 'Défi réussi ! 💎' : 'Mission terminée !', v.data.text);
       }
     }
     this.save.save();
@@ -76,10 +90,12 @@ export class MissionService {
   }
 
   claim(id: string) {
-    const v = this.active().find((x) => x.data.id === id);
+    const v = [...this.active(), ...this.challenges()].find((x) => x.data.id === id);
     if (!v || !v.done || v.claimed) return null;
     this.m.claimed.push(this.claimKey(v.data));
-    return this.inv.grant(v.data.reward, { source: 'mission', txn: `mission:${this.claimKey(v.data)}`, verified: false });
+    const res = this.inv.grant(v.data.reward, { source: v.data.scope.startsWith('challenge') ? 'challenge' : 'mission', txn: `mission:${this.claimKey(v.data)}`, verified: false });
+    this.save.save();
+    return res;
   }
 
   get claimableCount() { return this.active().filter((v) => v.done && !v.claimed).length; }

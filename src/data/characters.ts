@@ -1,12 +1,12 @@
 import type { CharacterData } from './types';
 
 /**
- * The 10 launch heroes + season hero + PvE units. All numbers are tunable here.
+ * 21 playable heroes (incl. 3 MYTHIC) + PvE units. All numbers are tunable here.
  * Balance rule: every hero is reachable for free; no stat can be bought.
  */
 export const CHARACTERS: CharacterData[] = [
   {
-    id: 'magnet', name: 'MAGNET', title: 'La Dompteuse de Rift', role: 'CONTROL',
+    id: 'magnet', name: 'MAGNET', title: 'La Dompteuse de Rift', role: 'CONTROL', rarity: 'COMMON',
     lore: 'Ingénieure de la fosse, elle a appris à parler au Rift avec deux aimants et beaucoup de patience.',
     hp: 4950, speed: 300, radius: 32,
     attack: { kind: 'bolt', damage: 350, range: 620, cooldown: 0.55, projectileSpeed: 1150, radius: 14 },
@@ -19,7 +19,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'magnet', unlock: { type: 'starter' },
   },
   {
-    id: 'blink', name: 'BLINK', title: "L'Éclair Furtif", role: 'ASSASSIN',
+    id: 'blink', name: 'BLINK', title: "L'Éclair Furtif", role: 'ASSASSIN', rarity: 'COMMON',
     lore: 'Personne ne l\'a jamais vu arriver. Certains doutent même qu\'il soit parti.',
     hp: 4350, speed: 330, radius: 30,
     attack: { kind: 'spread', damage: 220, range: 430, cooldown: 0.45, projectileSpeed: 1350, projectiles: 2, spreadDeg: 10, radius: 11 },
@@ -32,7 +32,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'blink', unlock: { type: 'starter' },
   },
   {
-    id: 'block', name: 'BLOCK', title: 'Le Bâtisseur', role: 'BUILDER',
+    id: 'block', name: 'BLOCK', title: 'Le Bâtisseur', role: 'BUILDER', rarity: 'RARE',
     lore: 'Il a construit sa maison, son vélo et son meilleur ami. Tout en briques de Rift.',
     hp: 5650, speed: 285, radius: 34,
     attack: { kind: 'lob', damage: 440, range: 560, cooldown: 0.8, projectileSpeed: 700, radius: 70 },
@@ -45,7 +45,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'block', unlock: { type: 'trophies', trophies: 60 },
   },
   {
-    id: 'shade', name: 'SHADE', title: 'Le Spectre', role: 'STEALTH',
+    id: 'shade', name: 'SHADE', title: 'Le Spectre', role: 'STEALTH', rarity: 'RARE',
     lore: 'Une ombre qui s\'est détachée de son propriétaire. Elle préfère les buissons.',
     hp: 4200, speed: 320, radius: 30,
     attack: { kind: 'bolt', damage: 410, range: 560, cooldown: 0.65, projectileSpeed: 1250, radius: 13, pierce: true },
@@ -58,7 +58,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'shade', unlock: { type: 'trophies', trophies: 160 },
   },
   {
-    id: 'volt', name: 'VOLT', title: 'La Surtension', role: 'DAMAGE',
+    id: 'volt', name: 'VOLT', title: 'La Surtension', role: 'DAMAGE', rarity: 'RARE',
     lore: 'Elle a mis les doigts dans la prise du Rift. Elle ne les a jamais retirés.',
     hp: 4500, speed: 305, radius: 31,
     attack: { kind: 'chain', damage: 310, range: 520, cooldown: 0.6, projectileSpeed: 0, bounces: 2 },
@@ -71,7 +71,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'volt', unlock: { type: 'trophies', trophies: 300 },
   },
   {
-    id: 'flux', name: 'FLUX', title: "L'Alchimiste d'Énergie", role: 'DAMAGE',
+    id: 'flux', name: 'FLUX', title: "L'Alchimiste d'Énergie", role: 'DAMAGE', rarity: 'EPIC',
     lore: 'Il transforme les coups reçus en carburant. Ne le frappez pas. Sérieusement.',
     hp: 4800, speed: 300, radius: 31,
     attack: { kind: 'boomerang', damage: 290, range: 560, cooldown: 0.75, projectileSpeed: 950, radius: 18, pierce: true },
@@ -84,7 +84,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'flux', unlock: { type: 'trophies', trophies: 500 },
   },
   {
-    id: 'titan', name: 'TITAN', title: 'Le Mur Vivant', role: 'TANK',
+    id: 'titan', name: 'TITAN', title: 'Le Mur Vivant', role: 'TANK', rarity: 'COMMON',
     lore: 'Ancien gardien de portail. Il ne laisse rien passer, à part peut-être le déjeuner.',
     hp: 8100, speed: 280, radius: 38,
     attack: { kind: 'melee', damage: 520, range: 150, cooldown: 0.6, projectileSpeed: 0, spreadDeg: 100, knockback: 380 },
@@ -97,7 +97,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'titan', unlock: { type: 'starter' },
   },
   {
-    id: 'arc', name: 'ARC', title: "L'Artilleuse", role: 'ARTILLERY',
+    id: 'arc', name: 'ARC', title: "L'Artilleuse", role: 'ARTILLERY', rarity: 'EPIC',
     lore: 'Elle calcule les trajectoires plus vite que son ombre. Et son ombre est sous elle.',
     hp: 4050, speed: 295, radius: 30,
     attack: { kind: 'lob', damage: 480, range: 720, cooldown: 0.9, projectileSpeed: 650, radius: 85 },
@@ -110,7 +110,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'arc', unlock: { type: 'trophies', trophies: 750 },
   },
   {
-    id: 'pulse', name: 'PULSE', title: 'Le Cœur de l\'Équipe', role: 'SUPPORT',
+    id: 'pulse', name: 'PULSE', title: 'Le Cœur de l\'Équipe', role: 'SUPPORT', rarity: 'EPIC',
     lore: 'Son antenne capte les battements de cœur de ses alliés. Et les mauvaises blagues.',
     hp: 4650, speed: 305, radius: 31,
     attack: { kind: 'wave', damage: 260, range: 520, cooldown: 0.7, projectileSpeed: 900, radius: 26, pierce: true, healAllies: 420 },
@@ -123,7 +123,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'pulse', unlock: { type: 'trophies', trophies: 1000 },
   },
   {
-    id: 'vortex', name: 'VORTEX', title: 'Le Tourbillon', role: 'CONTROL',
+    id: 'vortex', name: 'VORTEX', title: 'Le Tourbillon', role: 'CONTROL', rarity: 'LEGENDARY',
     lore: 'Né dans l\'œil d\'une tempête de Rift. Il donne encore le tournis à ses parents.',
     hp: 4800, speed: 300, radius: 32,
     attack: { kind: 'blades', damage: 200, range: 500, cooldown: 0.55, projectileSpeed: 1000, projectiles: 3, spreadDeg: 24, radius: 13, slow: 0.25, slowDuration: 1 },
@@ -136,7 +136,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'vortex', unlock: { type: 'trophies', trophies: 1400 },
   },
   {
-    id: 'ember', name: 'EMBER', title: 'La Braise Éternelle', role: 'DAMAGE',
+    id: 'ember', name: 'EMBER', title: 'La Braise Éternelle', role: 'DAMAGE', rarity: 'LEGENDARY',
     lore: 'Héroïne de la Saison 1 : née dans le Noyau Volcanique, elle laisse des flammes dans son sillage.',
     hp: 4550, speed: 310, radius: 31,
     attack: { kind: 'spread', damage: 160, range: 480, cooldown: 0.5, projectileSpeed: 1050, projectiles: 4, spreadDeg: 28, radius: 12 },
@@ -149,7 +149,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'ember', unlock: { type: 'season', season: 's1', passTier: 1 },
   },
   {
-    id: 'nova', name: 'NOVA', title: 'La Sniper Stellaire', role: 'DAMAGE',
+    id: 'nova', name: 'NOVA', title: 'La Sniper Stellaire', role: 'DAMAGE', rarity: 'LEGENDARY',
     lore: 'Elle vise si loin qu\'elle a déjà touché une étoile. L\'étoile ne s\'en est jamais remise.',
     hp: 3600, speed: 295, radius: 30,
     attack: { kind: 'bolt', damage: 760, range: 980, cooldown: 1.0, projectileSpeed: 2000, radius: 12, pierce: false },
@@ -162,7 +162,7 @@ export const CHARACTERS: CharacterData[] = [
     model: 'nova', unlock: { type: 'trophies', trophies: 1700 },
   },
   {
-    id: 'frost', name: 'FROST', title: 'Le Gardien du Givre', role: 'CONTROL',
+    id: 'frost', name: 'FROST', title: 'Le Gardien du Givre', role: 'CONTROL', rarity: 'LEGENDARY',
     lore: 'Il est né dans le Laboratoire Gelé. Il a toujours froid, même au Noyau Volcanique.',
     hp: 4400, speed: 290, radius: 32,
     attack: { kind: 'spread', damage: 230, range: 520, cooldown: 0.6, projectileSpeed: 1050, projectiles: 3, spreadDeg: 18, radius: 13 },
@@ -174,12 +174,118 @@ export const CHARACTERS: CharacterData[] = [
     palette: { primary: '#a2d2ff', secondary: '#023e8a', accent: '#ffffff', skin: '#cde7f0', eyes: '#0077b6' },
     model: 'frost', unlock: { type: 'trophies', trophies: 2000 },
   },
+  {
+    id: 'zip', name: 'ZIP', title: 'La Coursière du Rift', role: 'ASSASSIN', rarity: 'RARE',
+    lore: 'Elle livre n\'importe quoi, n\'importe où, en moins de 3 secondes. Le Rift compris. Surtout s\'il n\'est pas à elle.',
+    hp: 4000, speed: 345, radius: 29,
+    attack: { kind: 'spread', damage: 190, range: 420, cooldown: 0.42, projectileSpeed: 1400, projectiles: 3, spreadDeg: 14, radius: 11 },
+    ability: { id: 'zip_snatch', name: 'Vol à l\'Arraché', description: 'Fonce en avant. Si elle touche le porteur du Rift, elle le lui vole !', effect: 'snatch_dash', cooldown: 6, range: 420, params: { distance: 420, damage: 300 }, aim: 'direction', aiHint: 'dash_offense' },
+    ultimate: { id: 'zip_nitro', name: 'Nitro', description: '+70% vitesse pendant 4 s, purge les ralentissements et recharge la roulade.', effect: 'turbo', cooldown: 0, range: 0, params: { duration: 4, speedBonus: 0.7 }, aim: 'self', aiHint: 'self_buff' },
+    passive: { id: 'courier', name: 'Express', description: 'Porter le Rift la rend 12% plus rapide au lieu de la ralentir.', params: { carryBonus: 0.12 } },
+    gadget: { id: 'zip_smoke', name: 'Fumigène', description: 'Un nuage de fumée : les alliés dedans sont invisibles, les ennemis ralentis.', effect: 'smoke', cooldown: 2, range: 0, params: { radius: 240, duration: 4, slow: 0.3 }, aim: 'self', aiHint: 'phase', charges: 3 },
+    ultChargePerHit: 8,
+    palette: { primary: '#ffbe0b', secondary: '#3a0ca3', accent: '#fb5607', skin: '#ffd6a5', eyes: '#3a0ca3' },
+    model: 'zip', unlock: { type: 'trophies', trophies: 2200 },
+  },
+  {
+    id: 'grill', name: 'GRILL', title: 'Le Cuistot Explosif', role: 'ARTILLERY', rarity: 'RARE',
+    lore: 'Chef étoilé banni de toutes les cuisines du Rift. Ses poêles volent plus vite que ses clients.',
+    hp: 5200, speed: 290, radius: 33,
+    attack: { kind: 'lob', damage: 420, range: 600, cooldown: 0.85, projectileSpeed: 700, radius: 80 },
+    ability: { id: 'grill_oil', name: 'Flaque d\'Huile', description: 'Une flaque brûlante et glissante : les ennemis dérapent et brûlent.', effect: 'grease', cooldown: 7, range: 560, params: { radius: 210, duration: 5, damage: 140 }, aim: 'point', aiHint: 'zone_enemy' },
+    ultimate: { id: 'grill_feast', name: 'Grand Festin', description: 'Soigne toute l\'équipe de 35% et lui donne +25% de dégâts pendant 5 s.', effect: 'feast', cooldown: 0, range: 0, params: { heal: 0.35, duration: 5 }, aim: 'self', aiHint: 'heal_team' },
+    passive: { id: 'hearty', name: 'Bon Appétit', description: 'Ramasser un bonus le soigne de 25% de ses PV.', params: { heal: 0.25 } },
+    gadget: { id: 'grill_sauce', name: 'Sauce Piquante', description: '+35% vitesse pendant 3 s en crachant des flammes derrière lui.', effect: 'blaze', cooldown: 2, range: 0, params: { duration: 3, speedBonus: 0.35, damage: 200 }, aim: 'self', aiHint: 'dash_escape', charges: 3 },
+    ultChargePerHit: 11,
+    palette: { primary: '#ffffff', secondary: '#d62828', accent: '#fcbf49', skin: '#e0a98a', eyes: '#2b2d42' },
+    model: 'chef', unlock: { type: 'trophies', trophies: 2400 },
+  },
+  {
+    id: 'koko', name: 'KOKO', title: 'Le Gorille des Ruines', role: 'TANK', rarity: 'EPIC',
+    lore: 'Gardien des Ruines de la Jungle. Il ne parle pas, il tape. Et il tape très bien.',
+    hp: 7600, speed: 285, radius: 37,
+    attack: { kind: 'melee', damage: 480, range: 160, cooldown: 0.65, projectileSpeed: 0, spreadDeg: 110, knockback: 420 },
+    ability: { id: 'koko_vines', name: 'Lianes', description: 'Des lianes jaillissent et immobilisent les ennemis dans la zone.', effect: 'vines', cooldown: 7, range: 520, params: { radius: 200, duration: 2.5, root: 0.9, damage: 220 }, aim: 'point', aiHint: 'zone_enemy' },
+    ultimate: { id: 'koko_stampede', name: 'Ruée Sauvage', description: 'Charge sur une longue distance, renverse tout et réduit les dégâts reçus de 50%.', effect: 'stampede', cooldown: 0, range: 700, params: { distance: 700, damage: 900, knockback: 900, stun: 0.6, reduction: 0.5 }, aim: 'direction', aiHint: 'dash_offense' },
+    passive: { id: 'thick_hide', name: 'Cuir Épais', description: '-15% de dégâts reçus tant qu\'il a plus de 50% de PV.', params: { reduction: 0.15, threshold: 0.5 } },
+    gadget: { id: 'koko_bark', name: 'Écorce', description: 'Sa peau durcit : -60% de dégâts reçus pendant 3 s.', effect: 'harden', cooldown: 2, range: 0, params: { duration: 3, reduction: 0.6 }, aim: 'self', aiHint: 'phase', charges: 3 },
+    ultChargePerHit: 12,
+    palette: { primary: '#5e503f', secondary: '#2d6a4f', accent: '#95d5b2', skin: '#a68a64', eyes: '#ffb703' },
+    model: 'koko', unlock: { type: 'trophies', trophies: 2600 },
+  },
+  {
+    id: 'luna', name: 'LUNA', title: 'La Prêtresse Lunaire', role: 'SUPPORT', rarity: 'EPIC',
+    lore: 'Elle a passé cent ans sur la Lune à regarder le Rift. Elle est descendue quand elle s\'est ennuyée.',
+    hp: 4300, speed: 300, radius: 30,
+    attack: { kind: 'boomerang', damage: 260, range: 560, cooldown: 0.7, projectileSpeed: 900, radius: 20, pierce: true },
+    ability: { id: 'luna_well', name: 'Puits de Lune', description: 'Une source de lumière qui soigne les alliés et purge leurs ralentissements.', effect: 'moon_well', cooldown: 7, range: 480, params: { radius: 230, duration: 4, heal: 800 }, aim: 'point', aiHint: 'heal_team' },
+    ultimate: { id: 'luna_eclipse', name: 'Éclipse', description: 'Plonge une zone dans l\'ombre : les ennemis dedans ne peuvent plus utiliser de capacités.', effect: 'eclipse', cooldown: 0, range: 650, params: { radius: 340, duration: 4, damage: 150, slow: 0.25 }, aim: 'point', aiHint: 'zone_enemy' },
+    passive: { id: 'moonlight', name: 'Clair de Lune', description: 'Les alliés qu\'elle soigne gagnent +15% de vitesse pendant 2 s.', params: { speedBonus: 0.15, duration: 2 } },
+    gadget: { id: 'luna_step', name: 'Pas Lunaire', description: 'Se téléporte à côté de l\'allié le plus blessé et vous donne un bouclier à tous les deux.', effect: 'ally_warp', cooldown: 2, range: 1400, params: { range: 1400, shield: 700, duration: 3 }, aim: 'self', aiHint: 'heal_team', charges: 3 },
+    ultChargePerHit: 12,
+    palette: { primary: '#cdb4db', secondary: '#22223b', accent: '#fff3b0', skin: '#f2e9e4', eyes: '#9a8c98' },
+    model: 'luna', unlock: { type: 'trophies', trophies: 2800 },
+  },
+  {
+    id: 'gear', name: 'GEAR', title: 'L\'Ingénieur Fou', role: 'BUILDER', rarity: 'EPIC',
+    lore: 'Il a construit sa première tourelle à 6 ans. Elle lui tire encore dessus quand il oublie de la nourrir.',
+    hp: 4700, speed: 295, radius: 31,
+    attack: { kind: 'bolt', damage: 300, range: 600, cooldown: 0.5, projectileSpeed: 1200, radius: 13 },
+    ability: { id: 'gear_turret', name: 'Tourelle', description: 'Déploie une tourelle automatique qui tire sur les ennemis pendant 10 s.', effect: 'deploy_turret', cooldown: 9, range: 200, params: { duration: 10, hp: 2200 }, aim: 'point', aiHint: 'zone_enemy' },
+    ultimate: { id: 'gear_missiles', name: 'Pluie de Missiles', description: 'Dix missiles s\'abattent sur la zone visée.', effect: 'barrage', cooldown: 0, range: 850, params: { shells: 10, damage: 480, radius: 110, spread: 260 }, aim: 'point', aiHint: 'zone_enemy' },
+    passive: { id: 'overclock', name: 'Surcadençage', description: 'Attaque 20% plus vite près de sa tourelle.', params: { range: 450, mul: 0.8 } },
+    gadget: { id: 'gear_jetpack', name: 'Réacteur Dorsal', description: 'S\'envole par-dessus les murs vers le point visé et retombe en explosant.', effect: 'leap', cooldown: 2, range: 450, params: { distance: 450, duration: 0.5, damage: 350 }, aim: 'point', aiHint: 'leap', charges: 3 },
+    ultChargePerHit: 11,
+    palette: { primary: '#f77f00', secondary: '#003049', accent: '#90e0ef', skin: '#e9c46a', eyes: '#003049' },
+    model: 'mecha', unlock: { type: 'trophies', trophies: 3000 },
+  },
+  // ---------------------------------------------------------------- MYTHIC heroes (free: trophy road or coins, never premium currency)
+  {
+    id: 'chronos', name: 'CHRONOS', title: 'Le Maître du Temps', role: 'CONTROL', rarity: 'MYTHIC',
+    lore: 'Il était là avant le Rift et sera là après. Il connaît déjà le score final de ce match, mais il ne dira rien.',
+    hp: 4600, speed: 305, radius: 31,
+    attack: { kind: 'bolt', damage: 330, range: 620, cooldown: 0.55, projectileSpeed: 1300, radius: 14, slow: 0.15, slowDuration: 0.8 },
+    ability: { id: 'chronos_rewind', name: 'Retour Temporel', description: 'Revient à sa position et ses PV d\'il y a 3 secondes.', effect: 'rewind', cooldown: 9, range: 0, params: { seconds: 3 }, aim: 'self', aiHint: 'phase' },
+    ultimate: { id: 'chronos_stop', name: 'Arrêt du Temps', description: 'Fige les ennemis proches et le Rift pendant 2.2 s.', effect: 'time_stop', cooldown: 0, range: 0, params: { radius: 650, duration: 2.2 }, aim: 'self', aiHint: 'nuke' },
+    passive: { id: 'timekeeper', name: 'Horloger', description: 'Ses capacités et pouvoirs se rechargent 25% plus vite.', params: { mul: 1.25 } },
+    gadget: { id: 'chronos_haste', name: 'Accélération', description: 'Les alliés proches gagnent +35% de vitesse et rechargent leur attaque.', effect: 'haste', cooldown: 2, range: 650, params: { radius: 650, speedBonus: 0.35, duration: 3 }, aim: 'self', aiHint: 'heal_team', charges: 3 },
+    ultChargePerHit: 10,
+    palette: { primary: '#e9c46a', secondary: '#14213d', accent: '#4cc9f0', skin: '#d4a373', eyes: '#4cc9f0' },
+    model: 'chronos', unlock: { type: 'trophies', trophies: 3500 },
+  },
+  {
+    id: 'seraph', name: 'SERAPH', title: 'L\'Archange du Rift', role: 'DAMAGE', rarity: 'MYTHIC',
+    lore: 'Descendue des cieux du Sky Temple pour juger les tricheurs. Elle a beaucoup de travail.',
+    hp: 4900, speed: 310, radius: 31,
+    attack: { kind: 'bolt', damage: 380, range: 640, cooldown: 0.6, projectileSpeed: 1500, radius: 14, pierce: true },
+    ability: { id: 'seraph_lance', name: 'Lance Divine', description: 'Un trait de lumière qui traverse tout sur 900 de distance.', effect: 'laser', cooldown: 7, range: 900, params: { damage: 900, width: 55, length: 900 }, aim: 'direction', aiHint: 'zone_enemy' },
+    ultimate: { id: 'seraph_judgement', name: 'Jugement', description: 'S\'envole, intouchable, puis s\'écrase : dégâts massifs aux ennemis, soins aux alliés.', effect: 'judgement', cooldown: 0, range: 800, params: { distance: 800, duration: 1.1, damage: 1500, radius: 380, heal: 1200 }, aim: 'point', aiHint: 'leap' },
+    passive: { id: 'resurrection', name: 'Renaissance', description: 'Une fois par match, revient à la vie avec 50% de PV au lieu de mourir.', params: { hp: 0.5 } },
+    gadget: { id: 'seraph_sanctuary', name: 'Sanctuaire', description: 'Un cercle sacré : soigne et réduit de 30% les dégâts des alliés dedans.', effect: 'sanctuary', cooldown: 2, range: 0, params: { radius: 260, duration: 3.5, heal: 900, reduction: 0.3 }, aim: 'self', aiHint: 'heal_team', charges: 3 },
+    ultChargePerHit: 10,
+    palette: { primary: '#ffffff', secondary: '#ffd60a', accent: '#ffe66d', skin: '#f6d5b8', eyes: '#00b4d8' },
+    model: 'seraph', unlock: { type: 'trophies', trophies: 4200 },
+  },
+  {
+    id: 'riftborn', name: 'RIFTBORN', title: 'L\'Enfant du Rift', role: 'CONTROL', rarity: 'MYTHIC',
+    lore: 'Le Rift a eu un enfant. Personne ne sait avec qui. Le Rift lui obéit, parfois.',
+    hp: 5000, speed: 305, radius: 32,
+    attack: { kind: 'chain', damage: 280, range: 540, cooldown: 0.6, projectileSpeed: 0, bounces: 3 },
+    ability: { id: 'riftborn_call', name: 'Appel du Rift', description: 'Le Rift libre proche se téléporte dans ses mains (ou il l\'arrache à un porteur tout proche).', effect: 'rift_call', cooldown: 12, range: 1100, params: { range: 1100, steal: 380 }, aim: 'self', aiHint: 'pull_rift' },
+    ultimate: { id: 'riftborn_avatar', name: 'Avatar du Rift', description: 'Se transforme 7 s : géant, +40% dégâts, soigné de 30%, insensible aux ralentissements et étourdissements.', effect: 'avatar', cooldown: 0, range: 0, params: { duration: 7, damage: 0.4, heal: 0.3 }, aim: 'self', aiHint: 'self_buff' },
+    passive: { id: 'rift_bond', name: 'Lien du Rift', description: 'Porter le Rift ne le ralentit pas et le régénère de 4% PV/s.', params: { regen: 0.04 } },
+    gadget: { id: 'riftborn_decoy', name: 'Faux Rift', description: 'Crée un faux Rift qui explose et étourdit l\'ennemi qui l\'attrape.', effect: 'rift_decoy', cooldown: 2, range: 0, params: { life: 8, damage: 600, stun: 1.0 }, aim: 'direction', aiHint: 'rift_play', charges: 3 },
+    ultChargePerHit: 10,
+    palette: { primary: '#9b5de5', secondary: '#10002b', accent: '#00f5d4', skin: '#c8b6ff', eyes: '#00f5d4' },
+    model: 'riftborn', unlock: { type: 'trophies', trophies: 5000 },
+  },
   // ---------------------------------------------------------------- PvE units (not playable)
   {
     id: 'boss_golem', name: 'RIFT COLOSSUS', title: 'Boss', role: 'TANK', lore: 'Un gardien corrompu par le Rift.',
-    hp: 60000, speed: 175, radius: 90, hidden: true,
-    attack: { kind: 'bolt', damage: 410, range: 900, cooldown: 0.35, projectileSpeed: 750, radius: 22 },
-    ability: { id: 'boss_slam', name: 'Écrasement', description: '', effect: 'slam', cooldown: 7, range: 0, params: { radius: 380, damage: 1200, stun: 0.8 }, aim: 'self', aiHint: 'nuke' },
+    hp: 80000, speed: 175, radius: 90, hidden: true,
+    attack: { kind: 'bolt', damage: 380, range: 900, cooldown: 0.4, projectileSpeed: 750, radius: 22 },
+    // special attacks (slam, meteors, beam, charge, bullet rings, gravity well, shield, summons) are driven by the BossDirector
+    ability: { id: 'boss_none', name: '-', description: '', effect: 'none', cooldown: 99, range: 0, params: {}, aim: 'self', aiHint: 'nuke' },
     ultimate: { id: 'boss_summon', name: 'Invocation', description: '', effect: 'summon', cooldown: 14, range: 0, params: { count: 3 }, aim: 'self', aiHint: 'self_buff' },
     passive: { id: 'boss_armor', name: 'Armure', description: '', params: {} },
     ultChargePerHit: 0,
@@ -197,6 +303,17 @@ export const CHARACTERS: CharacterData[] = [
     palette: { primary: '#9d4edd', secondary: '#240046', accent: '#ff9e00', skin: '#7b2cbf', eyes: '#ffea00' },
     model: 'minion', unlock: { type: 'starter' },
   },
+  {
+    id: 'turret', name: 'TOURELLE', title: 'Invocation', role: 'DAMAGE', lore: 'Tourelle de GEAR.',
+    hp: 2200, speed: 0, radius: 26, hidden: true,
+    attack: { kind: 'bolt', damage: 170, range: 650, cooldown: 0.45, projectileSpeed: 1300, radius: 11 },
+    ability: { id: 'turret_none', name: '-', description: '', effect: 'none', cooldown: 99, range: 0, params: {}, aim: 'self', aiHint: 'self_buff' },
+    ultimate: { id: 'turret_none_u', name: '-', description: '', effect: 'none', cooldown: 99, range: 0, params: {}, aim: 'self', aiHint: 'self_buff' },
+    passive: { id: 'turret_p', name: '-', description: '', params: {} },
+    ultChargePerHit: 0,
+    palette: { primary: '#f77f00', secondary: '#003049', accent: '#90e0ef', skin: '#adb5bd', eyes: '#ff006e' },
+    model: 'turret', unlock: { type: 'starter' },
+  },
 ];
 
 const BY_ID = new Map(CHARACTERS.map((c) => [c.id, c]));
@@ -206,4 +323,5 @@ export const getCharacter = (id: string): CharacterData => {
   return c;
 };
 export const PLAYABLE = CHARACTERS.filter((c) => !c.hidden);
+export const isBoss = (h: { pve: boolean; def: CharacterData }) => h.pve && h.def.id === 'boss_golem';
 export const STARTER_HEROES = PLAYABLE.filter((c) => c.unlock.type === 'starter').map((c) => c.id);

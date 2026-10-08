@@ -1,3 +1,4 @@
+import { applyDamage } from '../combat/Combat';
 import type { Match } from '../game/Match';
 import type { RiftEntity } from '../game/entities';
 import type { RiftState } from '../data/types';
@@ -211,6 +212,14 @@ export function checkPickup(m: Match, r: RiftEntity) {
     const bonus = h.def.passive.id === 'long_grip' ? 1 + h.def.passive.params.pickupBonus : 1;
     const reach = (h.radius + r.radius) * bonus;
     if (dist2(h.x, h.y, r.x, r.y) <= reach * reach) {
+      if (r.decoy) {
+        if (h.team === r.decoy.team) continue;
+        // RIFTBORN decoy: it was a trap!
+        r.alive = false;
+        applyDamage(m, h, r.decoy.damage, m.heroById(r.decoy.owner) ?? null, { stun: r.decoy.stun, noUlt: true });
+        m.emit({ t: 'explosion', x: r.x, y: r.y, radius: 170, color: '#00f5d4' });
+        return;
+      }
       const interception = r.state === 'DROPPED' && r.lastTouchTeam !== -1 && r.lastTouchTeam !== h.team && r.lastThrower >= 0;
       r.carrier = h.id;
       r.attractUntil = 0;
@@ -230,7 +239,7 @@ export function checkPickup(m: Match, r: RiftEntity) {
 
 /** Goal detection; free rifts only score if last touched by the attacking team recently (no accidental own goals). */
 export function checkGoal(m: Match, r: RiftEntity) {
-  if (r.state === 'PORTAL' || !r.alive) return;
+  if (r.state === 'PORTAL' || !r.alive || r.decoy || !m.modeRules.portalsActive) return;
   if (m.phase !== 'play' && m.phase !== 'overtime') return;
   for (const p of m.arena.portals) {
     if (!pointInRect(r.x, r.y, p)) continue;
