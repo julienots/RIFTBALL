@@ -61,7 +61,8 @@ describe('Save', () => {
     kv.set('riftball.save', JSON.stringify({ v: 1, data: json, sum: SaveSystem.checksum(json) }));
     const s = new SaveSystem(kv);
     expect(s.loadReport.migratedFrom).toBe(1);
-    expect(s.data.version).toBe(3);
+    expect(s.data.version).toBe(4);
+    expect(s.data.season).toBeDefined();
     expect(s.data.gems).toBe(75);
     expect(Array.isArray(s.data.matchHistory)).toBe(true);
     expect(s.data.heroes.magnet.trophies).toBe(0);

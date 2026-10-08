@@ -432,3 +432,6 @@ input { font: inherit; }
 .chal.claimed { opacity: .55; }
 .chal .tier { font-size: .7em; color: #ffe14d; letter-spacing: .1em; }
 .chal .gems { font-family: 'Lilita One'; font-size: 1.1em; color: #7fe7ff; display: flex; align-items: center; gap: .25em; }
+/* combat feedback */
+.dmg.combo { color: #ff9f1c; font-size: 1.55em; }
+.dmg.back { color: #c77dff; font-size: 1.3em; }

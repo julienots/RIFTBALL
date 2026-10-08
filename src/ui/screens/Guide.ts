@@ -6,10 +6,17 @@ import { ARENAS } from '../../data/arenas';
 import { MUTATIONS } from '../../data/mutations';
 
 export const MECHANICS: { icon: string; title: string; text: string; isNew?: boolean }[] = [
-  { icon: '👑', title: 'Mode ROI DU RIFT', text: 'Pas de buts : celui qui porte le Rift devient le Roi. Chaque seconde de règne = 1 point pour son équipe. Le Roi est visible partout. Premier à 60 !', isNew: true },
-  { icon: '👹', title: 'Boss : 3 phases', text: 'Le Colosse enchaîne Séisme, Météores, Rayon, Charge, Onde de cristaux, Puits gravitationnel et Bouclier du Rift. Sortez des zones rouges ! Le classement des dégâts s\'affiche en direct.', isNew: true },
-  { icon: '🌈', title: 'Héros Mythiques', text: 'CHRONOS (maître du temps), SERAPH (l\'archange qui ressuscite) et RIFTBORN (l\'enfant du Rift). Pouvoirs uniques et aura irisée. Gratuits : route des trophées ou coins.', isNew: true },
-  { icon: '💎', title: 'Défis', text: 'Des défis permanents et hebdomadaires rapportent des gemmes : battre le Colosse, régner en Roi, gagner sans mourir…', isNew: true },
+  { icon: '🥊', title: 'Combo x3', text: 'Touchez le même ennemi 3 fois de suite avec votre attaque : le 3e coup fait +30% de dégâts, le ralentit et charge votre ultime.', isNew: true },
+  { icon: '🗡️', title: 'Dans le dos', text: 'Frapper un ennemi par derrière inflige +20% de dégâts. Contournez-le !', isNew: true },
+  { icon: '✨', title: 'Esquive parfaite', text: 'Roulez au moment où une attaque vous touche : +10% d\'ultime, accélération, et votre prochaine attaque fait +35%.', isNew: true },
+  { icon: '💥', title: 'Contre le mur', text: 'Un ennemi projeté violemment contre un mur est étourdi et blessé. Titan, Koko et Magnet adorent ça.', isNew: true },
+  { icon: '🔋', title: 'Rage', text: 'Recevoir des dégâts recharge aussi un peu votre ultime : de quoi retourner un combat mal engagé.', isNew: true },
+  { icon: '🗓️', title: 'Saisons & rangs', text: 'Chaque saison (3 mois) a son thème, son Rift Pass et ses événements. Votre record de trophées donne un rang (Bronze → Légende) récompensé en fin de saison.', isNew: true },
+  { icon: '🎉', title: 'Événements', text: 'Essai Mythique, Tempête d\'Ultimes, Turbo Weekend, Festival des Bonus, Canons de Verre, Fête du Roi, Halloween… chacun change les règles et a ses défis.', isNew: true },
+  { icon: '👑', title: 'Mode ROI DU RIFT', text: 'Pas de buts : celui qui porte le Rift devient le Roi. Chaque seconde de règne = 1 point pour son équipe. Le Roi est visible partout. Premier à 60 !' },
+  { icon: '👹', title: 'Boss : 3 phases', text: 'Le Colosse enchaîne Séisme, Météores, Rayon, Charge, Onde de cristaux, Puits gravitationnel et Bouclier du Rift. Sortez des zones rouges ! Le classement des dégâts s\'affiche en direct.' },
+  { icon: '🌈', title: 'Héros Mythiques', text: 'CHRONOS (maître du temps), SERAPH (l\'archange qui ressuscite) et RIFTBORN (l\'enfant du Rift). Pouvoirs uniques et aura irisée. Gratuits : route des trophées ou coins.' },
+  { icon: '💎', title: 'Défis', text: 'Des défis permanents et hebdomadaires rapportent des gemmes : battre le Colosse, régner en Roi, gagner sans mourir…' },
   { icon: '🔮', title: 'Le Rift', text: 'Une créature d\'énergie : elle fuit, devient curieuse et mute. Touchez-la pour la capturer, amenez-la dans le portail adverse.' },
   { icon: '🎯', title: 'Lancer & passes', text: 'En portant le Rift, ATTAQUE devient LANCER : glissez pour viser un coéquipier ou le portail. Les ennemis peuvent intercepter.' },
   { icon: '⚡', title: 'Rift surchargé', text: 'Gardez le Rift 8 secondes : il devient doré et le but vaut 2 points. Mais le porteur est ralenti et visible partout.' },
@@ -20,7 +27,7 @@ export const MECHANICS: { icon: string; title: string; text: string; isNew?: boo
   { icon: '🚀', title: 'Tremplins', text: 'Montez dessus pour être propulsé au-dessus des murs jusqu\'au tremplin jumeau.' },
   { icon: '💀', title: 'Primes', text: '3 éliminations sans mourir : votre tête est mise à prix. Celui qui vous élimine gagne +40% d\'ultime et un bouclier.' },
   { icon: '🌀', title: 'Mutations', text: MUTATIONS.filter((m) => m.weight > 0).map((m) => m.name).join(' · ') + ' : le Rift change les règles du match.' },
-  { icon: '🌑', title: 'Silence & états', text: 'L\'Éclipse de LUNA empêche capacités, ultimes et pouvoirs. L\'Arrêt du Temps de CHRONOS fige. L\'Avatar de RIFTBORN est insensible aux contrôles.', isNew: true },
+  { icon: '🌑', title: 'Silence & états', text: 'L\'Éclipse de LUNA empêche capacités, ultimes et pouvoirs. L\'Arrêt du Temps de CHRONOS fige. L\'Avatar de RIFTBORN est insensible aux contrôles.' },
   { icon: '🌿', title: 'Buissons', text: 'Cachent les joueurs. Attaquer ou être touché vous révèle. La Fusée de NOVA révèle tout.' },
   { icon: '★', title: 'Ultime', text: 'La jauge se remplit en touchant les ennemis, en capturant et en marquant. À 100% : bouton ULTIME.' },
 ];
@@ -38,19 +45,19 @@ export function guideScreen(c: Controller): Screen {
 
 /** One-time "what's new" popup for this content update. */
 export function showNews(c: Controller) {
-  const key = 'news_v14';
+  const key = 'news_v15';
   if ((c.data as any).seenNews === key || !c.data.tutorialDone) return;
   (c.data as any).seenNews = key;
   c.app.save.save();
   const m = c.ui.modal('NOUVEAUTÉS', h('div.col', { style: 'gap:.5em;max-width:34em' },
-    h('div.small-text', 'Mise à jour 1.0.4 : LES MYTHIQUES !'),
+    h('div.small-text', 'Mise à jour 1.0.5 : COMBAT & SAISONS'),
     ...[
-      ['🌈', '3 héros MYTHIQUES : CHRONOS, SERAPH et RIFTBORN'],
-      ['🦸', '5 nouveaux héros : ZIP, GRILL, KOKO, LUNA et GEAR (avec sa tourelle)'],
-      ['👑', 'Nouveau mode ROI DU RIFT : gardez le Rift pour régner !'],
-      ['👹', 'Boss en 3 phases, 7 attaques à esquiver, classement des dégâts'],
-      ['💎', 'DÉFIS : gagnez des gemmes en relevant des défis'],
-      ['✨', 'Personnages plus beaux : yeux qui clignent, reflets, auras'],
+      ['🥊', 'Combos x3, coups dans le dos, esquive parfaite, projection contre les murs'],
+      ['🔋', 'Les dégâts reçus chargent votre ultime'],
+      ['🗓️', '4 saisons avec leur thème, leur Rift Pass et leurs skins exclusifs'],
+      ['🏅', 'Rangs de saison (Bronze → Légende) récompensés en fin de saison'],
+      ['🎉', '8 nouveaux événements : Essai Mythique, Tempête d\'Ultimes, Halloween…'],
+      ['🌈', 'ESSAI MYTHIQUE : jouez tous les héros gratuitement pendant l\'événement'],
     ].map(([i, t]) => h('div.row', { style: 'gap:.6em' }, h('span', { style: 'font-size:1.5em' }, i), h('span', t))),
     h('div.row', { style: 'justify-content:center;gap:.6em;margin-top:.4em' },
       h('button.btn.purple', { onclick: () => { m.close(); c.ui.push(guideScreen(c)); } }, '📖 GUIDE'),

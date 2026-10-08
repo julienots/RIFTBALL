@@ -18,6 +18,7 @@ import { settingsScreen } from './Settings';
 import { collectionScreen } from './Collection';
 import { missionsModal, eventsModal, inboxModal } from './Missions';
 import { challengesScreen } from './Challenges';
+import { seasonScreen, showSeasonEnd } from './Season';
 import { BOT_PROFILES } from '../../data/bots';
 import { modesScreen } from './Modes';
 import { guideScreen, showNews } from './Guide';
@@ -57,7 +58,7 @@ export function homeScreen(c: Controller): Screen {
         h('div.col', { style: 'gap:.15em;align-items:flex-start' },
           h('div.row', { style: 'gap:.4em' }, h('div.lvl', h('span', String(d.level))), h('span.title.stroke-s', d.profile.name)),
           h('div.bar.xp', { style: 'width:8em;height:.7em' }, h('i', { style: `width:${xpPct}%` })))),
-      h('button.pill', { onclick: () => { audio.play('click'); trophyRoad(c); } }, h('span.cur.trophy', '🏆'), fmt(d.trophies)),
+      h('button.pill', { onclick: () => { audio.play('click'); trophyRoad(c); } }, h('span.cur.trophy', '🏆'), fmt(d.trophies), h('span', { title: 'Rang de saison', style: 'margin-left:.3em' }, c.app.seasons.rank.icon)),
       c.app.net.online ? h('span.offline-pill', { style: 'background:rgba(61,220,132,.8)' }, `🌐 En ligne${c.app.net.playersOnline ? ' · ' + c.app.net.playersOnline + ' joueurs' : ''}`) : h('span.offline-pill', c.app.net.hasServer ? '● Serveur injoignable (bots)' : '● Hors ligne (bots)'),
       h('div.grow'),
       cur,
@@ -97,6 +98,7 @@ export function homeScreen(c: Controller): Screen {
       iconBtn('📋', 'MISSIONS', () => missionsModal(c, render), missionsClaim, 'linear-gradient(#80ed99,#2d9b5a)'),
       iconBtn('💎', 'DÉFIS', () => c.ui.push(challengesScreen(c)), c.app.missions.claimableChallenges, 'linear-gradient(#4cc9f0,#3a0ca3)'),
       iconBtn('🎉', 'ÉVÉNEMENTS', () => eventsModal(c), events.length, 'linear-gradient(#ff7b00,#d00000)'),
+      iconBtn(c.app.seasons.current.icon ?? '🗓️', 'SAISON', () => c.ui.push(seasonScreen(c)), 0, `linear-gradient(${c.app.seasons.current.color},#3a0ca3)`),
       iconBtn('📖', 'GUIDE', () => c.ui.push(guideScreen(c)), 0, 'linear-gradient(#a78bfa,#6d28d9)'));
 
     el.append(top, evBanner, left, right, heroInfo, bottomLeft, h('div.play-zone', modeBtn, play));
@@ -106,7 +108,7 @@ export function homeScreen(c: Controller): Screen {
 
   return {
     el, showcase: true,
-    onShow() { render(); c.renderer.showcaseActive = true; audio.playMusic('menu'); c.app.shop.checkRefresh(); setTimeout(() => showNews(c), 600); },
+    onShow() { render(); c.renderer.showcaseActive = true; audio.playMusic('menu'); c.app.shop.checkRefresh(); setTimeout(() => { c.app.seasons.check(); const end = c.app.seasons.takePendingEnd(); if (end) showSeasonEnd(c, end); else showNews(c); }, 600); },
     onHide() { for (const o of offs) o(); offs = []; },
     refresh: render,
   };

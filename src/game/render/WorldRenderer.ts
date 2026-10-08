@@ -1138,6 +1138,15 @@ export class WorldRenderer {
         break;
       }
       case 'boss_phase': this.addShake(0.5); break;
+      case 'perfect':
+        P.burst(e.x * WS, 0.8, e.y * WS, 30, '#00f5d4', 4, 0.22, 0.6, 2, -2);
+        this.addShockwave(e.x, e.y, 0.2, 1.4, '#00f5d4', 0.35);
+        break;
+      case 'wall_slam':
+        P.burst(e.x * WS, 0.6, e.y * WS, 36, '#ffd166', 5, 0.3, 0.6, 3, -8);
+        this.addShockwave(e.x, e.y, 0.2, 1.8, '#ff6b35', 0.4);
+        this.addShake(0.18);
+        break;
       case 'laser': {
         const len = Math.hypot(e.tx - e.x, e.ty - e.y) * WS;
         const col = e.team === 0 ? '#9fd3ff' : '#ffb3bd';

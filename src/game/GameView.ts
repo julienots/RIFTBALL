@@ -318,6 +318,8 @@ export class GameSession {
       case 'time_stop': audio.play('mutation', { vol: 0.8 }); this.r.addShake(0.2); break;
       case 'revive': case 'avatar': audio.play('ult'); break;
       case 'king': audio.play('goal', { vol: 0.7 }); break;
+      case 'perfect': audio.play('teleport', { vol: 0.8 }); if (e.hero === this.match.humanId) haptic('light', this.app.data.settings.haptics); break;
+      case 'wall_slam': audio.play('explosion', { vol: this.vol(e.x, e.y) }); break;
     }
   }
 

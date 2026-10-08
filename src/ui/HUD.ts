@@ -138,7 +138,8 @@ export class HUD {
         const t = m.heroById(e.target);
         if (!t || !m.isVisibleTo(t, m.human?.team ?? 0)) break;
         if (e.t === 'hit' && e.source !== m.humanId && e.target !== m.humanId && Math.random() < 0.5) break; // declutter
-        this.damageNumber(t, e.amount, e.t === 'heal' ? 'heal' : e.target === m.humanId ? 'me' : '');
+        this.damageNumber(t, e.amount, e.t === 'heal' ? 'heal' : e.target === m.humanId ? 'me' : e.t === 'hit' && e.tag ? e.tag : '');
+        if (e.t === 'hit' && e.tag && e.source === m.humanId) this.showAnnounce(e.tag === 'combo' ? 'COMBO x3 !' : 'DANS LE DOS !', '', e.tag === 'combo' ? '#ff9f1c' : '#c77dff', 600);
         if (e.t === 'hit' && e.target === m.humanId) { this.hurtT = 0.4; }
         break;
       }
@@ -198,6 +199,8 @@ export class HUD {
         this.showAnnounce(e.phase === 2 ? 'PHASE 2 : ENRAGÉ' : 'PHASE 3 : FRÉNÉSIE', e.phase === 2 ? 'Le Colosse charge et aspire !' : 'Bouclier du Rift et attaques en rafale !', '#ff00a0', 2400);
         this.screenFlash('rgba(255,0,160,.45)');
         break;
+      case 'perfect': if (e.hero === m.humanId) { this.showAnnounce('ESQUIVE PARFAITE !', '+10% ultime · prochaine attaque +35%', '#00f5d4', 1000); this.screenFlash('rgba(0,245,212,.3)'); } break;
+      case 'wall_slam': { const hh = m.heroById(e.hero); if (hh && (hh.lastHitBy === m.humanId || e.hero === m.humanId)) this.showAnnounce('💥 CONTRE LE MUR !', e.hero === m.humanId ? 'Étourdi !' : 'Ennemi étourdi', '#ff6b35', 900); break; }
       case 'revive': { const hh = m.heroById(e.hero); if (hh) this.showAnnounce('✨ RENAISSANCE', `${hh.name} revient au combat !`, '#ffe66d', 1400); break; }
       case 'time_stop': this.showAnnounce('⏳ ARRÊT DU TEMPS', '', '#4cc9f0', 1200); this.screenFlash('rgba(76,201,240,.35)'); break;
       case 'avatar': { const hh = m.heroById(e.hero); if (hh) this.showAnnounce('AVATAR DU RIFT', hh.name, '#9b5de5', 1300); break; }
@@ -237,7 +240,7 @@ export class HUD {
     const el = this.dmgPool.pop();
     if (!el) return;
     el.className = 'dmg ' + cls;
-    el.textContent = (cls === 'heal' ? '+' : '') + amount;
+    el.textContent = (cls === 'heal' ? '+' : '') + amount + (cls === 'combo' ? '!' : cls === 'back' ? ' ↶' : '');
     el.style.display = '';
     const p = this.r.toScreen(t.x, t.y, this.r.heroScreenHeight(t), this.tmp);
     this.dmgActive.push({ el, t: 0, x: p.x + (Math.random() - 0.5) * 40, y: p.y - 10, vy: -90 });

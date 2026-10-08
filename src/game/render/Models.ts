@@ -733,7 +733,7 @@ export function makeHeroMaterial(u: HeroAnimUniforms) {
         outgoingLight *= 0.9 + 0.18 * clamp(nV.y * 0.5 + 0.5, 0.0, 1.0);
         // toon specular highlight
         vec3 hV = normalize(vV + vec3(0.35, 0.8, 0.45));
-        outgoingLight += vec3(1.0) * step(0.965, max(dot(nV, hV), 0.0)) * 0.22;
+        outgoingLight += vec3(1.0) * smoothstep(0.94, 0.985, max(dot(nV, hV), 0.0)) * 0.14 * (1.0 - vGlow);
         outgoingLight += uRim * smoothstep(0.55, 0.95, rimF) * 0.55;
         // MYTHIC heroes: animated iridescent rim
         vec3 iri = 0.5 + 0.5 * cos(6.2831 * (rimF * 0.8 + uTime * 0.25 + vec3(0.0, 0.33, 0.67)));

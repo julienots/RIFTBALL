@@ -14,15 +14,38 @@ export interface DamageOpts {
   noUlt?: boolean;
   kind?: string;
   ultScale?: number;
+  /** basic attack hit (combos, backstabs) */
+  attack?: boolean;
 }
+
+/** Combat tuning (skill-based bonuses, never random). */
+export const COMBAT = {
+  comboHits: 3, comboWindow: 1.6, comboMul: 1.3,
+  backstabMul: 1.2, backstabCos: -0.45,
+  perfectUlt: 10, perfectSpeed: 0.35, perfectMul: 1.35,
+  wallSlamSpeed: 480, wallSlamStun: 0.6, wallSlamDamage: 260,
+  hurtUltPerHp: 22,
+};
 
 const LOG_ATTACKER_WINDOW = 5;
 
 /** Central damage pipeline: shields, phase, reductions, ult charge, kills. Returns damage dealt. */
 export function applyDamage(m: Match, target: Hero, amount: number, source: Hero | null, opts: DamageOpts = {}): number {
   if (!target.alive || amount <= 0) return 0;
-  if (target.phaseUntil > m.time || target.dodgeUntil > m.time) return 0;
   if (source && source.team === target.team) return 0;
+  if (target.dodgeUntil > m.time) {
+    // PERFECT DODGE: rolling through a hit rewards the defender (once per roll)
+    if (source && !target.pve && m.time - target.rollAt < 0.35 && target.perfectAt < target.rollAt) {
+      target.perfectAt = m.time;
+      target.ult = clamp(target.ult + COMBAT.perfectUlt, 0, 100);
+      target.speedBuff = Math.max(target.speedBuffUntil > m.time ? target.speedBuff : 0, COMBAT.perfectSpeed); target.speedBuffUntil = m.time + 1.2;
+      target.dmgMulNext = Math.max(target.dmgMulNext, COMBAT.perfectMul);
+      target.rollCd = Math.min(target.rollCd, 1);
+      m.emit({ t: 'perfect', hero: target.id, x: target.x, y: target.y });
+    }
+    return 0;
+  }
+  if (target.phaseUntil > m.time) return 0;
   if (m.phase === 'goal' || m.phase === 'ended') return 0;
 
   let dmg = amount;
@@ -34,6 +57,23 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
   if (target.dmgReductionUntil > m.time) dmg *= 1 - target.dmgReduction;
   if (target.def.passive.id === 'thick_hide' && target.hp > target.maxHp * target.def.passive.params.threshold) dmg *= 1 - target.def.passive.params.reduction;
   if (isBoss(target)) dmg *= m.bossArmor;
+  let tag: 'combo' | 'back' | undefined;
+  if (source && opts.attack && !source.pve) {
+    // BACKSTAB: hitting a target from behind
+    const fx = Math.cos(target.facing), fy = Math.sin(target.facing);
+    const tx = source.x - target.x, ty = source.y - target.y, tl = Math.hypot(tx, ty) || 1;
+    if (!isBoss(target) && (fx * tx + fy * ty) / tl < COMBAT.backstabCos) { dmg *= COMBAT.backstabMul; tag = 'back'; }
+    // COMBO: 3 consecutive hits on the same target
+    if (source.comboTarget === target.id && m.time <= source.comboUntil) source.comboCount++;
+    else { source.comboTarget = target.id; source.comboCount = 1; }
+    source.comboUntil = m.time + COMBAT.comboWindow;
+    if (source.comboCount >= COMBAT.comboHits) {
+      dmg *= COMBAT.comboMul; tag = 'combo'; source.comboCount = 0;
+      if (!isBoss(target)) opts = { ...opts, slow: Math.max(opts.slow ?? 0, 0.35), slowDuration: 0.6 };
+      source.ult = clamp(source.ult + 4, 0, 100);
+    }
+  }
+  if (source) dmg *= m.modifiers.damageMul ?? 1;
   dmg = Math.round(dmg);
 
   if (target.absorbUntil > m.time) target.ult = clamp(target.ult + dmg * target.absorbConvert, 0, 100);
@@ -58,9 +98,11 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
     target.recentAttackers.set(source.id, m.time);
     if (!opts.noUlt) {
       const mul = source.def.passive.id === 'overcharge' && opts.kind === 'chain' ? source.def.passive.params.ultMul : 1;
-      source.ult = clamp(source.ult + source.def.ultChargePerHit * mul * (opts.ultScale ?? 1) * (source.overdriveUntil > m.time ? 1.2 : 1), 0, 100);
+      source.ult = clamp(source.ult + source.def.ultChargePerHit * mul * (opts.ultScale ?? 1) * (source.overdriveUntil > m.time ? 1.2 : 1) * (m.modifiers.ultChargeMul ?? 1), 0, 100);
     }
   }
+  // taking damage also charges the ultimate a little (comeback mechanic)
+  if (!target.pve && !opts.noUlt && dmg > 0) target.ult = clamp(target.ult + (dmg / target.maxHp) * COMBAT.hurtUltPerHp * (m.modifiers.ultChargeMul ?? 1), 0, 100);
   const unstoppable = target.avatarUntil > m.time;
   if (opts.kb && opts.kb > 0 && !immovable(target) && !unstoppable) {
     const l = Math.hypot(opts.kbX ?? 0, opts.kbY ?? 0) || 1;
@@ -78,7 +120,7 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
     if (target.stunUntil < m.time - 0.6) target.stunUntil = m.time + cap;
     if (target.carrying) m.dropCarried(target);
   }
-  m.emit({ t: 'hit', x: target.x, y: target.y, target: target.id, amount: Math.round(amount), source: source ? source.id : -1 });
+  m.emit({ t: 'hit', x: target.x, y: target.y, target: target.id, amount: tag ? dmg : Math.round(amount), source: source ? source.id : -1, tag });
   if (isBoss(target)) m.emit({ t: 'boss_hit', amount: dmg });
 
   if (target.hp <= 0) killHero(m, target, source);
@@ -225,7 +267,7 @@ export function performAttack(m: Match, h: Hero, dx: number, dy: number, aimDist
         if (m.lineBlocked(fromX, fromY, cur.x, cur.y)) break;
         pts.push(cur.x, cur.y);
         hitIds.add(cur.id);
-        applyDamage(m, cur, dmg, h, { kind: 'chain' });
+        applyDamage(m, cur, dmg, h, { kind: 'chain', attack: hitIds.size === 1 });
         fromX = cur.x; fromY = cur.y;
         dmg *= 0.75; bounces--;
         let next: Hero | null = null, nd = 320 * 320;
@@ -247,7 +289,7 @@ export function performAttack(m: Match, h: Hero, dx: number, dy: number, aimDist
         const d = Math.hypot(ddx, ddy);
         if (d > a.range + e.radius) continue;
         if (d > 1 && (ddx * dx + ddy * dy) / d < cone) continue;
-        applyDamage(m, e, a.damage, h, { kb: a.knockback ?? 0, kbX: ddx, kbY: ddy });
+        applyDamage(m, e, a.damage, h, { kb: a.knockback ?? 0, kbX: ddx, kbY: ddy, attack: true });
       }
       for (const w of m.arena.walls) {
         if (!w.dynamic || w.team === h.team) continue;
@@ -331,7 +373,7 @@ export function updateProjectiles(m: Match, dt: number) {
       if (e.phaseUntil > m.time) continue;
       p.hit.add(e.id);
       const owner = (m.heroById(p.owner) ?? null);
-      applyDamage(m, e, p.damage, owner, { kb: p.knockback, kbX: p.vx, kbY: p.vy, slow: p.slow, slowDuration: p.slowDuration, ultScale: p.ultScale });
+      applyDamage(m, e, p.damage, owner, { kb: p.knockback, kbX: p.vx, kbY: p.vy, slow: p.slow, slowDuration: p.slowDuration, ultScale: p.ultScale, attack: p.kind !== 'boss' && p.ultScale >= 1 });
       if (!p.pierce) { p.active = false; break; }
     }
     if (!p.active) continue;

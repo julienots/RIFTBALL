@@ -227,6 +227,16 @@ export class BotBrain {
     if (h.abCd <= 0 && m.rng.chance(P.abilityUse) && tryCast(h.def.ability.aiHint, false)) c.ability = true;
     else if (h.ult >= 100 && m.rng.chance(P.ultUse) && tryCast(h.def.ultimate.aiHint, true)) c.ult = true;
     else if (h.def.gadget && h.gadgetCharges > 0 && h.gadgetCd <= 0 && m.rng.chance(P.abilityUse * 0.45) && tryCast(h.def.gadget.aiHint, false)) c.gadget = true;
+    // skilled bots roll through incoming projectiles (perfect dodge)
+    if (h.rollCd <= 0 && P.dodge >= 0.5 && m.rng.chance(P.dodge * 0.6)) {
+      for (const p of m.projectiles) {
+        if (!p.active || p.team === h.team || p.kind === 'lob' || p.kind === 'shell') continue;
+        const rx = h.x - p.x, ry = h.y - p.y, d = Math.hypot(rx, ry);
+        if (d > 170 || d < 1) continue;
+        const sp = Math.hypot(p.vx, p.vy) || 1;
+        if ((rx * p.vx + ry * p.vy) / (d * sp) > 0.85) { c.mx = -p.vy / sp; c.my = p.vx / sp; c.roll = true; return; }
+      }
+    }
     // dodge roll: escape when hurt, or burst toward the portal when carrying
     const threat = this.target && this.target.alive && dist(h.x, h.y, this.target.x, this.target.y) < 320;
     if (h.rollCd <= 0 && threat && m.rng.chance(P.dodge * 0.5) && (h.hp < h.maxHp * 0.5 || h.carrying)) c.roll = true;

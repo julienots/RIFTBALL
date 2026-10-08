@@ -2,7 +2,7 @@ import { DEFAULT_SETTINGS, type GameSettings } from '../core/Settings';
 import { STARTER_HEROES, PLAYABLE } from '../data/characters';
 import { DEFAULT_COSMETICS } from '../data/cosmetics';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export interface LedgerEntry {
   id: string;                 // unique transaction id (store orderId, offer purchase id, reward id)
@@ -58,6 +58,8 @@ export interface SaveData {
   processedMatches: string[];
   processedPurchases: string[];
   matchHistory: { at: number; mode: string; result: 'win' | 'loss' | 'draw'; score: [number, number]; hero: string; trophies: number }[];
+  /** seasons: current season id, peak trophies this season (rank), past seasons, pending end-of-season popup */
+  season: { id: string; peak: number; history: { id: string; rank: string; peak: number }[]; pendingEnd: any | null };
 }
 
 function uuid() {
@@ -96,6 +98,7 @@ export function createDefaultSave(now = Date.now()): SaveData {
     processedMatches: [],
     processedPurchases: [],
     matchHistory: [],
+    season: { id: '', peak: 0, history: [], pendingEnd: null },
   };
 }
 
@@ -114,6 +117,12 @@ export const MIGRATIONS: Record<number, (s: any) => any> = {
     s.matchHistory ??= [];
     s.crates ??= {};
     s.version = 3;
+    return s;
+  },
+  // v3 -> v4: seasons (rank, history, end-of-season rewards)
+  3: (s) => {
+    s.season ??= { id: '', peak: Number(s.trophies) || 0, history: [], pendingEnd: null };
+    s.version = 4;
     return s;
   },
 };

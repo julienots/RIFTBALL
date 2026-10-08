@@ -1,3 +1,4 @@
+import { SeasonService } from '../seasons/SeasonService';
 import { EventBus } from './EventBus';
 import type { AppEvents } from './AppEvents';
 import { BuildConfig } from './config';
@@ -45,6 +46,7 @@ export class App {
   readonly events: EventService;
   readonly pass: BattlePassService;
   readonly missions: MissionService;
+  readonly seasons: SeasonService;
   readonly progression: ProgressionService;
   readonly shop: ShopService;
   readonly iap: IapService;
@@ -72,6 +74,8 @@ export class App {
     this.analytics = new Analytics(o.kv, () => this.save.data.playerId);
     this.pass = new BattlePassService(this.save, this.inventory, this.bus, this.notes);
     this.missions = new MissionService(this.save, this.inventory, this.bus, this.notes, this.events);
+    this.seasons = new SeasonService(this.save, this.inventory, this.notes);
+    this.seasons.check();
     this.progression = new ProgressionService(this.save, this.inventory, this.pass, this.missions, this.events, this.bus, this.notes, this.authority);
     this.shop = new ShopService(this.save, this.inventory, this.events, this.notes, this.bus, () => this.save.data.level);
     const prices = Object.fromEntries(PRODUCTS.map((p) => [p.id, p.fallbackPrice]));

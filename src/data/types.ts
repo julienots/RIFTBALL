@@ -256,6 +256,13 @@ export interface EventModifiers {
   forcedMode?: ModeId;
   arenaBias?: string;
   passXpMul?: number;
+  /** gameplay modifiers (events) */
+  heroSpeedMul?: number;
+  ultChargeMul?: number;
+  pickupRateMul?: number;
+  damageMul?: number;
+  /** every hero playable during the event (free trial) */
+  allHeroes?: boolean;
 }
 
 export interface EventData {
@@ -281,6 +288,8 @@ export interface SeasonData {
   start: string;
   end: string;
   color: string;
+  icon?: string;
+  /** featured hero / arena of the season */
   newHero: string;
   newArena: string;
   passTiers: number;

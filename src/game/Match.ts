@@ -6,7 +6,7 @@ import type { EventModifiers, ModeData, ModeId, MutationId, TeamId } from '../da
 import { Rng } from '../core/Rng';
 import { circleRectPush, dist2, pointInRect, segmentHitsRect } from '../core/math';
 import { Hero, Projectile, Zone, type MatchEvent, type Pickup, type PickupKind, type RiftEntity, type ZoneKind } from './entities';
-import { applyDamage, healHero, nearestEnemy, performAttack, updateProjectiles } from '../combat/Combat';
+import { applyDamage, COMBAT, healHero, nearestEnemy, performAttack, updateProjectiles } from '../combat/Combat';
 import { castAbility, updateDash, updateLeap } from '../abilities/AbilitySystem';
 import { checkGoal, checkPickup, createRift, RIFT_TUNING, setRiftState, updateRift } from '../rift/Rift';
 import { MutationSystem } from '../rift/MutationSystem';
@@ -459,6 +459,7 @@ export class Match {
     if (h.speedBuffUntil > this.time) speed *= 1 + h.speedBuff;
     if (h.def.passive.id === 'kindling' && h.hp / h.maxHp < h.def.passive.params.threshold) speed *= 1 + h.def.passive.params.speedBonus;
     if (this.arena.hazardAt(h.x, h.y, 'boost')) speed *= 1.35;
+    if (!h.pve) speed *= this.modifiers.heroSpeedMul ?? 1;
 
     let mx = stunned ? 0 : c.mx, my = stunned ? 0 : c.my;
     const ml = Math.hypot(mx, my);
@@ -491,7 +492,7 @@ export class Match {
         if (Math.hypot(rx, ry) < 0.2) { rx = Math.cos(h.facing); ry = Math.sin(h.facing); }
         const rl = Math.hypot(rx, ry) || 1;
         h.dash = { dx: rx / rl, dy: ry / rl, remaining: 300, speed: 1700, dmg: 0, kb: 0, stun: 0, kind: 'roll', hit: new Set() };
-        h.dodgeUntil = this.time + 0.3;
+        h.dodgeUntil = this.time + 0.3; h.rollAt = this.time;
         h.rollCd = h.carrying ? 5.5 : 4;
         h.facing = Math.atan2(ry, rx);
         this.emit({ t: 'roll', hero: h.id });
@@ -588,9 +589,18 @@ export class Match {
   private updateBush(h: Hero) { h.inBush = this.arena.inBush(h.x, h.y); }
 
   collideWalls(h: Hero, phasing: boolean) {
+    let hit = false;
     for (const w of this.arena.walls) {
       if (phasing && !w.border) continue;
-      if (circleRectPush(h.x, h.y, h.radius, w, tmp)) { h.x += tmp.x; h.y += tmp.y; }
+      if (circleRectPush(h.x, h.y, h.radius, w, tmp)) { h.x += tmp.x; h.y += tmp.y; hit = true; }
+    }
+    // WALL SLAM: being knocked hard into a wall stuns
+    if (hit && h.slamCd <= this.time && Math.hypot(h.kx, h.ky) > COMBAT.wallSlamSpeed && !isBoss(h) && h.def.id !== 'turret' && h.alive && h.avatarUntil <= this.time) {
+      h.slamCd = this.time + 1.5;
+      const src = h.lastHitBy >= 0 ? this.heroById(h.lastHitBy) ?? null : null;
+      h.kx = h.ky = 0;
+      applyDamage(this, h, COMBAT.wallSlamDamage, src && src.team !== h.team ? src : null, { stun: COMBAT.wallSlamStun, noUlt: true });
+      this.emit({ t: 'wall_slam', hero: h.id, x: h.x, y: h.y });
     }
     h.x = Math.max(h.radius, Math.min(this.arena.w - h.radius, h.x));
     h.y = Math.max(h.radius, Math.min(this.arena.h - h.radius, h.y));
@@ -656,14 +666,14 @@ export class Match {
     // destroyed crates may drop a power-up
     for (const w of this.arena.brokenCrates) {
       this.emit({ t: 'crate_break', x: w.x + w.w / 2, y: w.y + w.h / 2 });
-      if (this.rng.chance(0.65)) this.spawnPickup(this.rng.pick(['speed', 'shield', 'power', 'ult'] as const), w.x + w.w / 2, w.y + w.h / 2, -1);
+      if (this.rng.chance(Math.min(1, 0.65 * (this.modifiers.pickupRateMul ?? 1)))) this.spawnPickup(this.rng.pick(['speed', 'shield', 'power', 'ult'] as const), w.x + w.w / 2, w.y + w.h / 2, -1);
     }
     this.arena.brokenCrates.length = 0;
     if (this.phase !== 'play' && this.phase !== 'overtime') return;
     // altars spawn a power-up every ~14 s when empty
     this.arena.shrines.forEach((sh, i) => {
       if (this.time < this.shrineNext[i] || this.pickups.some((p) => p.alive && p.shrine === i)) return;
-      this.shrineNext[i] = this.time + 14;
+      this.shrineNext[i] = this.time + 14 / (this.modifiers.pickupRateMul ?? 1);
       this.spawnPickup(this.rng.pick(['speed', 'shield', 'power', 'ult'] as const), sh.x, sh.y, i);
     });
     for (const p of this.pickups) {

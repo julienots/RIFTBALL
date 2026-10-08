@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import { Match, type PlayerSlot } from '../../src/game/Match';
 import { getMode } from '../../src/data/modes';
+import { EventService } from '../../src/events/EventService';
 import { ARENAS } from '../../src/data/arenas';
 import { PLAYABLE, getCharacter } from '../../src/data/characters';
 import { BOT_NAMES, BOT_PROFILES, botProfileForTrophies } from '../../src/data/bots';
@@ -45,6 +46,7 @@ interface Room {
 const DUEL_OR_PVE = (m: ModeId) => m === 'RIFT_DUEL' ? 2 : m === 'RIFT_BOSS' || m === 'SURVIVAL' ? 3 : 6;
 
 export class GameServer {
+  private events = new EventService();
   readonly wss: WebSocketServer;
   private clients = new Set<Client>();
   private rooms = new Map<string, Room>();
@@ -235,7 +237,8 @@ export class GameServer {
         players.push({ heroId: pick.id, name: names.pop() ?? 'Bot', team, isBot: true, botLevel });
       }
     }
-    const match = new Match({ mode, arenaId, seed, players });
+    // live events also change the rules online (speed, ult charge, bonuses, damage)
+    const match = new Match({ mode, arenaId, seed, players, modifiers: this.events.modifiers() });
     match.phaseUntil = 4.5; // a bit longer kickoff countdown online (lobby -> loading)
     const id = `online-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
     const room: Room = { id, match, clients: new Map(), humanHeroes: new Map(), pending: [], stepCount: 0, ended: false, createdAt: Date.now() };

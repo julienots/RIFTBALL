@@ -11,6 +11,7 @@ import { rewardText } from '../icons';
 /** End-of-match: satisfying reward reveal for wins AND a non-frustrating progress screen for defeats. */
 export async function resultsScreen(c: Controller, e: SessionEnd): Promise<Screen> {
   const r = await c.app.progression.applyMatch(e.report);
+  c.app.seasons.check(); // season peak / rank
   const m = e.match, me = m.human!;
   c.app.friends.recordRecent(m.heroes.filter((x) => !x.pve && x.id !== me.id).map((x) => ({ name: x.name, heroId: x.def.id, trophies: Math.max(0, c.data.trophies + Math.round((Math.random() - 0.5) * 200)) })));
   c.app.crew.contribute(e.report.stats.goals, r.outcome === 'win');

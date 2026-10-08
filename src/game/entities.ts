@@ -93,6 +93,10 @@ export class Hero {
   reviveUsed = false;
   /** CHRONOS rewind history: [time, x, y, hp] every 0.25 s */
   history: number[] = [];
+  /** combat: combo tracking, perfect dodge, wall slam */
+  comboTarget = -1; comboCount = 0; comboUntil = 0;
+  perfectAt = -99; rollAt = -99;
+  slamCd = 0;
   /** RIFT KING: currently crowned */
   king = false;
 
@@ -192,7 +196,7 @@ export interface RiftEntity {
 }
 
 export type MatchEvent =
-  | { t: 'hit'; x: number; y: number; target: number; amount: number; crit?: boolean; source: number }
+  | { t: 'hit'; x: number; y: number; target: number; amount: number; crit?: boolean; source: number; tag?: 'combo' | 'back' }
   | { t: 'heal'; x: number; y: number; target: number; amount: number }
   | { t: 'shot'; hero: number; kind: string; x: number; y: number; angle: number }
   | { t: 'melee'; hero: number; x: number; y: number; angle: number; range: number }
@@ -229,6 +233,8 @@ export type MatchEvent =
   | { t: 'jump'; hero: number; x: number; y: number; tx: number; ty: number }
   | { t: 'crate_break'; x: number; y: number }
   | { t: 'laser'; x: number; y: number; tx: number; ty: number; team: TeamId }
+  | { t: 'perfect'; hero: number; x: number; y: number }
+  | { t: 'wall_slam'; hero: number; x: number; y: number }
   | { t: 'boss_phase'; phase: number }
   | { t: 'boss_attack'; name: string; x: number; y: number }
   | { t: 'beam_warn'; x: number; y: number; tx: number; ty: number; dur: number; width: number }

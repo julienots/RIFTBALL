@@ -90,6 +90,10 @@ export function heroDetail(c: Controller, heroId: string): Screen {
         s.equipped ? h('span.owned-tag', { style: 'position:static' }, 'ÉQUIPÉ') : s.owned ? h('span.small-text', '✔') : h('span.small-text', '🔒')))),
       (() => {
         const sel = skins.find((s) => s.data.id === viewSkin)!;
+        const trial = !owned && c.canPlay(heroId);
+        if (trial && sel.data.id === `${heroId}_default`) return h('div.col', { style: 'gap:.3em' },
+          h('div.small-text', { style: 'text-align:center;color:#ff9ad5' }, '🌈 ESSAI MYTHIQUE : jouable gratuitement pendant l\'événement'),
+          h('button.btn.green', { disabled: c.heroId === heroId, onclick: () => { audio.play('click'); c.heroId = heroId; c.ui.toast('🌈', `${hero.name} en essai !`); render(); } }, c.heroId === heroId ? 'SÉLECTIONNÉ (ESSAI)' : 'ESSAYER'));
         if (!owned) {
           const hd = getCharacter(heroId);
           const canCoins = hd.unlock.type === 'trophies';

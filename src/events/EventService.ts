@@ -50,6 +50,11 @@ export class EventService {
       if (x.mutationIntervalMul) m.mutationIntervalMul = (m.mutationIntervalMul ?? 1) * x.mutationIntervalMul;
       if (x.arenaBias) m.arenaBias = x.arenaBias;
       if (x.forcedMode) m.forcedMode = x.forcedMode;
+      if (x.heroSpeedMul) m.heroSpeedMul = (m.heroSpeedMul ?? 1) * x.heroSpeedMul;
+      if (x.ultChargeMul) m.ultChargeMul = (m.ultChargeMul ?? 1) * x.ultChargeMul;
+      if (x.pickupRateMul) m.pickupRateMul = (m.pickupRateMul ?? 1) * x.pickupRateMul;
+      if (x.damageMul) m.damageMul = (m.damageMul ?? 1) * x.damageMul;
+      if (x.allHeroes) m.allHeroes = true;
     }
     return m;
   }

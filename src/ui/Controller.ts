@@ -38,7 +38,9 @@ export class Controller {
   }
 
   get data() { return this.app.data; }
-  get heroId() { const f = this.data.profile.favoriteHero; return this.app.inventory.hasHero(f) ? f : 'magnet'; }
+  /** A hero can be played when owned, or during the ESSAI MYTHIQUE event (free trial of every hero). */
+  canPlay(id: string) { return this.app.inventory.hasHero(id) || !!this.app.events.modifiers().allHeroes; }
+  get heroId() { const f = this.data.profile.favoriteHero; return this.canPlay(f) ? f : 'magnet'; }
   set heroId(id: string) { this.app.profile.setFavorite(id); }
   get skinId() { return this.app.cosmetics.skinOf(this.heroId); }
 

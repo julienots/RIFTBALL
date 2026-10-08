@@ -31,6 +31,15 @@ export const MISSIONS: MissionData[] = [
   { id: 'e_chaos', scope: 'event', eventId: 'chaos_week', text: 'Vivre 10 mutations', stat: 'mutations_seen', target: 10, reward: [{ kind: 'cosmetic', id: 'spray_flame' }] },
   { id: 'e_winter', scope: 'event', eventId: 'winter_rift', text: 'Gagner 5 parties pendant Winter Rift', stat: 'wins', target: 5, reward: [{ kind: 'cosmetic', id: 'emote_snow' }] },
   { id: 'e_boss', scope: 'event', eventId: 'boss_invasion', text: 'Jouer 3 parties RIFT BOSS', stat: 'mode_RIFT_BOSS', target: 3, reward: [{ kind: 'cosmetic', id: 'icon_skull' }] },
+  { id: 'e_mythic', scope: 'event', eventId: 'mythic_trial', text: 'Jouer 3 matchs avec un héros Mythique', stat: 'mythic_matches', target: 3, reward: [{ kind: 'gems', amount: 10 }, { kind: 'coins', amount: 300 }] },
+  { id: 'e_ult', scope: 'event', eventId: 'ult_storm', text: 'Lancer 10 ultimes', stat: 'ults', target: 10, reward: [{ kind: 'gems', amount: 5 }, { kind: 'coins', amount: 250 }] },
+  { id: 'e_turbo', scope: 'event', eventId: 'turbo_weekend', text: 'Marquer 8 points', stat: 'goals', target: 8, reward: [{ kind: 'coins', amount: 400 }] },
+  { id: 'e_bonus', scope: 'event', eventId: 'bonus_festival', text: 'Gagner 3 parties', stat: 'wins', target: 3, reward: [{ kind: 'gems', amount: 5 }, { kind: 'crate', id: 'crate_small', count: 1 }] },
+  { id: 'e_glass', scope: 'event', eventId: 'glass_cannon', text: 'Éliminer 15 adversaires', stat: 'kills', target: 15, reward: [{ kind: 'gems', amount: 8 }] },
+  { id: 'e_king', scope: 'event', eventId: 'king_festival', text: 'Régner 120 secondes en tant que Roi', stat: 'king_points', target: 120, reward: [{ kind: 'gems', amount: 10 }, { kind: 'cosmetic', id: 'emote_crown' }] },
+  { id: 'e_halloween', scope: 'event', eventId: 'halloween_rift', text: 'Jouer 10 matchs pendant la Nuit du Rift', stat: 'matches', target: 10, reward: [{ kind: 'cosmetic', id: 'emote_pumpkin' }, { kind: 'gems', amount: 15 }] },
+  { id: 'e_halloween2', scope: 'event', eventId: 'halloween_rift', text: 'Vaincre le Colosse pendant la Nuit du Rift', stat: 'boss_wins', target: 1, reward: [{ kind: 'cosmetic', id: 'spray_pumpkin' }] },
+  { id: 'e_newyear', scope: 'event', eventId: 'new_year', text: 'Gagner 5 parties pendant le Nouvel An', stat: 'wins', target: 5, reward: [{ kind: 'cosmetic', id: 'emote_fireworks' }, { kind: 'gems', amount: 20 }] },
 
   // GEM CHALLENGES (DÉFIS) — permanent, harder goals rewarded with gems (earned, never bought)
   { id: 'c_boss1', scope: 'challenge', tier: 1, text: 'Vaincre le Colosse une première fois', stat: 'boss_wins', target: 1, reward: [{ kind: 'gems', amount: 10 }] },
