@@ -1,6 +1,7 @@
 import { getCharacter } from '../../data/characters';
 import { getCosmetic } from '../../data/cosmetics';
 import { buildPet, animatePet } from './Pets';
+import { LobbyScene, type LobbyKind } from './Lobby';
 import type { SeasonData } from '../../data/types';
 import * as THREE from 'three';
 import type { Match } from '../Match';
@@ -1257,9 +1258,9 @@ export class WorldRenderer {
     s.add(new THREE.HemisphereLight('#ffffff', '#6b5bd6', 1.6));
     const key = new THREE.DirectionalLight('#ffffff', 2.4); key.position.set(3, 6, 5); s.add(key);
     const rim = new THREE.DirectionalLight('#b388ff', 2.2); rim.position.set(-4, 3, -4); s.add(rim);
-    const ped = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.4, 0.4, 40), toon('#ffd166'));
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.4, 0.4, 40), toon('#ffd166').clone()); // recoloured per season: own material
     ped.position.y = -0.2; s.add(ped);
-    const ped2 = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.55, 0.18, 40), toon('#7b61ff'));
+    const ped2 = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.55, 0.18, 40), toon('#7b61ff').clone());
     ped2.position.y = -0.46; s.add(ped2);
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshBasicMaterial({ map: radialTexture('rgba(179,136,255,0.7)', 'rgba(179,136,255,0)'), transparent: true, depthWrite: false }));
     glow.rotation.x = -Math.PI / 2; glow.position.y = 0.01; s.add(glow);
@@ -1291,6 +1292,7 @@ export class WorldRenderer {
   private showcasePop = 0;
   private lobby: { ped: THREE.Mesh; ped2: THREE.Mesh; glow: THREE.Mesh; fx: THREE.Points | null; kind: string } | null = null;
   private showcasePet: THREE.Group | null = null; private showcasePetKey = '';
+  private lobbyScene: LobbyScene | null = null;
 
   /** Season lobby backdrop: sky colour, pedestal, glow and ambient particles (embers, snow, leaves, neon, stars). */
   setLobbyTheme(l: SeasonData['lobby']) {
@@ -1304,6 +1306,11 @@ export class WorldRenderer {
     (this.lobby.glow.material as THREE.MeshBasicMaterial).needsUpdate = true;
     if (this.lobby.kind === l.particle) return;
     if (this.lobby.fx) s.remove(this.lobby.fx);
+    // full 3D backdrop for the season
+    if (this.lobbyScene) { s.remove(this.lobbyScene.group); this.lobbyScene.dispose(); }
+    this.lobbyScene = new LobbyScene(l.particle as LobbyKind);
+    s.add(this.lobbyScene.group);
+    s.fog = new THREE.Fog(l.sky, 18, 55);
     const n = 160, pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
     const palette: Record<string, string[]> = { embers: ['#ff6b35', '#ffd166', '#ff3d00'], snow: ['#ffffff', '#caf0f8'], leaves: ['#52b788', '#95d5b2', '#d4a373'], neon: ['#f72585', '#4cc9f0', '#b5179e'], stars: ['#ffffff', '#b388ff'] };
     const c = new THREE.Color();
@@ -1347,6 +1354,7 @@ export class WorldRenderer {
       if (this.showcasePop > 0) { this.showcasePop -= dt; const k = 1 + Math.sin((this.showcasePop / 0.35) * Math.PI) * 0.15; this.showcaseHero.scale.set(0.7 / k, 0.7 * k, 0.7 / k); }
       else this.showcaseHero.scale.setScalar(0.7);
     }
+    this.lobbyScene?.update(this.time, dt);
     if (this.lobby?.fx) {
       const a = this.lobby.fx.geometry.attributes.position as THREE.BufferAttribute;
       const kind = this.lobby.kind, arr = a.array as Float32Array;

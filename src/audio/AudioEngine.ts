@@ -8,11 +8,37 @@ export type Sfx =
   | 'ability' | 'ult' | 'mutation_warn' | 'mutation' | 'countdown' | 'go' | 'zap' | 'explosion' | 'teleport' | 'wall' | 'heal'
   | 'reward' | 'coin' | 'chest_open' | 'chest_shake' | 'level_up' | 'victory' | 'defeat' | 'purchase' | 'error' | 'whoosh' | 'rift_purr' | 'notify' | 'unlock';
 
-export type MusicTrack = 'menu' | 'battle' | 'battle_hot' | 'battle_cold' | 'battle_void' | 'battle_jungle' | 'shop' | 'victory' | 'defeat' | 'none';
+export type MusicTrack = 'menu' | 'battle' | 'battle_hot' | 'battle_cold' | 'battle_void' | 'battle_jungle' | 'shop' | 'victory' | 'defeat'
+  | 'menu_s1' | 'menu_s2' | 'menu_s3' | 'menu_s4' | 'boss' | 'king' | 'fifix' | 'none';
 
 const NOTE = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
-interface TrackDef { bpm: number; root: number; prog: number[][]; lead: number[]; bass: 'pulse' | 'walk' | 'octave'; drums: string; wave: OscillatorType; leadWave: OscillatorType; swing?: number }
+interface TrackDef {
+  bpm: number; root: number; prog: number[][]; lead: number[]; bass: 'pulse' | 'walk' | 'octave'; drums: string; wave: OscillatorType; leadWave: OscillatorType; swing?: number;
+  /** v1.0.7 composed tracks: 4-bar melody (A) and its answer (B), "note:len16ths" ('-' = rest) */
+  melody?: string; answer?: string;
+  /** instrument of the melody */
+  voice?: 'lead' | 'bell' | 'pluck' | 'brass';
+  /** arpeggio over the chord: rate in 16ths (1 = 16ths, 2 = 8ths) */
+  arp?: { rate: number; style: 'up' | 'updown'; voice: 'pluck' | 'bell' | 'saw'; oct: number };
+  /** lush detuned pad that holds each chord */
+  pad?: boolean;
+  reverb?: number; echo?: number;
+}
+
+/** "12:4 15:2 -:2" -> [{ step, note, len }] (note -1 = rest), 64 steps per 4-bar phrase */
+function phrase(src?: string) {
+  const out: { step: number; note: number; len: number }[] = [];
+  if (!src) return out;
+  let step = 0;
+  for (const tok of src.replace(/\|/g, ' ').split(/\s+/).filter(Boolean)) {
+    const [n, l] = tok.split(':');
+    const len = Number(l) || 1;
+    if (n !== '-') out.push({ step, note: Number(n), len });
+    step += len;
+  }
+  return out;
+}
 
 const TRACKS: Record<Exclude<MusicTrack, 'none'>, TrackDef> = {
   menu: { bpm: 104, root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], lead: [12, 14, 16, 19, 16, 14, 12, 11, 12, -1, 16, 14, 12, -1, 7, -1], bass: 'walk', drums: 'k..sk.s.k..sk.ss', wave: 'triangle', leadWave: 'square' },
@@ -23,6 +49,21 @@ const TRACKS: Record<Exclude<MusicTrack, 'none'>, TrackDef> = {
   battle_jungle: { bpm: 118, root: 55, prog: [[0, 4, 7], [-3, 0, 4], [-5, -1, 2], [-7, -3, 0]], lead: [7, 9, 12, -1, 9, 7, 4, -1, 7, -1, 12, 14, 12, -1, 9, -1], bass: 'walk', drums: 'k.sks.k.k.sks.ss', wave: 'triangle', leadWave: 'square', swing: 0.12 },
   shop: { bpm: 96, root: 60, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [2, 5, 9, 12], [-5, -1, 2, 5]], lead: [16, -1, 19, -1, 23, -1, 21, 19, 16, -1, 14, -1, 12, -1, -1, -1], bass: 'walk', drums: 'k...s..kk...s...', wave: 'sine', leadWave: 'triangle', swing: 0.15 },
   victory: { bpm: 140, root: 60, prog: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]], lead: [12, 16, 19, 24, -1, 19, 24, -1, 26, -1, 28, -1, 31, -1, -1, -1], bass: 'octave', drums: 'k.s.k.s.k.s.ksss', wave: 'square', leadWave: 'square' },
+  // ---- v1.0.7 composed soundtrack
+  menu_s1: { bpm: 108, root: 50, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], lead: [], bass: 'octave', drums: 'k...s..kk.k.s...', wave: 'sawtooth', leadWave: 'square', pad: true, reverb: 0.45, echo: 0.3, voice: 'brass',
+    melody: '12:4 15:2 17:2 19:6 17:2 | 15:4 14:4 12:8 | 10:4 12:2 14:2 15:6 14:2 | 12:8 -:8', answer: '19:4 22:4 24:8 | 22:4 19:4 17:8 | 15:4 17:2 19:2 22:6 24:2 | 26:12 -:4', arp: { rate: 2, style: 'up', voice: 'pluck', oct: 12 } },
+  menu_s2: { bpm: 92, root: 52, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [7, 11, 14]], lead: [], bass: 'walk', drums: 'k.......s.......', wave: 'triangle', leadWave: 'sine', pad: true, reverb: 0.6, echo: 0.35, voice: 'bell',
+    melody: '16:4 19:4 21:4 19:4 | 16:8 14:4 12:4 | 11:4 12:4 14:4 16:4 | 19:12 -:4', answer: '23:4 21:4 19:4 16:4 | 21:8 19:4 16:4 | 14:4 16:4 19:4 21:4 | 24:12 -:4', arp: { rate: 2, style: 'updown', voice: 'bell', oct: 24 } },
+  menu_s3: { bpm: 112, root: 55, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [7, 11, 14]], lead: [], bass: 'walk', drums: 'k.sks.k.k.sks.ss', wave: 'triangle', leadWave: 'triangle', swing: 0.12, pad: true, reverb: 0.3, echo: 0.2, voice: 'pluck',
+    melody: '12:2 14:2 16:4 19:2 16:2 14:4 | 12:2 9:2 7:4 9:4 12:4 | 14:2 16:2 19:4 21:2 19:2 16:4 | 14:4 12:12', answer: '24:2 21:2 19:4 16:2 19:2 21:4 | 19:2 16:2 14:4 12:8 | 16:2 19:2 21:4 24:2 21:2 19:4 | 16:4 19:4 24:8', arp: { rate: 2, style: 'updown', voice: 'pluck', oct: 12 } },
+  menu_s4: { bpm: 100, root: 45, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], lead: [], bass: 'octave', drums: 'k...s...k.k.s...', wave: 'sawtooth', leadWave: 'sawtooth', pad: true, reverb: 0.5, echo: 0.4, voice: 'lead',
+    melody: '12:6 15:2 19:4 17:4 | 15:6 14:2 12:8 | 10:6 12:2 14:4 15:4 | 14:12 -:4', answer: '24:6 22:2 19:4 22:4 | 24:6 26:2 27:8 | 26:6 24:2 22:4 19:4 | 17:12 -:4', arp: { rate: 1, style: 'up', voice: 'saw', oct: 12 } },
+  boss: { bpm: 150, root: 45, prog: [[0, 3, 7], [1, 5, 8], [0, 3, 7], [-2, 1, 5]], lead: [], bass: 'octave', drums: 'k.hsk.hskkhsk.ss', wave: 'sawtooth', leadWave: 'square', pad: true, reverb: 0.35, echo: 0.15, voice: 'brass',
+    melody: '12:2 13:2 12:2 15:2 13:4 12:4 | 11:2 12:2 11:2 8:2 7:8 | 12:2 13:2 15:2 17:2 18:4 17:4 | 15:2 13:2 12:12', answer: '24:4 25:4 24:4 22:4 | 20:4 19:4 17:8 | 24:2 25:2 27:2 29:2 30:4 29:4 | 27:4 25:4 24:8', arp: { rate: 1, style: 'up', voice: 'saw', oct: 0 } },
+  king: { bpm: 116, root: 53, prog: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]], lead: [], bass: 'pulse', drums: 'k.s.k.s.k.s.kkss', wave: 'square', leadWave: 'square', pad: true, reverb: 0.4, echo: 0.2, voice: 'brass',
+    melody: '12:3 12:1 16:4 19:4 16:4 | 17:3 17:1 21:4 19:8 | 19:3 21:1 19:4 17:4 16:4 | 14:4 16:4 12:8', answer: '24:3 24:1 28:4 31:4 28:4 | 29:3 29:1 33:4 31:8 | 31:3 33:1 31:4 29:4 28:4 | 26:4 28:4 24:8', arp: { rate: 2, style: 'up', voice: 'bell', oct: 12 } },
+  fifix: { bpm: 124, root: 60, prog: [[0, 4, 7, 10], [-3, 0, 4, 7], [5, 9, 12, 15], [7, 11, 14, 17]], lead: [], bass: 'octave', drums: 'k.hsk.hsk.hsk.hs', wave: 'square', leadWave: 'square', swing: 0.1, pad: false, reverb: 0.25, echo: 0.25, voice: 'pluck',
+    melody: '12:2 -:1 12:1 15:2 16:2 19:4 16:2 15:2 | 12:2 10:2 12:4 7:4 -:4 | 12:2 -:1 12:1 15:2 16:2 19:2 21:2 19:2 16:2 | 15:2 16:2 12:12', answer: '24:2 22:2 19:2 16:2 19:4 22:4 | 24:2 -:2 24:2 26:2 28:8 | 26:2 24:2 22:2 19:2 22:4 24:4 | 19:4 16:4 12:8', arp: { rate: 1, style: 'updown', voice: 'pluck', oct: 0 } },
   defeat: { bpm: 80, root: 57, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], lead: [12, -1, 10, -1, 8, -1, 7, -1, 5, -1, 3, -1, 2, -1, -1, -1], bass: 'pulse', drums: 'k.......s.......', wave: 'triangle', leadWave: 'sine' },
 };
 
@@ -40,6 +81,9 @@ export class AudioEngine {
   private timer: any = null;
   private lastPlay = new Map<string, number>();
   private duckUntil = 0;
+  private verb!: ConvolverNode; private verbIn!: GainNode;
+  private echo!: DelayNode; private echoFb!: GainNode; private echoIn!: GainNode;
+  private phrases = new Map<string, { a: ReturnType<typeof phrase>; b: ReturnType<typeof phrase> }>();
 
   /** Must be called from a user gesture on mobile. */
   unlock() {
@@ -53,6 +97,17 @@ export class AudioEngine {
     this.master = c.createGain(); this.master.gain.value = 0.9;
     this.musicBus = c.createGain(); this.sfxBus = c.createGain();
     this.musicBus.connect(this.master); this.sfxBus.connect(this.master);
+    // music space: generated reverb impulse + tempo echo for melodies
+    this.verb = c.createConvolver();
+    const len = Math.floor(c.sampleRate * 2.4), ir = c.createBuffer(2, len, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+    this.verb.buffer = ir;
+    this.verbIn = c.createGain(); this.verbIn.gain.value = 0;
+    this.verbIn.connect(this.verb); this.verb.connect(this.musicBus);
+    this.echo = c.createDelay(1.5); this.echoFb = c.createGain(); this.echoIn = c.createGain(); this.echoIn.gain.value = 0;
+    const echoTone = c.createBiquadFilter(); echoTone.type = 'lowpass'; echoTone.frequency.value = 2600;
+    this.echoIn.connect(this.echo); this.echo.connect(echoTone); echoTone.connect(this.echoFb); this.echoFb.connect(this.echo); echoTone.connect(this.musicBus); echoTone.connect(this.verbIn);
+    this.echoFb.gain.value = 0.32;
     this.master.connect(comp); comp.connect(c.destination);
     this.noise = c.createBuffer(1, c.sampleRate, c.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -81,6 +136,12 @@ export class AudioEngine {
     if (t === 'none') return;
     this.step = 0;
     this.nextNoteTime = this.ctx.currentTime + 0.1;
+    const def = TRACKS[t];
+    const now = this.ctx.currentTime;
+    this.verbIn.gain.setTargetAtTime(def.reverb ?? 0.12, now, 0.1);
+    this.echoIn.gain.setTargetAtTime(def.echo ?? 0, now, 0.1);
+    this.echo.delayTime.setValueAtTime((60 / def.bpm) * 0.75, now); // dotted-eighth echo
+    if (def.melody && !this.phrases.has(t)) this.phrases.set(t, { a: phrase(def.melody), b: phrase(def.answer) });
     this.timer = setInterval(() => this.schedule(), 40);
   }
 
@@ -107,18 +168,71 @@ export class AudioEngine {
         const n = def.root - 12 + chord[def.bass === 'walk' ? (sub / 4) % chord.length : 0] + (def.bass === 'octave' && sub % 4 === 2 ? 12 : 0);
         this.tone(NOTE(n), t, stepDur * (def.bass === 'walk' ? 3.5 : 1.6), def.wave === 'sine' ? 'triangle' : 'square', 0.22 * duck, this.musicBus, 900);
       }
-      // pads (chord stab on beat 1 and 3)
-      if (sub === 0 || sub === 8) for (const iv of chord) this.tone(NOTE(def.root + iv), t, stepDur * 7, def.wave, 0.05 * duck, this.musicBus, 2200, 0.05);
-      // lead (2nd half of each 4-bar loop alternates)
-      const ln = def.lead[sub];
-      if (ln >= 0 && (bar % 2 === 1 || this.track === 'victory' || this.track === 'defeat')) this.tone(NOTE(def.root + ln), t, stepDur * 1.8, def.leadWave, 0.09 * duck, this.musicBus, 3200, 0.01);
+      if (def.melody) this.composed(def, chord, sub, bar, t, stepDur, duck);
+      else {
+        // pads (chord stab on beat 1 and 3)
+        if (sub === 0 || sub === 8) for (const iv of chord) this.tone(NOTE(def.root + iv), t, stepDur * 7, def.wave, 0.05 * duck, this.musicBus, 2200, 0.05);
+        // lead (2nd half of each 4-bar loop alternates)
+        const ln = def.lead[sub];
+        if (ln >= 0 && (bar % 2 === 1 || this.track === 'victory' || this.track === 'defeat')) this.tone(NOTE(def.root + ln), t, stepDur * 1.8, def.leadWave, 0.09 * duck, this.musicBus, 3200, 0.01);
+      }
       this.nextNoteTime += stepDur;
       this.step++;
       if ((this.track === 'victory' || this.track === 'defeat') && this.step >= 64) { this.playMusic('none'); return; }
     }
   }
 
-  private tone(freq: number, t: number, dur: number, type: OscillatorType, vol: number, bus: AudioNode, cutoff = 4000, attack = 0.005, slideTo?: number) {
+  /**
+   * Composed tracks: 8-bar song (phrase A then its answer B), lush pads, arpeggios and a voiced melody
+   * sent to the echo + reverb. The very first 2 bars are an intro (pads + arp only).
+   */
+  private composed(def: TrackDef, chord: number[], sub: number, bar: number, t: number, stepDur: number, duck: number) {
+    const ph = this.phrases.get(this.track)!;
+    const song = this.step % 128, intro = this.step < 32;
+    // pad: two detuned saws per chord tone, slow attack, whole bar
+    if (def.pad && sub === 0) for (const iv of chord.slice(0, 3)) {
+      for (const det of [-6, 6]) this.tone(NOTE(def.root + iv) * Math.pow(2, det / 1200), t, stepDur * 16, 'sawtooth', 0.022 * duck, this.musicBus, 1300, stepDur * 4, undefined, 0.5);
+    }
+    // arpeggio
+    if (def.arp && sub % def.arp.rate === 0) {
+      const tones = def.arp.style === 'updown' ? [...chord, ...chord.slice(1, -1).reverse()] : chord;
+      const i = (sub / def.arp.rate) % tones.length;
+      const n = def.root + tones[i] + def.arp.oct;
+      this.voice(def.arp.voice, NOTE(n), t, stepDur * def.arp.rate * 1.6, 0.045 * duck, 0.25);
+    }
+    if (intro) return;
+    // melody: A on the first 4 bars of the song, B (answer) on the next 4
+    const list = song < 64 ? ph.a : ph.b.length ? ph.b : ph.a;
+    const local = song % 64;
+    for (const e of list) if (e.step === local) this.voice(def.voice ?? 'lead', NOTE(def.root + e.note), t, stepDur * e.len * 0.95, 0.085 * duck, 1, def.leadWave);
+    void bar;
+  }
+
+  /** Instruments: lead (filtered osc), bell (FM-ish sines), pluck (marimba), brass (2 saws + swell), saw (arp). */
+  private voice(kind: string, f: number, t: number, dur: number, vol: number, send = 1, wave: OscillatorType = 'square') {
+    const echo = this.echoIn as AudioNode;
+    switch (kind) {
+      case 'bell':
+        this.tone(f, t, Math.max(dur, 0.6), 'sine', vol * 1.1, this.musicBus, 6000, 0.003, undefined, 0.6, send ? echo : undefined);
+        this.tone(f * 2.76, t, Math.max(dur, 0.6) * 0.5, 'sine', vol * 0.3, this.musicBus, 8000, 0.002, undefined, 0.6);
+        this.tone(f * 2, t, Math.max(dur, 0.6) * 0.7, 'sine', vol * 0.35, this.musicBus, 8000, 0.002);
+        break;
+      case 'pluck':
+        this.tone(f, t, Math.min(dur, 0.35), 'triangle', vol * 1.3, this.musicBus, 3500, 0.002, undefined, 0.3, send ? echo : undefined);
+        this.tone(f * 4, t, 0.05, 'sine', vol * 0.25, this.musicBus, 9000, 0.001);
+        break;
+      case 'brass':
+        for (const det of [-5, 5]) this.tone(f * Math.pow(2, det / 1200), t, dur, 'sawtooth', vol * 0.6, this.musicBus, 2400, Math.min(0.08, dur / 3), undefined, 0.5, send ? echo : undefined);
+        break;
+      case 'saw':
+        this.tone(f, t, Math.min(dur, 0.25), 'sawtooth', vol * 0.8, this.musicBus, 1800, 0.003, undefined, 0.4);
+        break;
+      default:
+        this.tone(f, t, dur, wave, vol, this.musicBus, 3200, 0.01, undefined, 0.5, send ? echo : undefined);
+    }
+  }
+
+  private tone(freq: number, t: number, dur: number, type: OscillatorType, vol: number, bus: AudioNode, cutoff = 4000, attack = 0.005, slideTo?: number, verbSend = 0, extra?: AudioNode) {
     const c = this.ctx!;
     const o = c.createOscillator(), g = c.createGain(), f = c.createBiquadFilter();
     o.type = type; o.frequency.setValueAtTime(freq, t);
@@ -128,6 +242,8 @@ export class AudioEngine {
     g.gain.linearRampToValueAtTime(vol, t + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(f); f.connect(g); g.connect(bus);
+    if (verbSend > 0 && this.verbIn && bus === this.musicBus) { const sg = c.createGain(); sg.gain.value = verbSend; g.connect(sg); sg.connect(this.verbIn); }
+    if (extra) g.connect(extra);
     o.start(t); o.stop(t + dur + 0.02);
   }
 

@@ -30,6 +30,22 @@ function client(port: number, playerId: string) {
 }
 
 describe('Online multiplayer', () => {
+  it('private matches: players sharing a code play together, others are not mixed in', async () => {
+    const port = await ready;
+    const a = client(port, 'pv1'), b = client(port, 'pv2'), o = client(port, 'pv3');
+    await a.hello('Ami1'); await b.hello('Ami2'); await o.hello('Inconnu');
+    o.send({ t: 'queue', mode: 'RIFT_DUEL', heroId: 'blink', skinId: 'blink_default', code: 'ZZZZZ' });
+    a.send({ t: 'queue', mode: 'RIFT_DUEL', heroId: 'magnet', skinId: 'magnet_default', code: 'abc12' });
+    b.send({ t: 'queue', mode: 'RIFT_DUEL', heroId: 'titan', skinId: 'titan_default', code: 'ABC12' });
+    const fa = await a.wait('found'), fb = await b.wait('found');
+    expect(fa.matchId).toBe(fb.matchId);
+    expect(fa.private).toBe(true);
+    expect(fa.roster.filter((r) => !r.isBot).map((r) => r.name).sort()).toEqual(['Ami1', 'Ami2']);
+    const q = await o.wait('queue');
+    expect(q.code).toBe('ZZZZZ');
+    a.ws.close(); b.ws.close(); o.ws.close();
+  }, 15000);
+
   it('matches two real players together in RIFT DUEL and streams the authoritative match', async () => {
     const port = await ready;
     const a = client(port, 'pa'), b = client(port, 'pb');

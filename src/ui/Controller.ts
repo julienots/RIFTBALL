@@ -18,6 +18,8 @@ export class Controller {
   session: GameSession | null = null;
   selectedMode: ModeId = 'RIFTBALL';
   trainingLevel: BotProfile['id'] | null = null;
+  /** private match code shared with friends ('' = public matchmaking) */
+  privateCode = '';
   party: { heroId: string; name: string }[] = [];
   private portraits = new Map<string, string>();
   screens!: {

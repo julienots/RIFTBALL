@@ -1,3 +1,4 @@
+import { menuMusic } from '../../audio/music';
 import { h, fmt } from '../dom';
 import type { Controller } from '../Controller';
 import type { Screen } from '../UIManager';
@@ -172,7 +173,7 @@ export function shopScreen(c: Controller, initial: Tab = 'offers'): Screen {
     content.append(row, h('div.small-text.muted', { style: 'text-align:center;margin-top:.8em' }, 'Les caisses s\'achètent uniquement avec des Rift Coins (monnaie gratuite). Elles ne contiennent que des cosmétiques.'));
   };
 
-  return { el, onShow() { render(); audio.playMusic('shop'); c.app.analytics.track('shop_open', { tab }); }, onHide() { off(); audio.playMusic('menu'); }, refresh: render };
+  return { el, onShow() { render(); audio.playMusic('shop'); c.app.analytics.track('shop_open', { tab }); }, onHide() { off(); audio.playMusic(menuMusic()); }, refresh: render };
 }
 
 function passCard(c: Controller, name: string, color: string, perks: string[], owned: boolean, gemsPrice: number, productId: string, plus: boolean, after: () => void) {

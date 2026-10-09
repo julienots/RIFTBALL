@@ -6,13 +6,15 @@ import { ARENAS } from '../../data/arenas';
 import { MUTATIONS } from '../../data/mutations';
 
 export const MECHANICS: { icon: string; title: string; text: string; isNew?: boolean }[] = [
-  { icon: '🎰', title: 'Mode FIFIX (temporaire)', text: 'Toutes les 20 s, la Roulette de Fifi transforme chaque joueur en un héros au hasard. Mutations en rafale et bonus. Jusqu\'au 31 octobre !', isNew: true },
-  { icon: '⚡', title: 'Élan', text: 'Une attaque juste après une roulade fait +20% de dégâts.', isNew: true },
-  { icon: '🗡️', title: 'Coup de grâce', text: 'Frapper un ennemi sous 20% de PV inflige +25%.', isNew: true },
-  { icon: '🤝', title: 'Attaque en duo', text: 'Viser la même cible qu\'un coéquipier donne +12% de dégâts.', isNew: true },
-  { icon: '🔥', title: 'Dernier souffle', text: 'Une fois par vie, tomber sous 15% de PV donne un bouclier de 25% et de la vitesse.', isNew: true },
-  { icon: '🌀', title: 'Nouvelles mutations', text: 'GÉANT (Rift énorme, but +1), BLACKOUT (on ne voit que de près), REBOND (projections x1,8), RUÉE VERS L\'OR (le Rift sème des bonus).', isNew: true },
-  { icon: '🐾', title: 'Compagnons & traînées', text: 'Équipe un compagnon qui te suit en match et dans le lobby, et une traînée derrière ton héros (Collection).', isNew: true },
+  { icon: '🔒', title: 'Parties privées', text: 'Modes → Partie privée : crée un code et envoie-le à tes amis. Vous jouez ensemble en ligne, les places vides sont prises par des bots. Sans trophées.', isNew: true },
+  { icon: '🎵', title: 'Nouvelle bande-son', text: 'Chaque saison a son thème de lobby, et le Boss, le Roi du Rift et FifiX ont leur propre musique.', isNew: true },
+  { icon: '🎰', title: 'Mode FIFIX (temporaire)', text: 'Toutes les 20 s, la Roulette de Fifi transforme chaque joueur en un héros au hasard. Mutations en rafale et bonus. Jusqu\'au 31 octobre !' },
+  { icon: '⚡', title: 'Élan', text: 'Une attaque juste après une roulade fait +20% de dégâts.' },
+  { icon: '🗡️', title: 'Coup de grâce', text: 'Frapper un ennemi sous 20% de PV inflige +25%.' },
+  { icon: '🤝', title: 'Attaque en duo', text: 'Viser la même cible qu\'un coéquipier donne +12% de dégâts.' },
+  { icon: '🔥', title: 'Dernier souffle', text: 'Une fois par vie, tomber sous 15% de PV donne un bouclier de 25% et de la vitesse.' },
+  { icon: '🌀', title: 'Nouvelles mutations', text: 'GÉANT (Rift énorme, but +1), BLACKOUT (on ne voit que de près), REBOND (projections x1,8), RUÉE VERS L\'OR (le Rift sème des bonus).' },
+  { icon: '🐾', title: 'Compagnons & traînées', text: 'Équipe un compagnon qui te suit en match et dans le lobby, et une traînée derrière ton héros (Collection).' },
   { icon: '🥊', title: 'Combo x3', text: 'Touchez le même ennemi 3 fois de suite avec votre attaque : le 3e coup fait +30% de dégâts, le ralentit et charge votre ultime.' },
   { icon: '🗡️', title: 'Dans le dos', text: 'Frapper un ennemi par derrière inflige +20% de dégâts. Contournez-le !' },
   { icon: '✨', title: 'Esquive parfaite', text: 'Roulez au moment où une attaque vous touche : +10% d\'ultime, accélération, et votre prochaine attaque fait +35%.' },
@@ -52,19 +54,16 @@ export function guideScreen(c: Controller): Screen {
 
 /** One-time "what's new" popup for this content update. */
 export function showNews(c: Controller) {
-  const key = 'news_v16';
+  const key = 'news_v17';
   if ((c.data as any).seenNews === key || !c.data.tutorialDone) return;
   (c.data as any).seenNews = key;
   c.app.save.save();
   const m = c.ui.modal('NOUVEAUTÉS', h('div.col', { style: 'gap:.5em;max-width:34em' },
-    h('div.small-text', 'Mise à jour 1.0.6 : FIFIX !'),
+    h('div.small-text', 'Mise à jour 1.0.7 : LE LOBBY PREND VIE'),
     ...[
-      ['🎰', 'Mode temporaire FIFIX : héros tirés au sort toutes les 20 s !'],
-      ['🐾', '12 compagnons qui te suivent en match et dans le lobby'],
-      ['✨', '8 nouvelles traînées et 12 nouveaux skins'],
-      ['⚔️', 'Combat : Élan, Coup de grâce, Attaque en duo, Dernier souffle'],
-      ['🌀', '4 nouvelles mutations : Géant, Blackout, Rebond, Ruée vers l\'or'],
-      ['🌋', 'Le lobby change de décor à chaque saison'],
+      ['🌋', 'Nouveau lobby en 3D : portail du Rift géant, îles flottantes, décor de saison'],
+      ['🎵', '7 nouvelles musiques : thèmes de saison, Boss, Roi du Rift, FifiX'],
+      ['🔒', 'PARTIES PRIVÉES : joue en ligne avec tes amis grâce à un code'],
     ].map(([i, t]) => h('div.row', { style: 'gap:.6em' }, h('span', { style: 'font-size:1.5em' }, i), h('span', t))),
     h('div.row', { style: 'justify-content:center;gap:.6em;margin-top:.4em' },
       h('button.btn.purple', { onclick: () => { m.close(); c.ui.push(guideScreen(c)); } }, '📖 GUIDE'),

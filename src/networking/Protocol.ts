@@ -18,7 +18,7 @@ export interface RosterSlot { slot: number; heroId: string; skinId: string; name
 
 export type ClientMsg =
   | { t: 'hello'; v: number; playerId: string; name: string; trophies: number }
-  | { t: 'queue'; mode: ModeId; heroId: string; skinId: string; botLevel?: string }
+  | { t: 'queue'; mode: ModeId; heroId: string; skinId: string; botLevel?: string; code?: string }
   | { t: 'cancel' }
   | { t: 'in'; s: number; mx: number; my: number }
   | { t: 'act'; s: number; slot: 'attack' | 'ability' | 'ult' | 'gadget' | 'roll'; ax: number; ay: number; ad: number }
@@ -28,8 +28,8 @@ export type ClientMsg =
 
 export type ServerMsg =
   | { t: 'welcome'; v: number; online: number }
-  | { t: 'queue'; found: number; humans: number; needed: number; waitLeft: number; online: number }
-  | { t: 'found'; matchId: string; mode: ModeId; arenaId: string; seed: number; roster: RosterSlot[]; you: number }
+  | { t: 'queue'; found: number; humans: number; needed: number; waitLeft: number; online: number; code?: string; names?: string[] }
+  | { t: 'found'; matchId: string; mode: ModeId; arenaId: string; seed: number; roster: RosterSlot[]; you: number; private?: boolean }
   | { t: 'snap'; s: Snapshot }
   | { t: 'end'; result: MatchResult; stats: Record<number, HeroStats> }
   | { t: 'error'; msg: string }

@@ -57,7 +57,7 @@ export class OnlineClient {
 
   send(m: ClientMsg) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); }
 
-  queue(mode: ModeId, heroId: string, skinId: string, botLevel?: string) { this.send({ t: 'queue', mode, heroId, skinId, botLevel }); }
+  queue(mode: ModeId, heroId: string, skinId: string, botLevel?: string, code?: string) { this.send({ t: 'queue', mode, heroId, skinId, botLevel, code }); }
   cancel() { this.send({ t: 'cancel' }); }
   leave() { this.send({ t: 'leave' }); }
   close() { clearInterval(this.pingTimer); this.ws?.close(); this.ws = null; this.status = 'disconnected'; }

@@ -27,7 +27,7 @@ interface Client {
   trophies: number;
   room: Room | null;
   heroEntityId: number;
-  queued: { mode: ModeId; heroId: string; skinId: string; since: number; botLevel?: string } | null;
+  queued: { mode: ModeId; heroId: string; skinId: string; since: number; botLevel?: string; code?: string } | null;
   lastSeq: number;
   alive: boolean;
 }
@@ -41,8 +41,12 @@ interface Room {
   stepCount: number;
   ended: boolean;
   createdAt: number;
+  /** private match (code): never ranked */
+  private?: boolean;
 }
 
+/** private matches wait this long for friends before filling with bots */
+const PRIVATE_WAIT = 45000;
 const DUEL_OR_PVE = (m: ModeId) => m === 'RIFT_DUEL' ? 2 : m === 'RIFT_BOSS' || m === 'SURVIVAL' ? 3 : 6;
 
 export class GameServer {
@@ -117,7 +121,8 @@ export class GameServer {
       case 'queue': {
         if (!c.playerId || c.room) return;
         if (!getCharacter(msg.heroId) || getCharacter(msg.heroId).hidden) return;
-        c.queued = { mode: msg.mode, heroId: msg.heroId, skinId: String(msg.skinId).slice(0, 40), since: Date.now(), botLevel: msg.botLevel };
+        const code = typeof msg.code === 'string' ? msg.code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) : '';
+        c.queued = { mode: msg.mode, heroId: msg.heroId, skinId: String(msg.skinId).slice(0, 40), since: Date.now(), botLevel: msg.botLevel, code: code || undefined };
         this.matchmake();
         return;
       }
@@ -162,7 +167,7 @@ export class GameServer {
 
   private leaveRoom(c: Client) {
     if (!c.room) return;
-    if (!c.room.ended && c.room.match.mode.ranked) { this.forfeits.add(c.room.id + ':' + c.playerId); if (this.forfeits.size > 20000) this.forfeits.clear(); }
+    if (!c.room.ended && c.room.match.mode.ranked && !c.room.private) { this.forfeits.add(c.room.id + ':' + c.playerId); if (this.forfeits.size > 20000) this.forfeits.clear(); }
     this.botTakeover(c.room, c);
     c.room.clients.delete(c.playerId);
     c.room = null;
@@ -177,18 +182,29 @@ export class GameServer {
     h.isBot = false;
     c.room = room; c.heroEntityId = heroId;
     room.clients.set(c.playerId, c);
-    this.send(c, { t: 'found', matchId: room.id, mode: room.match.mode.id, arenaId: room.match.arena.data.id, seed: room.match.opts.seed, roster: rosterOf(room.match, room), you: heroId });
+    this.send(c, { t: 'found', matchId: room.id, mode: room.match.mode.id, arenaId: room.match.arena.data.id, seed: room.match.opts.seed, roster: rosterOf(room.match, room), you: heroId, private: room.private });
   }
 
   // ------------------------------------------------------------------ matchmaking
 
   private matchmake() {
     const byMode = new Map<ModeId, Client[]>();
+    const byCode = new Map<string, Client[]>();
     for (const c of this.clients) if (c.queued && !c.room && c.ws.readyState === WebSocket.OPEN) {
+      if (c.queued.code) { const k = c.queued.mode + '#' + c.queued.code; const l = byCode.get(k) ?? []; l.push(c); byCode.set(k, l); continue; }
       const l = byMode.get(c.queued.mode) ?? [];
       l.push(c); byMode.set(c.queued.mode, l);
     }
     const now = Date.now();
+    // PRIVATE MATCHES: friends sharing a code play together; the match starts when full or after PRIVATE_WAIT
+    for (const [key, list] of byCode) {
+      const mode = key.split('#')[0] as ModeId, code = key.split('#')[1];
+      list.sort((a, b) => a.queued!.since - b.queued!.since);
+      const humansMax = mode === 'RIFT_BOSS' || mode === 'SURVIVAL' ? 3 : DUEL_OR_PVE(mode);
+      const waited = now - list[0].queued!.since;
+      if (list.length >= humansMax || waited >= PRIVATE_WAIT) { this.createRoom(mode, list.slice(0, humansMax), true); continue; }
+      for (const c of list) this.send(c, { t: 'queue', found: list.length, humans: list.length, needed: humansMax, waitLeft: Math.max(0, PRIVATE_WAIT - waited), online: this.clients.size, code, names: list.map((x) => x.name) });
+    }
     for (const [mode, list] of byMode) {
       list.sort((a, b) => a.queued!.since - b.queued!.since);
       const needed = DUEL_OR_PVE(mode);
@@ -210,7 +226,7 @@ export class GameServer {
     }
   }
 
-  private createRoom(mode: ModeId, humans: Client[]) {
+  private createRoom(mode: ModeId, humans: Client[], isPrivate = false) {
     const md = getMode(mode);
     const seed = (Math.random() * 2 ** 31) | 0;
     const arenaId = ARENAS[Math.floor(Math.random() * ARENAS.length)].id;
@@ -241,7 +257,7 @@ export class GameServer {
     const match = new Match({ mode, arenaId, seed, players, modifiers: this.events.modifiers() });
     match.phaseUntil = 4.5; // a bit longer kickoff countdown online (lobby -> loading)
     const id = `online-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
-    const room: Room = { id, match, clients: new Map(), humanHeroes: new Map(), pending: [], stepCount: 0, ended: false, createdAt: Date.now() };
+    const room: Room = { id, match, clients: new Map(), humanHeroes: new Map(), pending: [], stepCount: 0, ended: false, createdAt: Date.now(), private: isPrivate };
     // hero entity ids follow the players[] order (Match assigns ids 1..n)
     humans.forEach((c, i) => {
       const heroEntityId = i + 1;
@@ -251,7 +267,7 @@ export class GameServer {
     });
     this.rooms.set(id, room);
     const roster = rosterOf(match, room, humans);
-    for (const c of humans) this.send(c, { t: 'found', matchId: id, mode, arenaId, seed, roster, you: c.heroEntityId });
+    for (const c of humans) this.send(c, { t: 'found', matchId: id, mode, arenaId, seed, roster, you: c.heroEntityId, private: isPrivate });
     this.log(`room ${id} ${mode} humans=${humans.length} bots=${players.length - humans.length} arena=${arenaId}`);
   }
 

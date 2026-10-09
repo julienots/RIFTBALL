@@ -1,3 +1,4 @@
+import { menuMusic } from '../../audio/music';
 import { h, fmt } from '../dom';
 import type { Controller } from '../Controller';
 import type { Screen } from '../UIManager';
@@ -34,7 +35,7 @@ export function runMatchmaking(c: Controller) {
   const teamSize = modeId === 'RIFT_DUEL' ? 1 : mode.teamSize;
   const mkSlot = () => h('div.mm-card.empty', h('div.spinner', { style: 'width:1.8em;height:1.8em;border-width:.3em' }));
   const bSlots = Array.from({ length: teamSize }, mkSlot);
-  const rSlots = pve ? [h('div.mm-card.boss', h('div', { style: 'font-size:2.4em' }, modeId === 'RIFT_BOSS' ? '👹' : '👾'), h('div.title.stroke-s', modeId === 'RIFT_BOSS' ? 'RIFT COLOSSUS' : '8 VAGUES'), h('div.small-text', modeId === 'RIFT_BOSS' ? 'Boss · 60 000 PV' : 'Créatures du Rift'))] : Array.from({ length: teamSize }, mkSlot);
+  const rSlots = pve ? [h('div.mm-card.boss', h('div', { style: 'font-size:2.4em' }, modeId === 'RIFT_BOSS' ? '👹' : '👾'), h('div.title.stroke-s', modeId === 'RIFT_BOSS' ? 'RIFT COLOSSUS' : '8 VAGUES'), h('div.small-text', modeId === 'RIFT_BOSS' ? 'Boss · 3 phases' : 'Créatures du Rift'))] : Array.from({ length: teamSize }, mkSlot);
   slotsB.append(...bSlots); slotsR.append(...rSlots);
 
   const t0 = performance.now();
@@ -71,7 +72,9 @@ export function runMatchmaking(c: Controller) {
     return new Promise<boolean>((resolve) => {
       const off = client.on(async (msg) => {
         if (signal.cancelled) { off(); client.cancel(); resolve(true); return; }
-        if (msg.t === 'queue') sub.textContent = `🌐 ${msg.online} joueur(s) en ligne · ${msg.humans} dans la file · bots dans ${Math.ceil(msg.waitLeft / 1000)} s si personne`;
+        if (msg.t === 'queue') sub.textContent = msg.code
+          ? `🔒 PARTIE PRIVÉE ${msg.code} · ${msg.humans}/${msg.needed} joueurs (${(msg.names ?? []).join(', ')}) · bots dans ${Math.ceil(msg.waitLeft / 1000)} s`
+          : `🌐 ${msg.online} joueur(s) en ligne · ${msg.humans} dans la file · bots dans ${Math.ceil(msg.waitLeft / 1000)} s si personne`;
         if (msg.t === 'error' && msg.msg === 'disconnected') { off(); resolve(false); }
         if (msg.t === 'error' && msg.msg !== 'disconnected') { off(); c.ui.alert('SERVEUR', msg.msg); resolve(true); c.screens.home(); }
         if (msg.t === 'found') {
@@ -89,17 +92,19 @@ export function runMatchmaking(c: Controller) {
           audio.play('go');
           await new Promise((r) => setTimeout(r, 1100));
           if (signal.cancelled) { client.leave(); resolve(true); return; }
-          c.startMatch({ mode: msg.mode, arenaId: msg.arenaId, seed: msg.seed, matchId: msg.matchId, vsBots: humans <= 1, online: { client, roster: msg.roster, you: msg.you } });
+          c.startMatch({ mode: msg.mode, arenaId: msg.arenaId, seed: msg.seed, matchId: msg.matchId, vsBots: humans <= 1, online: { client, roster: msg.roster, you: msg.you }, ...(msg.private ? { training: true } : {}) });
           resolve(true);
         }
       });
-      client.queue(modeId, c.heroId, c.skinId, c.trainingLevel ?? undefined);
+      if (c.privateCode) status.textContent = `PARTIE PRIVÉE · CODE ${c.privateCode}`;
+      client.queue(modeId, c.heroId, c.skinId, c.trainingLevel ?? undefined, c.privateCode || undefined);
     });
   };
 
   (async () => {
     if (await tryOnline()) return;
     if (signal.cancelled) return;
+    if (c.privateCode) { clearInterval(tick); c.ui.alert('PARTIE PRIVÉE', 'Le serveur en ligne est injoignable : les parties privées ont besoin d\'Internet. Réessaie dans un instant.'); c.screens.home(); return; }
     if (BuildConfig.serverUrl) sub.textContent = 'Serveur injoignable : partie hors ligne contre des bots';
     status.textContent = 'RECHERCHE DE JOUEURS…';
     const found = await c.app.matchmaker.join({ mode: modeId, heroId: c.heroId, trophies: c.data.trophies, partyIds: c.party.map((p) => p.name) }, (n, needed) => {
@@ -125,5 +130,5 @@ export function runMatchmaking(c: Controller) {
     c.startMatch({ mode: modeId, arenaId: found.arenaId, seed: found.seed, matchId: found.matchId, vsBots: found.vsBots, build: () => match });
   })();
 
-  return { el, onShow() { c.renderer.showcaseActive = false; audio.playMusic('menu'); }, onHide() { signal.cancelled = true; clearInterval(tick); } } as Screen;
+  return { el, onShow() { c.renderer.showcaseActive = false; audio.playMusic(menuMusic()); }, onHide() { signal.cancelled = true; clearInterval(tick); } } as Screen;
 }

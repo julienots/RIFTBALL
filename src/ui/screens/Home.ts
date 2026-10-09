@@ -1,3 +1,4 @@
+import { menuMusic } from '../../audio/music';
 import { h, fmt } from '../dom';
 import type { Controller } from '../Controller';
 import type { Screen } from '../UIManager';
@@ -85,7 +86,7 @@ export function homeScreen(c: Controller): Screen {
     const training = c.trainingLevel;
     const modeBtn = h('button.mode-btn', { onclick: () => { audio.play('click'); c.ui.push(modesScreen(c)); } },
       h('div.mi', { style: `background:${mode.color}` }, mode.icon),
-      h('div.col', { style: 'gap:0' }, h('span.mt', mode.name), h('span.small-text.muted', training ? `Entraînement · bots ${BOT_PROFILES[training].id}` : mode.ranked ? `${mode.teamSize}v${mode.teamSize} · Classé` : 'Coop vs IA')));
+      h('div.col', { style: 'gap:0' }, h('span.mt', mode.name), c.privateCode ? h('span.small-text', { style: 'color:#ffe14d' }, `🔒 Partie privée · ${c.privateCode}`) : h('span.small-text.muted', training ? `Entraînement · bots ${BOT_PROFILES[training].id}` : mode.ranked ? `${mode.teamSize}v${mode.teamSize} · Classé` : 'Coop vs IA')));
     const play = h('button.btn.yellow.big.play-btn.shine', { onclick: () => { audio.play('click'); c.screens.matchmaking(); } }, 'JOUER');
 
     const heroInfo = h('div.hero-info',
@@ -111,7 +112,7 @@ export function homeScreen(c: Controller): Screen {
 
   return {
     el, showcase: true,
-    onShow() { render(); c.renderer.showcaseActive = true; audio.playMusic('menu'); c.app.shop.checkRefresh(); setTimeout(() => { c.app.seasons.check(); const end = c.app.seasons.takePendingEnd(); if (end) showSeasonEnd(c, end); else showNews(c); }, 600); },
+    onShow() { render(); c.renderer.showcaseActive = true; audio.playMusic(menuMusic()); c.app.shop.checkRefresh(); setTimeout(() => { c.app.seasons.check(); const end = c.app.seasons.takePendingEnd(); if (end) showSeasonEnd(c, end); else showNews(c); }, 600); },
     onHide() { for (const o of offs) o(); offs = []; },
     refresh: render,
   };

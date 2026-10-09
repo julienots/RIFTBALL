@@ -1,3 +1,4 @@
+import { matchMusic } from '../audio/music';
 import type { App } from '../core/App';
 import type { WorldRenderer } from './render/WorldRenderer';
 import type { UIManager } from '../ui/UIManager';
@@ -88,7 +89,7 @@ export class GameSession {
     if (cfg.online) this.offNet = cfg.online.client.on((msg) => this.onNet(msg));
     this.input.onEmote = () => this.match.emit({ t: 'emote', hero: this.match.humanId, emote: '🤝' });
     const music = getArena(cfg.arenaId).music as MusicTrack;
-    audio.playMusic(music);
+    audio.playMusic(matchMusic(cfg.mode, music));
     app.analytics.track('match_start', { mode: cfg.mode, arena: cfg.arenaId, hero: cfg.heroId });
   }
 

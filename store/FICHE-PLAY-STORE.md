@@ -43,12 +43,10 @@ Aucun héros ni aucune statistique ne s'achète. Tout se débloque en jouant : r
 
 Rejoins l'arène et deviens une LÉGENDE DU RIFT !
 
-## Notes de version (v1.0.6)
-• Mode temporaire FIFIX : la roulette change ton héros toutes les 20 s !
-• 12 compagnons, 8 traînées et 12 nouveaux skins
-• Combat : Élan, Coup de grâce, Attaque en duo, Dernier souffle
-• 4 nouvelles mutations du Rift : Géant, Blackout, Rebond, Ruée vers l'or
-• Le lobby change de décor à chaque saison
+## Notes de version (v1.0.7)
+• Nouveau lobby en 3D : portail du Rift géant, îles flottantes et décor qui change à chaque saison
+• 7 nouvelles musiques : thèmes de saison, Boss, Roi du Rift, FifiX
+• PARTIES PRIVÉES : crée un code et joue en ligne avec tes amis
 
 ## Catégorie
 Jeux › Action (ou Arcade)
