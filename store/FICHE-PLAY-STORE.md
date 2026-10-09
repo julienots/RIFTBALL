@@ -43,11 +43,12 @@ Aucun héros ni aucune statistique ne s'achète. Tout se débloque en jouant : r
 
 Rejoins l'arène et deviens une LÉGENDE DU RIFT !
 
-## Notes de version (v1.0.5)
-• Nouvelles mécaniques de combat : combos, coups dans le dos, esquive parfaite, projection contre les murs
-• 4 saisons avec Rift Pass, skins exclusifs et rangs de saison
-• 8 nouveaux événements dont l'Essai Mythique
-• 8 nouveaux héros dont 3 Mythiques, boss en 3 phases, mode ROI DU RIFT, défis à gemmes
+## Notes de version (v1.0.6)
+• Mode temporaire FIFIX : la roulette change ton héros toutes les 20 s !
+• 12 compagnons, 8 traînées et 12 nouveaux skins
+• Combat : Élan, Coup de grâce, Attaque en duo, Dernier souffle
+• 4 nouvelles mutations du Rift : Géant, Blackout, Rebond, Ruée vers l'or
+• Le lobby change de décor à chaque saison
 
 ## Catégorie
 Jeux › Action (ou Arcade)

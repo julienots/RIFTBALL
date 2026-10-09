@@ -6,13 +6,20 @@ import { ARENAS } from '../../data/arenas';
 import { MUTATIONS } from '../../data/mutations';
 
 export const MECHANICS: { icon: string; title: string; text: string; isNew?: boolean }[] = [
-  { icon: '🥊', title: 'Combo x3', text: 'Touchez le même ennemi 3 fois de suite avec votre attaque : le 3e coup fait +30% de dégâts, le ralentit et charge votre ultime.', isNew: true },
-  { icon: '🗡️', title: 'Dans le dos', text: 'Frapper un ennemi par derrière inflige +20% de dégâts. Contournez-le !', isNew: true },
-  { icon: '✨', title: 'Esquive parfaite', text: 'Roulez au moment où une attaque vous touche : +10% d\'ultime, accélération, et votre prochaine attaque fait +35%.', isNew: true },
-  { icon: '💥', title: 'Contre le mur', text: 'Un ennemi projeté violemment contre un mur est étourdi et blessé. Titan, Koko et Magnet adorent ça.', isNew: true },
-  { icon: '🔋', title: 'Rage', text: 'Recevoir des dégâts recharge aussi un peu votre ultime : de quoi retourner un combat mal engagé.', isNew: true },
-  { icon: '🗓️', title: 'Saisons & rangs', text: 'Chaque saison (3 mois) a son thème, son Rift Pass et ses événements. Votre record de trophées donne un rang (Bronze → Légende) récompensé en fin de saison.', isNew: true },
-  { icon: '🎉', title: 'Événements', text: 'Essai Mythique, Tempête d\'Ultimes, Turbo Weekend, Festival des Bonus, Canons de Verre, Fête du Roi, Halloween… chacun change les règles et a ses défis.', isNew: true },
+  { icon: '🎰', title: 'Mode FIFIX (temporaire)', text: 'Toutes les 20 s, la Roulette de Fifi transforme chaque joueur en un héros au hasard. Mutations en rafale et bonus. Jusqu\'au 31 octobre !', isNew: true },
+  { icon: '⚡', title: 'Élan', text: 'Une attaque juste après une roulade fait +20% de dégâts.', isNew: true },
+  { icon: '🗡️', title: 'Coup de grâce', text: 'Frapper un ennemi sous 20% de PV inflige +25%.', isNew: true },
+  { icon: '🤝', title: 'Attaque en duo', text: 'Viser la même cible qu\'un coéquipier donne +12% de dégâts.', isNew: true },
+  { icon: '🔥', title: 'Dernier souffle', text: 'Une fois par vie, tomber sous 15% de PV donne un bouclier de 25% et de la vitesse.', isNew: true },
+  { icon: '🌀', title: 'Nouvelles mutations', text: 'GÉANT (Rift énorme, but +1), BLACKOUT (on ne voit que de près), REBOND (projections x1,8), RUÉE VERS L\'OR (le Rift sème des bonus).', isNew: true },
+  { icon: '🐾', title: 'Compagnons & traînées', text: 'Équipe un compagnon qui te suit en match et dans le lobby, et une traînée derrière ton héros (Collection).', isNew: true },
+  { icon: '🥊', title: 'Combo x3', text: 'Touchez le même ennemi 3 fois de suite avec votre attaque : le 3e coup fait +30% de dégâts, le ralentit et charge votre ultime.' },
+  { icon: '🗡️', title: 'Dans le dos', text: 'Frapper un ennemi par derrière inflige +20% de dégâts. Contournez-le !' },
+  { icon: '✨', title: 'Esquive parfaite', text: 'Roulez au moment où une attaque vous touche : +10% d\'ultime, accélération, et votre prochaine attaque fait +35%.' },
+  { icon: '💥', title: 'Contre le mur', text: 'Un ennemi projeté violemment contre un mur est étourdi et blessé. Titan, Koko et Magnet adorent ça.' },
+  { icon: '🔋', title: 'Rage', text: 'Recevoir des dégâts recharge aussi un peu votre ultime : de quoi retourner un combat mal engagé.' },
+  { icon: '🗓️', title: 'Saisons & rangs', text: 'Chaque saison (3 mois) a son thème, son Rift Pass et ses événements. Votre record de trophées donne un rang (Bronze → Légende) récompensé en fin de saison.' },
+  { icon: '🎉', title: 'Événements', text: 'Essai Mythique, Tempête d\'Ultimes, Turbo Weekend, Festival des Bonus, Canons de Verre, Fête du Roi, Halloween… chacun change les règles et a ses défis.' },
   { icon: '👑', title: 'Mode ROI DU RIFT', text: 'Pas de buts : celui qui porte le Rift devient le Roi. Chaque seconde de règne = 1 point pour son équipe. Le Roi est visible partout. Premier à 60 !' },
   { icon: '👹', title: 'Boss : 3 phases', text: 'Le Colosse enchaîne Séisme, Météores, Rayon, Charge, Onde de cristaux, Puits gravitationnel et Bouclier du Rift. Sortez des zones rouges ! Le classement des dégâts s\'affiche en direct.' },
   { icon: '🌈', title: 'Héros Mythiques', text: 'CHRONOS (maître du temps), SERAPH (l\'archange qui ressuscite) et RIFTBORN (l\'enfant du Rift). Pouvoirs uniques et aura irisée. Gratuits : route des trophées ou coins.' },
@@ -45,19 +52,19 @@ export function guideScreen(c: Controller): Screen {
 
 /** One-time "what's new" popup for this content update. */
 export function showNews(c: Controller) {
-  const key = 'news_v15';
+  const key = 'news_v16';
   if ((c.data as any).seenNews === key || !c.data.tutorialDone) return;
   (c.data as any).seenNews = key;
   c.app.save.save();
   const m = c.ui.modal('NOUVEAUTÉS', h('div.col', { style: 'gap:.5em;max-width:34em' },
-    h('div.small-text', 'Mise à jour 1.0.5 : COMBAT & SAISONS'),
+    h('div.small-text', 'Mise à jour 1.0.6 : FIFIX !'),
     ...[
-      ['🥊', 'Combos x3, coups dans le dos, esquive parfaite, projection contre les murs'],
-      ['🔋', 'Les dégâts reçus chargent votre ultime'],
-      ['🗓️', '4 saisons avec leur thème, leur Rift Pass et leurs skins exclusifs'],
-      ['🏅', 'Rangs de saison (Bronze → Légende) récompensés en fin de saison'],
-      ['🎉', '8 nouveaux événements : Essai Mythique, Tempête d\'Ultimes, Halloween…'],
-      ['🌈', 'ESSAI MYTHIQUE : jouez tous les héros gratuitement pendant l\'événement'],
+      ['🎰', 'Mode temporaire FIFIX : héros tirés au sort toutes les 20 s !'],
+      ['🐾', '12 compagnons qui te suivent en match et dans le lobby'],
+      ['✨', '8 nouvelles traînées et 12 nouveaux skins'],
+      ['⚔️', 'Combat : Élan, Coup de grâce, Attaque en duo, Dernier souffle'],
+      ['🌀', '4 nouvelles mutations : Géant, Blackout, Rebond, Ruée vers l\'or'],
+      ['🌋', 'Le lobby change de décor à chaque saison'],
     ].map(([i, t]) => h('div.row', { style: 'gap:.6em' }, h('span', { style: 'font-size:1.5em' }, i), h('span', t))),
     h('div.row', { style: 'justify-content:center;gap:.6em;margin-top:.4em' },
       h('button.btn.purple', { onclick: () => { m.close(); c.ui.push(guideScreen(c)); } }, '📖 GUIDE'),

@@ -3,7 +3,7 @@ import type { Controller } from '../Controller';
 import type { Screen } from '../UIManager';
 import { audio } from '../../audio/AudioEngine';
 import { getCharacter } from '../../data/characters';
-import { getMode } from '../../data/modes';
+import { getMode, isModeAvailable } from '../../data/modes';
 import { TROPHY_ROAD } from '../../data/progression';
 import { rewardIcon, rewardText } from '../icons';
 import { formatDuration, Clock } from '../../core/Time';
@@ -78,8 +78,9 @@ export function homeScreen(c: Controller): Screen {
 
     const events = c.app.events.active();
     const evBanner = h('div.event-banner', events.slice(0, 3).map((e) =>
-      h('button.event-chip', { style: `background:${e.data.color}`, onclick: () => { audio.play('click'); eventsModal(c); } }, e.data.icon + ' ' + e.data.name, h('span.small-text', '· ' + formatDuration(e.end - Clock.now())))));
+      h('button.event-chip', { style: `background:${e.data.color}`, onclick: () => { audio.play('click'); if (e.data.id === 'fifix_event') { c.selectedMode = 'FIFIX'; render(); c.ui.toast('🎰', 'Mode FIFIX sélectionné !'); } else eventsModal(c); } }, e.data.icon + ' ' + e.data.name, h('span.small-text', '· ' + formatDuration(e.end - Clock.now())))));
 
+    if (!isModeAvailable(getMode(c.selectedMode))) c.selectedMode = 'RIFTBALL'; // limited-time mode ended
     const mode = getMode(c.selectedMode);
     const training = c.trainingLevel;
     const modeBtn = h('button.mode-btn', { onclick: () => { audio.play('click'); c.ui.push(modesScreen(c)); } },
@@ -104,6 +105,8 @@ export function homeScreen(c: Controller): Screen {
     el.append(top, evBanner, left, right, heroInfo, bottomLeft, h('div.play-zone', modeBtn, play));
 
     c.renderer.setShowcase(c.heroId, c.skinId, 0);
+    c.renderer.setLobbyTheme(c.app.seasons.current.lobby);
+    c.renderer.setShowcasePet(c.data.equipped.companion ?? '');
   };
 
   return {

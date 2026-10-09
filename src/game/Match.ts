@@ -172,6 +172,12 @@ export class Match {
   isVisibleTo(target: Hero, viewerTeam: TeamId): boolean {
     if (target.team === viewerTeam) return true;
     if (target.invisUntil > this.time) return false;
+    if (this.mutation === 'BLACKOUT' && !target.carrying && !target.pve) {
+      const sight = this.mutationParams.sight ?? 520;
+      let near = false;
+      for (const h of this.heroes) if (h.alive && h.team === viewerTeam && dist2(h.x, h.y, target.x, target.y) < sight * sight) { near = true; break; }
+      if (!near) return false;
+    }
     if (!target.inBush) return true;
     if (target.revealedUntil > this.time) return true;
     const reveal = target.def.passive.id === 'umbra' ? 0 : 210;
@@ -245,7 +251,7 @@ export class Match {
       if (r.carrier !== h.id) continue;
       r.carrier = -1;
       h.carrying = false;
-      const sp = RIFT_TUNING.throwSpeed * (this.mutation === 'FURY' ? this.mutationParams.throwMul ?? 1 : 1);
+      const sp = RIFT_TUNING.throwSpeed * (this.mutationParams.throwMul ?? 1);
       r.x = h.x + dx * (h.radius + r.radius + 4);
       r.y = h.y + dy * (h.radius + r.radius + 4);
       r.vx = dx * sp; r.vy = dy * sp;
@@ -260,7 +266,7 @@ export class Match {
   }
 
   scoreGoal(r: RiftEntity, team: TeamId, scorer: number, portalTeam: TeamId) {
-    const worth = r.charged && !r.clone ? 2 : 1;
+    const worth = (r.charged && !r.clone ? 2 : 1) + (this.mutation === 'GIANT' && !r.clone ? this.mutationParams.bonus ?? 1 : 0);
     r.charged = false; r.carryTime = 0;
     const carrier = r.carrier >= 0 ? this.heroById(r.carrier) : null;
     if (carrier) carrier.carrying = false;
@@ -454,7 +460,7 @@ export class Match {
       const slow = pid === 'porter' || pid === 'rift_bond' ? 0 : pid === 'courier' ? -h.def.passive.params.carryBonus : 0.15;
       speed *= 1 - slow + (this.mutation === 'FURY' ? this.mutationParams.carrierSpeed ?? 0 : 0);
     }
-    if (h.carrying) { const cr = this.rifts.find((q) => q.carrier === h.id); if (cr?.charged) { speed *= 0.9; h.revealedUntil = this.time + 0.2; } }
+    if (h.carrying) { const cr = this.rifts.find((q) => q.carrier === h.id); if (cr?.charged) { speed *= 0.9; h.revealedUntil = this.time + 0.2; } if (this.mutation === 'GIANT') speed *= 1 - (this.mutationParams.carrierSlow ?? 0); }
     if (h.slowUntil > this.time) speed *= h.slowMul;
     if (h.speedBuffUntil > this.time) speed *= 1 + h.speedBuff;
     if (h.def.passive.id === 'kindling' && h.hp / h.maxHp < h.def.passive.params.threshold) speed *= 1 + h.def.passive.params.speedBonus;
@@ -633,7 +639,7 @@ export class Match {
     h.x = sp.x; h.y = sp.y;
     h.alive = true; h.hp = h.maxHp; h.kx = h.ky = 0;
     h.stunUntil = 0; h.slowUntil = 0; h.phaseUntil = this.time + 1.5; // spawn protection
-    h.shield = 0; h.carrying = false;
+    h.shield = 0; h.carrying = false; h.lastStand = false;
     this.emit({ t: 'respawn', hero: h.id });
   }
 

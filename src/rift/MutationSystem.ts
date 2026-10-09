@@ -15,6 +15,7 @@ export class MutationSystem {
   until = 0;
   last: MutationId = 'NORMAL';
   private nextZap = 0;
+  private nextGold = 0;
   count = 0;
 
   constructor(private m: Match, private interval: number, firstAt: number) {
@@ -61,6 +62,13 @@ export class MutationSystem {
         }
         if (carrier) applyDamage(m, carrier, p.carrierDamage, null, { noUlt: true });
       }
+    }
+
+    if (m.mutation === 'GOLD' && m.time >= this.nextGold) {
+      const p = m.mutationParams;
+      this.nextGold = m.time + p.every;
+      const r = m.mainRift();
+      if (r && m.pickups.filter((q) => q.alive).length < p.max) m.spawnPickup(m.rng.pick(['speed', 'shield', 'power', 'ult'] as const), r.x + m.rng.range(-60, 60), r.y + m.rng.range(-60, 60), -1);
     }
 
     if (m.mutation === 'GRAVITY') {
@@ -138,8 +146,17 @@ export class MutationSystem {
       case 'ELECTRIC':
         this.nextZap = m.time + 0.5;
         break;
+      case 'GIANT':
+        for (const q of m.rifts) if (!q.clone) q.radius = this.baseRadius(q) * data.params.scale;
+        break;
+      case 'GOLD':
+        this.nextGold = m.time + 0.3;
+        break;
     }
   }
+
+  private radii = new Map<number, number>();
+  private baseRadius(r: { id: number; radius: number }) { if (!this.radii.has(r.id)) this.radii.set(r.id, r.radius); return this.radii.get(r.id)!; }
 
   private freeSpot() {
     const m = this.m;
@@ -160,6 +177,7 @@ export class MutationSystem {
     if (prev === 'NORMAL') return;
     m.mutation = 'NORMAL';
     m.mutationParams = {};
+    if (prev === 'GIANT') for (const q of m.rifts) q.radius = this.baseRadius(q);
     this.nextAt = m.time + this.interval;
     // clean temporary geometry right away
     for (const w of m.arena.walls) if (w.dynamic && !w.crate && w.team === (-1 as any)) w.expiresAt = m.time;

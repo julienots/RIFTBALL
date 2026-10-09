@@ -8,6 +8,10 @@ export const MUTATIONS: RiftMutationData[] = [
   { id: 'GRAVITY', name: 'GRAVITY', tagline: 'La gravité se déforme !', color: '#7b61ff', duration: 15, weight: 8, params: { radius: 700, pull: 120, projectileBend: 900 } },
   { id: 'PORTAL', name: 'PORTAL', tagline: 'Des failles s\'ouvrent !', color: '#4cc9f0', duration: 18, weight: 7, params: { pairs: 2 } },
   { id: 'PHASE', name: 'PHASE', tagline: 'Le Rift traverse les murs !', color: '#e0aaff', duration: 15, weight: 7, params: { carrierPhase: 1 } },
+  { id: 'GIANT', name: 'GÉANT', tagline: 'Le Rift devient énorme : chaque but vaut +1 !', color: '#ff9f1c', duration: 16, weight: 7, params: { scale: 2, carrierSlow: 0.2, bonus: 1 } },
+  { id: 'BLACKOUT', name: 'BLACKOUT', tagline: 'Les lumières s\'éteignent : on ne voit que de près !', color: '#5a189a', duration: 15, weight: 6, params: { sight: 520 } },
+  { id: 'BOUNCE', name: 'REBOND', tagline: 'Tout rebondit : projections x1,8 !', color: '#06d6a0', duration: 16, weight: 7, params: { kbMul: 1.8, throwMul: 1.5 } },
+  { id: 'GOLD', name: 'RUÉE VERS L\'OR', tagline: 'Le Rift sème des bonus partout !', color: '#ffd60a', duration: 16, weight: 6, params: { every: 1.1, max: 10 } },
   { id: 'CHAOS', name: 'CHAOS', tagline: 'L\'arène se transforme !', color: '#ff7b00', duration: 16, weight: 6, params: { blocks: 6, hazards: 3 } },
 ];
 

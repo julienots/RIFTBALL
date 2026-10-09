@@ -14,9 +14,10 @@ export class CosmeticsService {
     this.save.save();
     return true;
   }
-  equip(slot: 'spray' | 'effect' | 'icon' | 'banner' | 'title', id: string) {
+  equip(slot: 'spray' | 'effect' | 'icon' | 'banner' | 'title' | 'companion', id: string) {
     if (!this.d.cosmetics.includes(id)) return false;
-    if (slot === 'spray') this.d.equipped.spray = id;
+    if (slot === 'companion') this.d.equipped.companion = this.d.equipped.companion === id ? '' : id; // tap again = put away
+    else if (slot === 'spray') this.d.equipped.spray = id;
     else if (slot === 'effect') this.d.equipped.effect = id;
     else this.d.profile[slot] = id;
     this.save.save();

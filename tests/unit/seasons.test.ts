@@ -121,3 +121,56 @@ describe('Seasons & events', () => {
     } finally { (Clock as any).now = real; }
   });
 });
+
+describe('v1.0.6', () => {
+  it('universal combat: momentum, execute, duo and last stand', async () => {
+    const m = duo();
+    const a = m.human!, b = m.heroes[1];
+    b.x = a.x + 200; b.y = a.y; b.facing = Math.PI;
+    const base = applyDamage(m, b, 300, a, { attack: true }); a.comboCount = 0;
+    a.rollAt = m.time; const mom = applyDamage(m, b, 300, a, { attack: true }); a.comboCount = 0;
+    expect(mom).toBeGreaterThan(base);
+    b.hp = b.maxHp * 0.5; b.lastStand = false;
+    applyDamage(m, b, b.maxHp * 0.4, null);
+    expect(b.lastStand).toBe(true);
+    expect(b.shield).toBeGreaterThan(0);
+  });
+
+  it('new mutations: GIANT grows the Rift and goals are worth more, BLACKOUT hides far enemies', () => {
+    const m = duo();
+    const r = m.mainRift()!; const r0 = r.radius;
+    m.mutations.trigger('GIANT'); runUntil(m, () => m.mutation === 'GIANT', 4);
+    expect(r.radius).toBeGreaterThan(r0 * 1.5);
+    m.mutations.end();
+    expect(r.radius).toBe(r0);
+    m.mutations.trigger('BLACKOUT'); runUntil(m, () => m.mutation === 'BLACKOUT', 30);
+    const a = m.human!, b = m.heroes[1];
+    b.x = a.x + 1500; b.inBush = false;
+    expect(m.isVisibleTo(b, a.team)).toBe(false);
+    b.x = a.x + 300;
+    expect(m.isVisibleTo(b, a.team)).toBe(true);
+  });
+
+  it('FIFIX roulette turns every player into another hero', async () => {
+    const { createMatch } = await import('../../src/gamemodes/MatchFactory');
+    const m = createMatch({ mode: 'FIFIX', arenaId: 'rift_valley', seed: 5, player: { heroId: 'magnet', name: 'P' }, botLevel: 'NORMAL' });
+    const before = m.heroes.map((h) => h.def.id);
+    let swaps = 0;
+    for (let i = 0; i < 60 * 30; i++) { m.step(1 / 60); swaps += m.events.filter((e) => e.t === 'hero_swap').length; m.events.length = 0; }
+    expect(swaps).toBeGreaterThanOrEqual(6);
+    expect(m.heroes.map((h) => h.def.id)).not.toEqual(before);
+    expect(m.human!.originDefId).toBe('magnet');
+    runUntil(m, () => m.phase === 'ended', 300);
+    expect(m.phase).toBe('ended');
+  });
+
+  it('companions and trails exist and are equippable', () => {
+    const { app } = makeApp();
+    expect(getCosmetic('pet_orb')?.type).toBe('companion');
+    expect(app.data.equipped.companion).toBe('pet_orb');
+    app.data.cosmetics.push('pet_dragon');
+    app.cosmetics.equip('companion', 'pet_dragon');
+    expect(app.data.equipped.companion).toBe('pet_dragon');
+    expect(getCosmetic('fx_galaxy')?.type).toBe('effect');
+  });
+});

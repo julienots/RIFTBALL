@@ -8,7 +8,7 @@ import { RARITY_LABEL, getCosmetic } from '../../data/cosmetics';
 import { audio } from '../../audio/AudioEngine';
 import { getCharacter } from '../../data/characters';
 
-const CAT_FR: Record<CollectionCategory, string> = { hero: 'HÉROS', skin: 'SKINS', emote: 'EMOTES', spray: 'SPRAYS', effect: 'EFFETS', banner: 'BANNIÈRES', title: 'TITRES', icon: 'ICÔNES' };
+const CAT_FR: Record<CollectionCategory, string> = { hero: 'HÉROS', skin: 'SKINS', emote: 'EMOTES', spray: 'SPRAYS', effect: 'TRAÎNÉES', banner: 'BANNIÈRES', title: 'TITRES', icon: 'ICÔNES', companion: 'COMPAGNONS' };
 
 export function collectionScreen(c: Controller): Screen {
   let cat: CollectionCategory = 'skin';
@@ -29,8 +29,8 @@ export function collectionScreen(c: Controller): Screen {
         continue;
       }
       const data = getCosmetic(it.id)!;
-      const equippable = it.owned && ['spray', 'effect', 'icon', 'banner', 'title', 'emote'].includes(data.type);
-      const equipped = data.type === 'spray' ? c.data.equipped.spray === it.id : data.type === 'effect' ? c.data.equipped.effect === it.id : data.type === 'icon' ? c.data.profile.icon === it.id : data.type === 'banner' ? c.data.profile.banner === it.id : data.type === 'title' ? c.data.profile.title === it.id : data.type === 'emote' ? c.data.equipped.emotes.includes(it.id) : false;
+      const equippable = it.owned && ['spray', 'effect', 'icon', 'banner', 'title', 'emote', 'companion'].includes(data.type);
+      const equipped = data.type === 'spray' ? c.data.equipped.spray === it.id : data.type === 'effect' ? c.data.equipped.effect === it.id : data.type === 'companion' ? c.data.equipped.companion === it.id : data.type === 'icon' ? c.data.profile.icon === it.id : data.type === 'banner' ? c.data.profile.banner === it.id : data.type === 'title' ? c.data.profile.title === it.id : data.type === 'emote' ? c.data.equipped.emotes.includes(it.id) : false;
       grid.appendChild(h('button.card', { class: `rarity-${data.rarity} ${it.owned ? '' : 'locked'}`, onclick: () => {
         if (!equippable) return;
         audio.play('click');

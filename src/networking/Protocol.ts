@@ -73,7 +73,7 @@ export function encodeSnapshot(m: Match, events: MatchEvent[], ack: number): Sna
         Math.round(h.stats.bossDamage), h.stats.kingPoints, h.ownerId, h.reviveUsed ? 1 : 0, Math.round(h.stats.damage), h.stats.kills, h.stats.deaths, h.stats.goals];
     }),
     r: m.rifts.filter((r) => r.alive).map((r) => [r.id, r2(r.x), r2(r.y), r2(r.vx), r2(r.vy), RIFT_STATES.indexOf(r.state), r.carrier, r.clone ? 1 : 0, r2(r.look * 100) / 100, r2(r.mood * 100) / 100, r.portalTeam, r2(r.stateTime * 100) / 100, r.charged ? 1 : 0, r2(r.carryTime),
-      r.decoy ? r.decoy.team : -1, r.frozenUntil && r.frozenUntil > now ? 1 : 0]),
+      r.decoy ? r.decoy.team : -1, r.frozenUntil && r.frozenUntil > now ? 1 : 0, r.radius]),
     p: m.projectiles.filter((p) => p.active).map((p) => [p.id, p.kind, r2(p.x), r2(p.y), r2(p.vx), r2(p.vy), p.color, r2(p.t * 100) / 100, r2(p.dur * 100) / 100, r2(p.sx), r2(p.sy), r2(p.tx), r2(p.ty), p.team, p.areaRadius]),
     z: m.zones.filter((z) => z.active).map((z) => [z.id, z.kind, r2(z.x), r2(z.y), z.radius, r2(z.until), r2(z.born), z.team, z.delay]),
     w: m.arena.walls.filter((w) => w.dynamic).map((w) => [w.id, w.x, w.y, w.w, w.h, Math.round(w.hp), w.maxHp, w.team, w.expiresAt === Infinity ? -1 : w.expiresAt, w.crate ? 1 : 0]),
@@ -109,6 +109,8 @@ export function applySnapshot(m: Match, s: Snapshot, st: MirrorState, predictedI
       h.pve = !!pve;
       m.addHero(h);
     }
+    // FIFIX roulette: the server swapped this hero
+    if (h.def.id !== defId) { h.def = getCharacter(defId); h.skinId = skinId; }
     if (id !== predictedId || !(f & F.ALIVE) || !h.alive) { h.x = x; h.y = y; }
     h.vx = vx; h.vy = vy; h.hp = hp; h.maxHp = maxHp; if (id !== predictedId) h.facing = facing;
     h.alive = !!(f & F.ALIVE); h.carrying = !!(f & F.CARRY);
@@ -134,12 +136,13 @@ export function applySnapshot(m: Match, s: Snapshot, st: MirrorState, predictedI
 
   const rifts: RiftEntity[] = [];
   for (const row of s.r) {
-    const [id, x, y, vx, vy, st2, carrier, clone, look, mood, portalTeam, stateTime, charged, carryTime, decoyTeam, frozen] = row;
+    const [id, x, y, vx, vy, st2, carrier, clone, look, mood, portalTeam, stateTime, charged, carryTime, decoyTeam, frozen, radius] = row;
     let r = m.rifts.find((q) => q.id === id);
     if (!r) r = createRift(id, x, y, !!clone);
     r.x = x; r.y = y; r.vx = vx; r.vy = vy; r.state = RIFT_STATES[st2] ?? 'ROAM'; r.carrier = carrier; r.look = look; r.mood = mood; r.portalTeam = portalTeam as any; r.stateTime = stateTime; r.alive = true; r.charged = !!charged; r.carryTime = carryTime ?? 0;
     r.decoy = decoyTeam !== undefined && decoyTeam >= 0 ? { team: decoyTeam as TeamId, owner: -1, damage: 0, stun: 0 } : undefined;
     r.frozenUntil = frozen ? s.t + 0.15 : 0;
+    if (radius) r.radius = radius;
     rifts.push(r);
   }
   m.rifts = rifts;

@@ -1,7 +1,7 @@
 import type { Match } from '../game/Match';
 import { Hero, type RiftEntity } from '../game/entities';
 import type { ModeId, TeamId } from '../data/types';
-import { getCharacter } from '../data/characters';
+import { getCharacter, PLAYABLE } from '../data/characters';
 import { BotBrain } from '../bots/BotBrain';
 import { BOT_PROFILES } from '../data/bots';
 import { healHero, applyDamage, spawnProjectile } from '../combat/Combat';
@@ -329,6 +329,43 @@ class SurvivalRules extends StandardRules {
   override extraResult() { return { waves: this.cleared }; }
 }
 
+/**
+ * FIFIX (limited-time mode): every 20 s the "Fifi Roulette" turns every player into a random hero
+ * (HP % kept, fresh gadget charges), Fifi scatters bonuses, and mutations come in bursts.
+ */
+export const FIFIX_EVERY = 20;
+class FifiXRules extends StandardRules {
+  private next = FIFIX_EVERY;
+  private warned = false;
+  override update(m: Match) {
+    if (m.phase !== 'play' && m.phase !== 'overtime') return;
+    if (!this.warned && m.time >= this.next - 3) { this.warned = true; m.emit({ t: 'fifix_warn', in: 3 }); }
+    if (m.time < this.next) return;
+    this.next = m.time + FIFIX_EVERY; this.warned = false;
+    const pool = PLAYABLE.map((c) => c.id);
+    for (const h of m.heroes) {
+      if (h.pve) continue;
+      const choices = pool.filter((id) => id !== h.def.id);
+      const to = choices[Math.floor(m.rng.range(0, choices.length)) % choices.length];
+      const from = h.def.id;
+      const ratio = h.alive ? h.hp / h.maxHp : 1;
+      if (h.carrying) m.dropCarried(h);
+      h.def = getCharacter(to);
+      h.skinId = `${to}_default`;
+      h.maxHp = h.def.hp; h.hp = Math.max(1, Math.round(h.maxHp * ratio));
+      h.gadgetCharges = h.def.gadget?.charges ?? 0; h.gadgetCd = 0; h.abCd = Math.min(h.abCd, 1); h.atkCd = 0;
+      h.history = []; h.dash = null; h.reviveUsed = false;
+      m.emit({ t: 'hero_swap', hero: h.id, from, to });
+    }
+    // Fifi's gifts
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + m.rng.range(0, 1);
+      m.spawnPickup(m.rng.pick(['speed', 'shield', 'power', 'ult'] as const), m.arena.center.x + Math.cos(a) * 260, m.arena.center.y + Math.sin(a) * 200, -1);
+    }
+    m.emit({ t: 'explosion', x: m.arena.center.x, y: m.arena.center.y, radius: 300, color: '#ff4ecd' });
+  }
+}
+
 /** TUTORIAL: free-play sandbox driven by the Tutorial controller (no timer pressure, no end). */
 class TutorialRules extends StandardRules {
   override onTimeUp(): TeamId | -1 | 'overtime' { return 0; }
@@ -339,6 +376,7 @@ export function createModeRules(id: ModeId): ModeRules {
     case 'RIFT_BOSS': return new BossRules();
     case 'SURVIVAL': return new SurvivalRules();
     case 'RIFT_KING': return new KingRules();
+    case 'FIFIX': return new FifiXRules();
     case 'TUTORIAL': return new TutorialRules();
     default: return new StandardRules();
   }

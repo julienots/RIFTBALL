@@ -40,7 +40,7 @@ export interface SaveData {
   bestTrophies: number;
   heroes: Record<string, HeroProgress>;
   cosmetics: string[];
-  equipped: { emotes: string[]; spray: string; effect: string };
+  equipped: { emotes: string[]; spray: string; effect: string; companion: string };
   entitlements: Record<string, { source: 'iap' | 'gems' | 'reward'; txn: string; at: number }>;
   pass: { seasonId: string; xp: number; claimedFree: number[]; claimedPremium: number[]; claimedPlus: number[] };
   missions: { dailyKey: string; weeklyKey: string; seasonKey: string; progress: Record<string, number>; claimed: string[] };
@@ -80,7 +80,7 @@ export function createDefaultSave(now = Date.now()): SaveData {
     xp: 0, level: 1, trophies: 0, bestTrophies: 0,
     heroes,
     cosmetics: [...DEFAULT_COSMETICS],
-    equipped: { emotes: ['emote_gg', 'emote_lol', 'emote_angry', 'emote_gg'], spray: 'spray_rift', effect: 'fx_default' },
+    equipped: { emotes: ['emote_gg', 'emote_lol', 'emote_angry', 'emote_gg'], spray: 'spray_rift', effect: 'fx_default', companion: 'pet_orb' },
     entitlements: {},
     pass: { seasonId: '', xp: 0, claimedFree: [], claimedPremium: [], claimedPlus: [] },
     missions: { dailyKey: '', weeklyKey: '', seasonKey: '', progress: {}, claimed: [] },

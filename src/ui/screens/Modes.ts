@@ -2,13 +2,14 @@ import { h } from '../dom';
 import type { Controller } from '../Controller';
 import type { Screen } from '../UIManager';
 import { shell } from './shell';
-import { MODES } from '../../data/modes';
+import { MODES, isModeAvailable } from '../../data/modes';
+import { formatDuration } from '../../core/Time';
 import { audio } from '../../audio/AudioEngine';
 import { BOT_PROFILES } from '../../data/bots';
 import { ARENAS } from '../../data/arenas';
 import { guideScreen } from './Guide';
 
-const FORMAT: Record<string, string> = { RIFTBALL: '3 VS 3', RIFT_RUSH: '3 VS 3 · 2 MIN', RIFT_CHAOS: '3 VS 3', RIFT_DUEL: '1 VS 1', RIFT_BOSS: '3 VS BOSS', SURVIVAL: '3 VS VAGUES', RIFT_KING: '3 VS 3 · ROI' };
+const FORMAT: Record<string, string> = { RIFTBALL: '3 VS 3', RIFT_RUSH: '3 VS 3 · 2 MIN', RIFT_CHAOS: '3 VS 3', RIFT_DUEL: '1 VS 1', RIFT_BOSS: '3 VS BOSS', SURVIVAL: '3 VS VAGUES', RIFT_KING: '3 VS 3 · ROI', FIFIX: '3 VS 3 · ROULETTE' };
 const LEVELS: [keyof typeof BOT_PROFILES | null, string][] = [[null, 'AUTO'], ['EASY', 'FACILE'], ['NORMAL', 'NORMAL'], ['HARD', 'DIFFICILE'], ['EXPERT', 'EXPERT']];
 
 /** Game modes: every mode is available; bots fill empty slots at the chosen difficulty. */
@@ -25,13 +26,13 @@ export function modesScreen(c: Controller): Screen {
   const render = () => {
     grid.innerHTML = '';
     const forced = c.app.events.modifiers().forcedMode;
-    for (const m of MODES.filter((x) => x.id !== 'TUTORIAL')) {
+    for (const m of MODES.filter((x) => x.id !== 'TUTORIAL' && isModeAvailable(x))) {
       const sel = c.selectedMode === m.id;
       grid.appendChild(h('button.mode-card' + (sel ? '.sel' : ''), { style: `--mc:${m.color}`, onclick: () => { audio.play('click'); c.selectedMode = m.id; c.ui.pop(); } },
         h('div.mc-ico', m.icon),
         h('div.col', { style: 'gap:.15em;align-items:flex-start;text-align:left' },
           h('span.mc-name.stroke-s', m.name),
-          h('div.row', { style: 'gap:.3em' }, h('span.tagx', FORMAT[m.id]), m.id === 'RIFT_KING' || m.id === 'RIFT_BOSS' ? h('span.tagx.red', m.id === 'RIFT_KING' ? 'NOUVEAU' : 'AMÉLIORÉ') : null, m.ranked ? h('span.tagx.gold', '🏆 CLASSÉ') : h('span.tagx', 'COOP'), forced === m.id ? h('span.tagx.red', 'ÉVÉNEMENT') : null),
+          h('div.row', { style: 'gap:.3em' }, h('span.tagx', FORMAT[m.id]), m.temporary ? h('span.tagx.red', '⏳ TEMPORAIRE · ' + formatDuration(Date.parse(m.temporary.end) - Date.now())) : null, m.ranked ? h('span.tagx.gold', '🏆 CLASSÉ') : h('span.tagx', 'COOP'), forced === m.id ? h('span.tagx.red', 'ÉVÉNEMENT') : null),
           h('span.small-text', m.description)),
         sel ? h('div.mc-check', '✔') : null));
     }

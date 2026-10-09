@@ -37,7 +37,12 @@ export const MISSIONS: MissionData[] = [
   { id: 'e_bonus', scope: 'event', eventId: 'bonus_festival', text: 'Gagner 3 parties', stat: 'wins', target: 3, reward: [{ kind: 'gems', amount: 5 }, { kind: 'crate', id: 'crate_small', count: 1 }] },
   { id: 'e_glass', scope: 'event', eventId: 'glass_cannon', text: 'Éliminer 15 adversaires', stat: 'kills', target: 15, reward: [{ kind: 'gems', amount: 8 }] },
   { id: 'e_king', scope: 'event', eventId: 'king_festival', text: 'Régner 120 secondes en tant que Roi', stat: 'king_points', target: 120, reward: [{ kind: 'gems', amount: 10 }, { kind: 'cosmetic', id: 'emote_crown' }] },
-  { id: 'e_halloween', scope: 'event', eventId: 'halloween_rift', text: 'Jouer 10 matchs pendant la Nuit du Rift', stat: 'matches', target: 10, reward: [{ kind: 'cosmetic', id: 'emote_pumpkin' }, { kind: 'gems', amount: 15 }] },
+  { id: 'e_fifix1', scope: 'event', eventId: 'fifix_event', text: 'Jouer 3 parties FIFIX', stat: 'mode_FIFIX', target: 3, reward: [{ kind: 'cosmetic', id: 'fx_fifi' }] },
+  { id: 'e_fifix2', scope: 'event', eventId: 'fifix_event', text: 'Jouer 8 parties FIFIX', stat: 'mode_FIFIX', target: 8, reward: [{ kind: 'cosmetic', id: 'pet_fifi' }, { kind: 'gems', amount: 15 }] },
+  { id: 'e_fifix3', scope: 'event', eventId: 'fifix_event', text: 'Gagner 10 parties pendant FIFIX', stat: 'wins', target: 10, reward: [{ kind: 'cosmetic', id: 'zip_fifi' }] },
+  { id: 'e_halloween', scope: 'event', eventId: 'halloween_rift', text: 'Jouer 10 matchs pendant la Nuit du Rift', stat: 'matches', target: 10, reward: [{ kind: 'cosmetic', id: 'emote_pumpkin' }, { kind: 'cosmetic', id: 'pet_ghost' }, { kind: 'gems', amount: 15 }] },
+  { id: 'e_halloween3', scope: 'event', eventId: 'halloween_rift', text: 'Éliminer 30 adversaires pendant la Nuit du Rift', stat: 'kills', target: 30, reward: [{ kind: 'cosmetic', id: 'luna_witch' }, { kind: 'cosmetic', id: 'pet_bat' }] },
+  { id: 'e_halloween4', scope: 'event', eventId: 'halloween_rift', text: 'Gagner 5 parties pendant la Nuit du Rift', stat: 'wins', target: 5, reward: [{ kind: 'cosmetic', id: 'shade_pumpkin' }, { kind: 'cosmetic', id: 'fx_pumpkin' }] },
   { id: 'e_halloween2', scope: 'event', eventId: 'halloween_rift', text: 'Vaincre le Colosse pendant la Nuit du Rift', stat: 'boss_wins', target: 1, reward: [{ kind: 'cosmetic', id: 'spray_pumpkin' }] },
   { id: 'e_newyear', scope: 'event', eventId: 'new_year', text: 'Gagner 5 parties pendant le Nouvel An', stat: 'wins', target: 5, reward: [{ kind: 'cosmetic', id: 'emote_fireworks' }, { kind: 'gems', amount: 20 }] },
 

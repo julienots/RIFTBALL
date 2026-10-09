@@ -19,7 +19,7 @@ export const OFFERS: ShopOfferData[] = [
 
 /** Daily shop rotation — deterministic from (seed, UTC day). A live-ops server can change `seed` or slots. */
 export const DAILY_SHOP: DailyShopConfig = {
-  slots: [{ type: 'skin', count: 2 }, { type: 'emote', count: 1 }, { type: 'spray', count: 1 }, { type: 'effect', count: 1 }, { type: 'banner', count: 1 }],
+  slots: [{ type: 'skin', count: 2 }, { type: 'companion', count: 1 }, { type: 'effect', count: 1 }, { type: 'emote', count: 1 }, { type: 'spray', count: 1 }],
   refreshHourUtc: 0,
   seed: 'riftball-daily-v1',
   priceByRarity: {

@@ -22,7 +22,7 @@ export class CollectionService {
   }
 
   categoryCounts() {
-    const cats: CollectionCategory[] = ['hero', 'skin', 'emote', 'spray', 'effect', 'banner', 'title', 'icon'];
+    const cats: CollectionCategory[] = ['hero', 'skin', 'companion', 'effect', 'emote', 'spray', 'banner', 'title', 'icon'];
     return cats.map((c) => { const l = this.byCategory(c); return { cat: c, owned: l.filter((x) => x.owned).length, total: l.length }; });
   }
 }

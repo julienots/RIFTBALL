@@ -25,6 +25,10 @@ export const COMBAT = {
   perfectUlt: 10, perfectSpeed: 0.35, perfectMul: 1.35,
   wallSlamSpeed: 480, wallSlamStun: 0.6, wallSlamDamage: 260,
   hurtUltPerHp: 22,
+  momentumWindow: 0.7, momentumMul: 1.2,
+  executeHp: 0.2, executeMul: 1.25,
+  duoWindow: 1.2, duoMul: 1.12,
+  lastStandHp: 0.15, lastStandShield: 0.25,
 };
 
 const LOG_ATTACKER_WINDOW = 5;
@@ -57,12 +61,18 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
   if (target.dmgReductionUntil > m.time) dmg *= 1 - target.dmgReduction;
   if (target.def.passive.id === 'thick_hide' && target.hp > target.maxHp * target.def.passive.params.threshold) dmg *= 1 - target.def.passive.params.reduction;
   if (isBoss(target)) dmg *= m.bossArmor;
-  let tag: 'combo' | 'back' | undefined;
+  let tag: 'combo' | 'back' | 'momentum' | 'execute' | 'duo' | undefined;
   if (source && opts.attack && !source.pve) {
     // BACKSTAB: hitting a target from behind
     const fx = Math.cos(target.facing), fy = Math.sin(target.facing);
     const tx = source.x - target.x, ty = source.y - target.y, tl = Math.hypot(tx, ty) || 1;
     if (!isBoss(target) && (fx * tx + fy * ty) / tl < COMBAT.backstabCos) { dmg *= COMBAT.backstabMul; tag = 'back'; }
+    // ÉLAN: an attack right after a roll hits harder
+    if (m.time - source.rollAt < COMBAT.momentumWindow) { dmg *= COMBAT.momentumMul; tag = tag ?? 'momentum'; }
+    // COUP DE GRÂCE: finishing a weakened enemy
+    if (!isBoss(target) && target.hp < target.maxHp * COMBAT.executeHp) { dmg *= COMBAT.executeMul; tag = 'execute'; }
+    // DUO: focus the same target as a teammate
+    for (const [aid, t] of target.recentAttackers) if (aid !== source.id && m.time - t < COMBAT.duoWindow) { const ally = m.heroById(aid); if (ally && ally.team === source.team && !ally.pve) { dmg *= COMBAT.duoMul; tag = tag ?? 'duo'; break; } }
     // COMBO: 3 consecutive hits on the same target
     if (source.comboTarget === target.id && m.time <= source.comboUntil) source.comboCount++;
     else { source.comboTarget = target.id; source.comboCount = 1; }
@@ -83,6 +93,13 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
     dmg -= absorbed;
   }
   target.hp -= dmg;
+  // DERNIER SOUFFLE: once per life, a hero dropping very low gets a shield and a burst of speed
+  if (!target.pve && !target.lastStand && target.hp > 0 && target.hp < target.maxHp * COMBAT.lastStandHp) {
+    target.lastStand = true;
+    target.shield = Math.max(target.shield, target.maxHp * COMBAT.lastStandShield); target.shieldUntil = m.time + 2.5;
+    target.speedBuff = Math.max(target.speedBuffUntil > m.time ? target.speedBuff : 0, 0.3); target.speedBuffUntil = m.time + 2;
+    m.emit({ t: 'last_stand', hero: target.id });
+  }
   target.lastDamageAt = m.time;
   target.revealedUntil = m.time + 1.2;
   target.anim.hitT = 0.18;
@@ -106,8 +123,9 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
   const unstoppable = target.avatarUntil > m.time;
   if (opts.kb && opts.kb > 0 && !immovable(target) && !unstoppable) {
     const l = Math.hypot(opts.kbX ?? 0, opts.kbY ?? 0) || 1;
-    target.kx += ((opts.kbX ?? 0) / l) * opts.kb;
-    target.ky += ((opts.kbY ?? 0) / l) * opts.kb;
+    const kbm = m.mutation === 'BOUNCE' ? m.mutationParams.kbMul ?? 1 : 1;
+    target.kx += ((opts.kbX ?? 0) / l) * opts.kb * kbm;
+    target.ky += ((opts.kbY ?? 0) / l) * opts.kb * kbm;
   }
   if (opts.slow && opts.slow > 0 && !unstoppable) {
     const active = target.slowUntil > m.time;

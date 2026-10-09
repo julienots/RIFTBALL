@@ -7,6 +7,7 @@ import { PLAYABLE } from './characters';
  */
 const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; source: CosmeticData['source']; visual: Record<string, string>; priceGems?: number; priceCoins?: number; season?: string }[]> = {
   magnet: [
+    { id: 'magnet_samurai', name: 'Magnet Samouraï', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#d00000', secondary: '#1b1b1b', accent: '#ffd60a', hat: 'kasa' } },
     { id: 'magnet_polar', name: 'Magnet Polaire', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#4cc9f0', secondary: '#f8f9fa', accent: '#ff4d6d', hat: 'beanie' } },
     { id: 'magnet_neon', name: 'Magnet Néon', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#39ff14', secondary: '#0b0c10', accent: '#ff00e6', hat: 'visor' } },
     { id: 'magnet_queen', name: 'Reine des Aimants', rarity: 'LEGENDARY', source: 'pass_premium', season: 's1', visual: { primary: '#ffd700', secondary: '#7b2cbf', accent: '#ffffff', hat: 'crown' } },
@@ -22,11 +23,13 @@ const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; sourc
     { id: 'block_lava', name: 'Block Magma', rarity: 'EPIC', source: 'event', visual: { primary: '#ff4800', secondary: '#370617', accent: '#ffba08' } },
   ],
   shade: [
+    { id: 'shade_pumpkin', name: 'Shade Citrouille', rarity: 'EPIC', source: 'event', visual: { primary: '#ff7b00', secondary: '#1b1b1b', accent: '#9ef01a', hat: 'horns' } },
     { id: 'shade_moon', name: 'Shade Lunaire', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#adb5bd', secondary: '#03045e', accent: '#caf0f8' } },
     { id: 'shade_inferno', name: 'Shade Infernal', rarity: 'LEGENDARY', source: 'pass_plus', season: 's1', visual: { primary: '#ff0054', secondary: '#1a0000', accent: '#ffbd00', hat: 'horns' } },
     { id: 'shade_mint', name: 'Shade Menthe', rarity: 'RARE', source: 'crate', visual: { primary: '#2ec4b6', secondary: '#011627', accent: '#cbf3f0' } },
   ],
   volt: [
+    { id: 'volt_cyber', name: 'Volt Cyberpunk', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#f72585', secondary: '#10002b', accent: '#00f5d4', hat: 'visor' } },
     { id: 'volt_storm', name: 'Volt Tempête', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#4361ee', secondary: '#03071e', accent: '#ffe600' } },
     { id: 'volt_pop', name: 'Volt Pop Star', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#ff4ecd', secondary: '#3a0ca3', accent: '#00f5ff', hat: 'headphones' } },
     { id: 'volt_frost', name: 'Volt Givre', rarity: 'EPIC', source: 'event', visual: { primary: '#a2d2ff', secondary: '#023e8a', accent: '#ffffff', hat: 'beanie' } },
@@ -37,17 +40,20 @@ const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; sourc
     { id: 'flux_mastery', name: 'Flux Maître', rarity: 'EPIC', source: 'mastery', visual: { primary: '#ffffff', secondary: '#06d6a0', accent: '#118ab2' } },
   ],
   titan: [
+    { id: 'titan_gold', name: 'Titan Doré', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ffd60a', secondary: '#7f5539', accent: '#ffffff', hat: 'crown' } },
     { id: 'titan_yeti', name: 'Titan Yéti', rarity: 'RARE', source: 'pass_free', season: 's2', visual: { primary: '#f8f9fa', secondary: '#4895ef', accent: '#caf0f8', skin: '#adb5bd' } },
     { id: 'titan_viking', name: 'Titan Viking', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#bc6c25', secondary: '#283618', accent: '#fefae0', hat: 'horns' } },
     { id: 'titan_mecha', name: 'Méca-Titan', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#e5e5e5', secondary: '#14213d', accent: '#fca311', hat: 'helmet' } },
     { id: 'titan_jungle', name: 'Titan Sylvestre', rarity: 'RARE', source: 'pass_free', season: 's1', visual: { primary: '#606c38', secondary: '#283618', accent: '#dda15e' } },
   ],
   arc: [
+    { id: 'arc_space', name: 'Arc Astronaute', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#f8f9fa', secondary: '#3a0ca3', accent: '#4cc9f0', hat: 'helmet' } },
     { id: 'arc_pirate', name: 'Arc Corsaire', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#9d0208', secondary: '#03071e', accent: '#ffba08', hat: 'tricorn' } },
     { id: 'arc_sunny', name: 'Arc Soleil', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#ffbe0b', secondary: '#fb5607', accent: '#ffffff' } },
     { id: 'arc_mastery', name: 'Arc Maîtresse', rarity: 'EPIC', source: 'mastery', visual: { primary: '#14213d', secondary: '#fca311', accent: '#e5e5e5' } },
   ],
   pulse: [
+    { id: 'pulse_angel', name: 'Pulse Céleste', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#fff3b0', secondary: '#ffffff', accent: '#ffd60a', hat: 'halo' } },
     { id: 'pulse_nurse', name: 'Pulse Infirmier', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#ffffff', secondary: '#e63946', accent: '#a8dadc' } },
     { id: 'pulse_disco', name: 'Pulse Disco', rarity: 'EPIC', source: 'pass_premium', season: 's1', visual: { primary: '#c77dff', secondary: '#10002b', accent: '#ffd60a', hat: 'headphones' } },
     { id: 'pulse_winter', name: 'Pulse Hivernal', rarity: 'EPIC', source: 'event', visual: { primary: '#caf0f8', secondary: '#0077b6', accent: '#ff006e', hat: 'beanie' } },
@@ -68,10 +74,12 @@ const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; sourc
     { id: 'frost_ember', name: 'Frost Dégel', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#ffadad', secondary: '#9d0208', accent: '#ffd6a5' } },
   ],
   ember: [
+    { id: 'ember_frostfire', name: 'Ember Feu Glacé', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#4cc9f0', secondary: '#03045e', accent: '#ffffff' } },
     { id: 'ember_ash', name: 'Ember Cendrée', rarity: 'EPIC', source: 'pass_premium', season: 's1', visual: { primary: '#6c757d', secondary: '#212529', accent: '#ff6b35' } },
     { id: 'ember_phoenix', name: 'Ember Phénix', rarity: 'MYTHIC', source: 'pass_plus', season: 's1', visual: { primary: '#ffba08', secondary: '#d00000', accent: '#ffffff', hat: 'halo' } },
   ],
   zip: [
+    { id: 'zip_fifi', name: 'Zip FifiX', rarity: 'MYTHIC', source: 'event', visual: { primary: '#ff4ecd', secondary: '#7209b7', accent: '#ffd60a', hat: 'crown' } },
     { id: 'zip_explorer', name: 'Zip Exploratrice', rarity: 'RARE', source: 'pass_free', season: 's3', visual: { primary: '#d4a373', secondary: '#283618', accent: '#606c38', hat: 'kasa' } },
     { id: 'zip_racer', name: 'Zip Pilote', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#e63946', secondary: '#1d3557', accent: '#f1faee', hat: 'helmet' } },
     { id: 'zip_mint', name: 'Zip Menthe', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#80ffdb', secondary: '#006466', accent: '#ffffff' } },
@@ -81,11 +89,13 @@ const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; sourc
     { id: 'grill_royal', name: 'Chef Royal', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ffd60a', secondary: '#7b2cbf', accent: '#ffffff', hat: 'crown' } },
   ],
   koko: [
+    { id: 'koko_panda', name: 'Koko Panda', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#f8f9fa', secondary: '#1b1b1b', accent: '#80ed99', skin: '#212529' } },
     { id: 'koko_king', name: 'Koko Roi de la Jungle', rarity: 'LEGENDARY', source: 'pass_premium', season: 's3', visual: { primary: '#3d2c1e', secondary: '#ffd60a', accent: '#d00000', hat: 'crown' } },
     { id: 'koko_snow', name: 'Koko des Neiges', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#f8f9fa', secondary: '#4895ef', accent: '#caf0f8', skin: '#adb5bd', hat: 'beanie' } },
     { id: 'koko_lava', name: 'Koko Volcan', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#370617', secondary: '#9d0208', accent: '#ffba08', skin: '#6a040f', hat: 'horns' } },
   ],
   luna: [
+    { id: 'luna_witch', name: 'Luna Sorcière', rarity: 'EPIC', source: 'event', visual: { primary: '#3c096c', secondary: '#10002b', accent: '#9ef01a', hat: 'tricorn' } },
     { id: 'luna_frost', name: 'Luna Aurore Boréale', rarity: 'LEGENDARY', source: 'pass_premium', season: 's2', visual: { primary: '#80ffdb', secondary: '#3a0ca3', accent: '#f72585', hat: 'halo' } },
     { id: 'luna_sun', name: 'Luna Solaire', rarity: 'EPIC', source: 'shop', priceGems: 149, visual: { primary: '#ffbe0b', secondary: '#9d0208', accent: '#ffffff', hat: 'halo' } },
     { id: 'luna_dark', name: 'Luna Nouvelle Lune', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#3c096c', secondary: '#10002b', accent: '#e0aaff' } },
@@ -96,6 +106,7 @@ const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; sourc
     { id: 'gear_neon', name: 'Gear Néon', rarity: 'RARE', source: 'shop', priceCoins: 1500, visual: { primary: '#39ff14', secondary: '#0b0c10', accent: '#ff00e6' } },
   ],
   chronos: [
+    { id: 'chronos_sakura', name: 'Chronos Sakura', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ffafcc', secondary: '#3c1642', accent: '#ffffff', hat: 'halo' } },
     { id: 'chronos_void', name: 'Chronos du Néant', rarity: 'MYTHIC', source: 'shop', priceGems: 499, visual: { primary: '#7209b7', secondary: '#000000', accent: '#f72585', hat: 'halo' } },
     { id: 'chronos_silver', name: 'Chronos Argenté', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ced4da', secondary: '#212529', accent: '#00f5d4' } },
   ],
@@ -105,6 +116,7 @@ const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; sourc
     { id: 'seraph_aurora', name: 'Seraph Aurore', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ffc8dd', secondary: '#bde0fe', accent: '#a2d2ff', hat: 'halo' } },
   ],
   riftborn: [
+    { id: 'riftborn_lava', name: 'Riftborn Magma', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ff4800', secondary: '#1b1b1b', accent: '#ffd60a', hat: 'horns' } },
     { id: 'riftborn_jungle', name: 'Riftborn Sylvestre', rarity: 'MYTHIC', source: 'pass_plus', season: 's3', visual: { primary: '#52b788', secondary: '#081c15', accent: '#ffd60a', hat: 'horns' } },
     { id: 'riftborn_gold', name: 'Riftborn Doré', rarity: 'MYTHIC', source: 'shop', priceGems: 499, visual: { primary: '#ffd60a', secondary: '#3c1642', accent: '#ffffff', hat: 'crown' } },
     { id: 'riftborn_toxic', name: 'Riftborn Toxique', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#70e000', secondary: '#004b23', accent: '#ccff33' } },
@@ -147,7 +159,10 @@ const effects: CosmeticData[] = [
   ['fx_ice', 'Traînée de Givre', '#a2d2ff', 'EPIC', 'event'], ['fx_void', 'Traînée du Vide', '#9d4edd', 'EPIC', 'pass_premium'], ['fx_gold', 'Traînée Dorée', '#ffd60a', 'LEGENDARY', 'shop'],
   ['fx_leaf', 'Traînée Sylvestre', '#80ed99', 'RARE', 'crate'], ['fx_spark', 'Étincelles', '#ffe600', 'RARE', 'pass_free'], ['fx_heart', 'Petits Cœurs', '#ff70a6', 'RARE', 'crate'],
   ['fx_neon', 'Néon', '#00ffcc', 'EPIC', 'crate'],
-  ['fx_aurora', 'Aurore', '#80ffdb', 'EPIC', 'pass_premium'], ['fx_pollen', 'Pollen', '#d9ed92', 'EPIC', 'pass_premium'], ['fx_laser', 'Laser', '#f72585', 'EPIC', 'pass_premium'],
+  ['fx_aurora', 'Aurore', '#80ffdb', 'EPIC', 'pass_premium'],
+  ['fx_galaxy', 'Galaxie', 'galaxy', 'MYTHIC', 'shop'], ['fx_bubbles', 'Bulles', '#a2d2ff', 'RARE', 'shop'], ['fx_lightning', 'Foudre', '#ffe600', 'EPIC', 'shop'],
+  ['fx_sakura', 'Sakura', '#ffafcc', 'EPIC', 'crate'], ['fx_toxic', 'Toxique', '#9ef01a', 'RARE', 'crate'], ['fx_pumpkin', 'Citrouilles', '#ff7b00', 'EPIC', 'event'],
+  ['fx_fifi', 'Paillettes FifiX', 'fifi', 'MYTHIC', 'event'], ['fx_shadow', 'Ombre', '#3c096c', 'RARE', 'shop'], ['fx_pollen', 'Pollen', '#d9ed92', 'EPIC', 'pass_premium'], ['fx_laser', 'Laser', '#f72585', 'EPIC', 'pass_premium'],
 ].map(([id, name, color, rarity, source]) => ({ id, type: 'effect' as const, name, rarity: rarity as Rarity, visual: { color }, source: source as CosmeticData['source'] }));
 
 const banners: CosmeticData[] = [
@@ -174,7 +189,17 @@ const icons: CosmeticData[] = [
   ['icon_flame', 'Flamme', '#ff6b35', 'event', 'EPIC'], ['icon_penguin', 'Pingouin', '#4cc9f0', 'pass_free', 'RARE'], ['icon_parrot', 'Perroquet', '#52b788', 'pass_free', 'RARE'], ['icon_robot', 'Robot', '#f72585', 'pass_free', 'RARE'], ['icon_snow', 'Flocon', '#a2d2ff', 'event', 'EPIC'], ['icon_star', 'Étoile', '#ffd166', 'pass_free', 'RARE'],
 ].map(([id, name, color, source, rarity]) => ({ id, type: 'icon' as const, name, rarity: rarity as Rarity, visual: { color }, source: source as CosmeticData['source'] }));
 
-export const COSMETICS: CosmeticData[] = [...skins, ...emotes, ...sprays, ...effects, ...banners, ...titles, ...icons];
+/** Companions float next to your hero in matches and in the lobby. Purely visual. */
+const companions: CosmeticData[] = [
+  ['pet_orb', 'Riftou', 'orb', '#b388ff', '#ffffff', 'COMMON', 'default', 0, 0], ['pet_drone', 'Bzz le Drone', 'drone', '#adb5bd', '#00f5d4', 'RARE', 'shop', 2500, 0],
+  ['pet_cat', 'Néko', 'cat', '#ffb703', '#ffffff', 'RARE', 'crate', 0, 0], ['pet_crystal', 'Cristallin', 'crystal', '#4cc9f0', '#ffffff', 'RARE', 'crate', 0, 0],
+  ['pet_ghost', 'Boubou', 'ghost', '#f8f9fa', '#7b2cbf', 'EPIC', 'event', 0, 0], ['pet_bat', 'Chauvy', 'bat', '#3c096c', '#ff7b00', 'RARE', 'event', 0, 0],
+  ['pet_penguin', 'Pingou', 'penguin', '#1b1b1b', '#ffffff', 'EPIC', 'pass_premium', 0, 0], ['pet_parrot', 'Kiwi', 'parrot', '#52b788', '#ffd60a', 'EPIC', 'pass_premium', 0, 0],
+  ['pet_robot', 'Robix', 'robot', '#f72585', '#4cc9f0', 'EPIC', 'pass_premium', 0, 0], ['pet_dragon', 'Draco', 'dragon', '#d00000', '#ffd60a', 'LEGENDARY', 'shop', 0, 299],
+  ['pet_phoenix', 'Phénix', 'phoenix', '#ff7b00', '#ffd60a', 'MYTHIC', 'shop', 0, 499], ['pet_fifi', 'Fifi', 'fifi', '#ff4ecd', '#ffd60a', 'MYTHIC', 'event', 0, 0],
+].map(([id, name, model, a, b, rarity, source, coins, gemsP]) => ({ id: id as string, type: 'companion' as const, name: name as string, rarity: rarity as Rarity, visual: { model: model as string, color: a as string, accent: b as string }, source: source as CosmeticData['source'], ...(coins ? { priceCoins: coins as number } : {}), ...(gemsP ? { priceGems: gemsP as number } : {}) }));
+
+export const COSMETICS: CosmeticData[] = [...skins, ...emotes, ...sprays, ...effects, ...banners, ...titles, ...icons, ...companions];
 const BY_ID = new Map(COSMETICS.map((c) => [c.id, c]));
 export const getCosmetic = (id: string) => BY_ID.get(id);
 export const skinsFor = (heroId: string) => COSMETICS.filter((c) => c.type === 'skin' && c.heroId === heroId);

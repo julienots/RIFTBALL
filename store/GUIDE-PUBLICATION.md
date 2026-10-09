@@ -80,6 +80,6 @@ Sans cette étape, le jeu fonctionne normalement mais **refuse les achats** (le 
 À chaque nouvelle version, je génère un nouvel AAB avec un numéro de version plus grand (versionCode). Il suffit de l'envoyer dans une nouvelle version sur la Play Console. La clé du kit doit rester la même : garde-la !
 
 ## Infos techniques
-- Package : `com.superessence.riftball` · Version : 1.0.5 (versionCode 7)
+- Package : `com.superessence.riftball` · Version : 1.0.6 (versionCode 8)
 - SDK cible : Android 15 (API 35) · minimum : Android 7 (API 24)
 - Permissions : Internet, état du réseau, vibration, facturation Google Play

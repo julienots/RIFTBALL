@@ -62,8 +62,17 @@ export class GameSession {
       botLevel: cfg.botLevel, allyLevel: cfg.allyLevel, modifiers: app.events.modifiers(), friends: cfg.friends ? [...cfg.friends] : undefined,
     });
     const me = this.match.human;
+    // cosmetics (visual only): your trail & companion; others get a random look
+    const trails = ['fx_spark', 'fx_fire', 'fx_ice', 'fx_neon', 'fx_leaf', 'fx_heart', 'fx_bubbles', 'fx_lightning', '', '', ''];
+    const pets = ['pet_orb', 'pet_drone', 'pet_cat', 'pet_crystal', 'pet_ghost', '', '', '', ''];
+    for (const h of this.match.heroes) {
+      if (h.pve) continue;
+      if (h.id === this.match.humanId) { h.trail = d.equipped.effect === 'fx_default' ? '' : d.equipped.effect; h.pet = d.equipped.companion ?? ''; continue; }
+      h.trail = trails[(h.id * 7 + 3) % trails.length]; h.pet = pets[(h.id * 5 + 1) % pets.length];
+    }
     r.setMatch(this.match, me?.team ?? 0, this.match.humanId);
     this.hud = new HUD(this.match, r, portrait, d.equipped.emotes);
+    this.hud.portraitOf = (heroId) => r.portrait(heroId, `${heroId}_default`, 192);
     ui.root.appendChild(this.hud.el);
     this.input = new Input(this.hud.ctrl, this.hud.joyBase, this.hud.joyKnob, this.hud.btn);
     this.input.screenToWorldDir = (sx, sy) => {
@@ -330,7 +339,7 @@ export class GameSession {
     const res = m.result!;
     const outcome = res.winner === -1 ? 'draw' : res.winner === me.team ? 'win' : 'loss';
     const report: MatchReport = {
-      matchId: this.cfg.matchId, mode: m.mode.id, arena: m.arena.data.id, heroId: me.def.id, outcome,
+      matchId: this.cfg.matchId, mode: m.mode.id, arena: m.arena.data.id, heroId: me.originDefId || me.def.id, outcome,
       score: res.score, myTeam: me.team, duration: Math.max(1, m.time), stats: { ...me.stats }, mvp: res.mvp === me.id,
       ranked: m.mode.ranked && !this.cfg.training, mutationsSeen: this.mutationsSeen, vsBots: this.cfg.vsBots,
       extra: {

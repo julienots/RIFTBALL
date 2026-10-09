@@ -6,12 +6,16 @@ import { formatClock } from '../core/Time';
 import { getMutation } from '../data/mutations';
 import { getCosmetic } from '../data/cosmetics';
 import { BOSS_ATTACKS, KING_TARGET } from '../gamemodes/ModeRules';
-import { isBoss } from '../data/characters';
+import { getCharacter, isBoss } from '../data/characters';
 
 const RIFT_STATE_FR: Record<string, string> = {
   IDLE: 'EN ATTENTE', ROAM: 'ERRANT', FLEE: 'EN FUITE', CHASE: 'CURIEUX', ATTRACTED: 'ATTIRÉ', CARRIED: 'CAPTURÉ', DROPPED: 'LIBRE',
   FRENZY: 'FRÉNÉSIE', MUTATING: 'MUTATION...', CLONING: 'DIVISION', PORTAL: 'PORTAIL',
 };
+
+export const GADGET_ICONS: Record<string, string> = { repulse: '🧲', vanish: '💨', rift_cage: '🧱', swap: '🔄', emp: '📡', transfusion: '💉', hook: '🪝', mine: '💣', team_shield: '🛡️', rift_gust: '🌪️', blaze: '🔥', flare: '🎆', ice_block: '🧊',
+  smoke: '🌫️', harden: '🪵', ally_warp: '🌙', leap: '🚀', haste: '⏩', sanctuary: '✨', rift_decoy: '🎭' };
+const TAG_FR: Record<string, [string, string]> = { combo: ['COMBO x3 !', '#ff9f1c'], back: ['DANS LE DOS !', '#c77dff'], momentum: ['ÉLAN !', '#4cc9f0'], execute: ['COUP DE GRÂCE !', '#ff4d6d'], duo: ['ATTAQUE EN DUO !', '#80ed99'] };
 
 interface HpEl { root: HTMLElement; fill: HTMLElement; shield: HTMLElement; num: HTMLElement | null; carry: HTMLElement; badges: HTMLElement; lastHp: number; lastCarry: boolean; lastBadges: string }
 
@@ -66,8 +70,7 @@ export class HUD {
     this.joyBase = h('div.joy-base.hint', this.joyKnob);
     this.gadgetN = h('div.gcount');
     this.rollCd = h('div.cd');
-    const gIcon: Record<string, string> = { repulse: '🧲', vanish: '💨', rift_cage: '🧱', swap: '🔄', emp: '📡', transfusion: '💉', hook: '🪝', mine: '💣', team_shield: '🛡️', rift_gust: '🌪️', blaze: '🔥', flare: '🎆', ice_block: '🧊',
-      smoke: '🌫️', harden: '🪵', ally_warp: '🌙', leap: '🚀', haste: '⏩', sanctuary: '✨', rift_decoy: '🎭' };
+    const gIcon: Record<string, string> = GADGET_ICONS;
     const g = m.human?.def.gadget;
     this.btn = {
       gadget: h('div.hud-btn.gadget', { 'data-slot': 'gadget', style: g ? '' : 'display:none' }, h('span.ic', gIcon[g?.effect ?? ''] ?? '✦'), this.gadgetN, h('span.lbl', g ? g.name.toUpperCase() : 'GADGET')),
@@ -107,6 +110,19 @@ export class HUD {
     setTimeout(() => this.joyBase.classList.remove('hint'), 4000);
   }
 
+  /** FIFIX: the player's hero changed — update the gadget button and portrait. */
+  refreshHero() {
+    const me = this.m.human;
+    if (!me) return;
+    const g = me.def.gadget;
+    this.btn.gadget.style.display = g ? '' : 'none';
+    (this.btn.gadget.querySelector('.ic') as HTMLElement).textContent = GADGET_ICONS[g?.effect ?? ''] ?? '✦';
+    (this.btn.gadget.querySelector('.lbl') as HTMLElement).textContent = g ? g.name.toUpperCase() : 'GADGET';
+    const img = this.el.querySelector('.hud-me .portrait img') as HTMLImageElement | null;
+    if (img) img.src = this.portraitOf(me.def.id);
+  }
+  portraitOf: (heroId: string) => string = () => this.portrait;
+
   private toggleEmotes() {
     if (this.emoteWheel) { this.emoteWheel.remove(); this.emoteWheel = null; return; }
     this.emoteWheel = h('div.emote-wheel.panel', this.emotes.map((id) => {
@@ -139,7 +155,7 @@ export class HUD {
         if (!t || !m.isVisibleTo(t, m.human?.team ?? 0)) break;
         if (e.t === 'hit' && e.source !== m.humanId && e.target !== m.humanId && Math.random() < 0.5) break; // declutter
         this.damageNumber(t, e.amount, e.t === 'heal' ? 'heal' : e.target === m.humanId ? 'me' : e.t === 'hit' && e.tag ? e.tag : '');
-        if (e.t === 'hit' && e.tag && e.source === m.humanId) this.showAnnounce(e.tag === 'combo' ? 'COMBO x3 !' : 'DANS LE DOS !', '', e.tag === 'combo' ? '#ff9f1c' : '#c77dff', 600);
+        if (e.t === 'hit' && e.tag && e.source === m.humanId && TAG_FR[e.tag]) this.showAnnounce(TAG_FR[e.tag][0], '', TAG_FR[e.tag][1], 600);
         if (e.t === 'hit' && e.target === m.humanId) { this.hurtT = 0.4; }
         break;
       }
@@ -199,6 +215,9 @@ export class HUD {
         this.showAnnounce(e.phase === 2 ? 'PHASE 2 : ENRAGÉ' : 'PHASE 3 : FRÉNÉSIE', e.phase === 2 ? 'Le Colosse charge et aspire !' : 'Bouclier du Rift et attaques en rafale !', '#ff00a0', 2400);
         this.screenFlash('rgba(255,0,160,.45)');
         break;
+      case 'last_stand': if (e.hero === m.humanId) { this.showAnnounce('DERNIER SOUFFLE !', 'Bouclier + vitesse : fuis ou contre-attaque !', '#ffe14d', 1200); this.screenFlash('rgba(255,225,77,.35)'); } break;
+      case 'fifix_warn': this.showAnnounce('🎰 ROULETTE FIFI…', 'Changement de héros dans 3 s !', '#ff4ecd', 1500); break;
+      case 'hero_swap': if (e.hero === m.humanId) { const d = getCharacter(e.to); this.showAnnounce('🎰 TU DEVIENS ' + d.name + ' !', d.title, '#ff4ecd', 1800); this.refreshHero(); } break;
       case 'perfect': if (e.hero === m.humanId) { this.showAnnounce('ESQUIVE PARFAITE !', '+10% ultime · prochaine attaque +35%', '#00f5d4', 1000); this.screenFlash('rgba(0,245,212,.3)'); } break;
       case 'wall_slam': { const hh = m.heroById(e.hero); if (hh && (hh.lastHitBy === m.humanId || e.hero === m.humanId)) this.showAnnounce('💥 CONTRE LE MUR !', e.hero === m.humanId ? 'Étourdi !' : 'Ennemi étourdi', '#ff6b35', 900); break; }
       case 'revive': { const hh = m.heroById(e.hero); if (hh) this.showAnnounce('✨ RENAISSANCE', `${hh.name} revient au combat !`, '#ffe66d', 1400); break; }
@@ -357,7 +376,7 @@ export class HUD {
       if (e.lastCarry !== hero.carrying) { e.lastCarry = hero.carrying; e.carry.style.display = hero.carrying ? '' : 'none'; }
       const charged = hero.carrying && m.rifts.some((r) => r.carrier === hero.id && r.charged);
       const b = (hero.streak >= 3 ? '💀' : '') + (hero.powerUntil > m.time ? '⚔️' : '') + (hero.speedBuffUntil > m.time ? '💨' : '') + (charged ? '⚡x2' : '')
-        + (hero.silenceUntil > m.time ? '🌑' : '') + (hero.dmgReductionUntil > m.time ? '🛡' : '') + (hero.avatarUntil > m.time ? '🔱' : '');
+        + (hero.lastStand && hero.shieldUntil > m.time ? '🔥' : '') + (hero.silenceUntil > m.time ? '🌑' : '') + (hero.dmgReductionUntil > m.time ? '🛡' : '') + (hero.avatarUntil > m.time ? '🔱' : '');
       if (b !== e.lastBadges || hero.king !== (e.carry.dataset.k === '1')) {
         e.lastBadges = b; e.badges.textContent = b; e.carry.dataset.k = hero.king ? '1' : '0';
         e.carry.textContent = hero.king ? '👑 ROI' : charged ? '🔮 RIFT SURCHARGÉ' : '🔮 RIFT';

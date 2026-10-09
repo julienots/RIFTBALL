@@ -79,7 +79,7 @@ export interface CharacterData {
 // ---------------------------------------------------------------- Rift
 
 export type RiftState = 'IDLE' | 'ROAM' | 'FLEE' | 'CHASE' | 'ATTRACTED' | 'CARRIED' | 'DROPPED' | 'FRENZY' | 'MUTATING' | 'CLONING' | 'PORTAL';
-export type MutationId = 'NORMAL' | 'FURY' | 'CLONE' | 'ELECTRIC' | 'GRAVITY' | 'PORTAL' | 'PHASE' | 'CHAOS';
+export type MutationId = 'NORMAL' | 'FURY' | 'CLONE' | 'ELECTRIC' | 'GRAVITY' | 'PORTAL' | 'PHASE' | 'CHAOS' | 'GIANT' | 'BLACKOUT' | 'BOUNCE' | 'GOLD';
 
 export interface RiftMutationData {
   id: MutationId;
@@ -120,7 +120,7 @@ export interface ArenaData {
 
 // ---------------------------------------------------------------- Modes
 
-export type ModeId = 'RIFTBALL' | 'RIFT_RUSH' | 'RIFT_CHAOS' | 'RIFT_DUEL' | 'RIFT_BOSS' | 'SURVIVAL' | 'RIFT_KING' | 'TUTORIAL';
+export type ModeId = 'RIFTBALL' | 'RIFT_RUSH' | 'RIFT_CHAOS' | 'RIFT_DUEL' | 'RIFT_BOSS' | 'SURVIVAL' | 'RIFT_KING' | 'FIFIX' | 'TUTORIAL';
 
 export interface ModeData {
   id: ModeId;
@@ -137,11 +137,13 @@ export interface ModeData {
   icon: string;
   color: string;
   unlockLevel: number;
+  /** limited-time mode: only playable between these ISO dates */
+  temporary?: { start: string; end: string };
 }
 
 // ---------------------------------------------------------------- Cosmetics
 
-export type CosmeticType = 'skin' | 'emote' | 'spray' | 'effect' | 'banner' | 'title' | 'icon';
+export type CosmeticType = 'skin' | 'emote' | 'spray' | 'effect' | 'banner' | 'title' | 'icon' | 'companion';
 
 export interface CosmeticData {
   id: string;
@@ -234,7 +236,7 @@ export type MissionStat =
   | 'matches' | 'wins' | 'goals' | 'abilities' | 'ults' | 'kills' | 'captures' | 'damage' | 'heal'
   | 'mutations_seen' | 'mode_RIFTBALL' | 'mode_RIFT_RUSH' | 'mode_RIFT_CHAOS' | 'mode_RIFT_DUEL' | 'mode_RIFT_BOSS' | 'mode_SURVIVAL' | 'mode_RIFT_KING'
   | 'throws' | 'interceptions' | 'gadgets' | 'mvps' | 'boss_damage' | 'boss_wins' | 'boss_top' | 'king_points' | 'king_wins' | 'survival_waves'
-  | 'mythic_matches' | 'mythic_wins' | 'win_streak' | 'perfect_wins';
+  | 'mythic_matches' | 'mythic_wins' | 'win_streak' | 'perfect_wins' | 'mode_FIFIX';
 
 export interface MissionData {
   id: string;
@@ -291,6 +293,8 @@ export interface SeasonData {
   end: string;
   color: string;
   icon?: string;
+  /** menu (lobby) backdrop of the season */
+  lobby?: { sky: string; pedestal: string; ring: string; glow: string; particle: 'embers' | 'snow' | 'leaves' | 'neon' | 'stars'; css: string };
   /** featured hero / arena of the season */
   newHero: string;
   newArena: string;

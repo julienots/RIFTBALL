@@ -1,5 +1,7 @@
 import { getCharacter } from '../../data/characters';
 import { getCosmetic } from '../../data/cosmetics';
+import { buildPet, animatePet } from './Pets';
+import type { SeasonData } from '../../data/types';
 import * as THREE from 'three';
 import type { Match } from '../Match';
 import type { Hero, MatchEvent, Projectile, RiftEntity, Zone } from '../entities';
@@ -34,6 +36,9 @@ interface HeroView {
   crown: THREE.Group | null;
   mythic: boolean;
   avatarK: number;
+  pet: THREE.Group | null;
+  petKey: string;
+  petX: number; petY: number;
 }
 
 const WARN_FS = `uniform float time; uniform float progress; varying vec2 vUv;
@@ -48,7 +53,7 @@ const WARN_FS = `uniform float time; uniform float progress; varying vec2 vUv;
     gl_FragColor = vec4(mix(vec3(1.0, 0.2, 0.3), vec3(1.0, 0.85, 0.3), front), a);
   }`;
 
-interface RiftView { beam: THREE.Mesh | null; xray: THREE.Sprite; rift: RiftEntity; group: THREE.Group; core: THREE.Mesh; eyes: THREE.Group; rings: THREE.Mesh[]; aura: THREE.Sprite; shadow: THREE.Mesh; light: THREE.PointLight | null; px: number; py: number }
+interface RiftView { baseR: number; beam: THREE.Mesh | null; xray: THREE.Sprite; rift: RiftEntity; group: THREE.Group; core: THREE.Mesh; eyes: THREE.Group; rings: THREE.Mesh[]; aura: THREE.Sprite; shadow: THREE.Mesh; light: THREE.PointLight | null; px: number; py: number }
 
 const RIFT_VS = `varying vec3 vN; varying vec3 vP; void main(){ vN = normalize(normalMatrix * normal); vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
 const RIFT_FS = `uniform float time; uniform vec3 c1; uniform vec3 c2; uniform float mood; varying vec3 vN; varying vec3 vP;
@@ -105,6 +110,7 @@ export class WorldRenderer {
   private shockwaves: { mesh: THREE.Mesh; t: number; dur: number; r0: number; r1: number }[] = [];
   private bolts: { line: THREE.Line; t: number }[] = [];
   private beams: { mesh: THREE.Mesh; t: number }[] = [];
+  private darkK = 0; private baseHemi = 1.4; private baseSun = 2.2;
   private warnBeams: { mesh: THREE.Mesh; t: number; dur: number }[] = [];
   private warnViews = new Map<object, THREE.Mesh>();
   private warnPool: THREE.Mesh[] = [];
@@ -206,6 +212,7 @@ export class WorldRenderer {
     this.hemi.color.set(th.light);
     this.hemi.intensity = 0.9 + th.ambient * 0.8;
     this.sun.color.set(th.light);
+    this.baseHemi = this.hemi.intensity; this.baseSun = this.sun.intensity; this.darkK = 0;
     this.buildArena(m);
     for (const h of m.heroes) this.ensureHero(h);
     const f = m.heroById(focusId) ?? m.heroes[0];
@@ -426,7 +433,8 @@ export class WorldRenderer {
     let v = this.heroViews.get(h.id);
     const key = h.def.id + '|' + h.skinId;
     if (v && v.skinKey === key) return v;
-    if (v) { this.matchRoot.remove(v.group); }
+    let keepPet: THREE.Group | null = null, keepPetKey = '';
+    if (v) { this.matchRoot.remove(v.group); keepPet = v.pet; keepPetKey = v.petKey; }
     const geo = heroGeometry(h.def.id, h.skinId);
     const isMeHero = h.id === this.focusId;
     const u = makeHeroUniforms(isMeHero ? '#ffe14d' : TEAM_COLORS[h.team]);
@@ -470,7 +478,7 @@ export class WorldRenderer {
         group.add(aura);
       }
     }
-    v = { hero: h, group, body, outline, mat, outlineMat, u, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key, crown: null, mythic, avatarK: 1 };
+    v = { hero: h, group, body, outline, mat, outlineMat, u, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key, crown: null, mythic, avatarK: 1, pet: keepPet, petKey: keepPetKey, petX: h.x, petY: h.y };
     this.heroViews.set(h.id, v);
     return v;
   }
@@ -534,7 +542,7 @@ export class WorldRenderer {
       this.matchRoot.add(beam);
     }
     this.matchRoot.add(group);
-    v = { beam, xray, rift: r, group, core, eyes, rings, aura, shadow, light, px: r.x, py: r.y };
+    v = { baseR: r.radius, beam, xray, rift: r, group, core, eyes, rings, aura, shadow, light, px: r.x, py: r.y };
     this.riftViews.set(r.id, v);
     return v;
   }
@@ -704,6 +712,8 @@ export class WorldRenderer {
     const m = this.match;
     if (!m) return;
     const mutColor = getMutation(m.mutation).color;
+    this.darkK += ((m.mutation === 'BLACKOUT' ? 1 : 0) - this.darkK) * Math.min(1, dt * 2);
+    this.hemi.intensity = this.baseHemi * (1 - 0.72 * this.darkK); this.sun.intensity = this.baseSun * (1 - 0.8 * this.darkK);
     for (const a of this.animated) a.mat.uniforms.time.value = this.time;
 
     // heroes
@@ -713,7 +723,7 @@ export class WorldRenderer {
       const v = this.ensureHero(h);
       this.updateHero(v, m, dt);
     }
-    for (const [id, v] of this.heroViews) if (!seen.has(id)) { this.matchRoot.remove(v.group); this.heroViews.delete(id); }
+    for (const [id, v] of this.heroViews) if (!seen.has(id)) { this.matchRoot.remove(v.group); if (v.pet) this.matchRoot.remove(v.pet); this.heroViews.delete(id); }
 
     // rifts
     const rseen = new Set<number>();
@@ -910,6 +920,33 @@ export class WorldRenderer {
       for (const c of v.group.children) if (c.userData.mythicAura) { ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).color.setHSL(hue, 0.9, 0.6); c.rotation.z = this.time * (c === v.group.children[v.group.children.length - 1] ? -0.8 : 0.6); }
       if (Math.random() < 0.18 * this.q.particleMul) { const a = Math.random() * 6.28, rr = h.radius * WS * 1.6; this.particles.emit(v.px * WS + Math.cos(a) * rr, 0.1, v.py * WS + Math.sin(a) * rr, 0, 1.5, 0, this.tmpColor.setHSL(hue, 0.9, 0.65).getStyle(), 0.14, 0.8, 0); }
     }
+    // equipped trail (cosmetic)
+    if (h.trail && moving && Math.random() < 0.7 * this.q.particleMul) {
+      const fx = getCosmetic(h.trail);
+      const col = fx?.visual.color ?? '#ffffff';
+      const c = col === 'rainbow' ? this.tmpColor.setHSL((this.time * 0.5) % 1, 0.9, 0.6).getStyle()
+        : col === 'galaxy' ? (Math.random() < 0.5 ? '#7209b7' : Math.random() < 0.5 ? '#ffffff' : '#4cc9f0')
+        : col === 'fifi' ? ['#ff4ecd', '#ffd60a', '#00f5d4'][Math.floor(Math.random() * 3)] : col;
+      this.particles.emit(v.px * WS + (Math.random() - 0.5) * 0.3, 0.12 + Math.random() * 0.25, v.py * WS + (Math.random() - 0.5) * 0.3, 0, 0.35, 0, c, 0.2, 0.55, 0);
+    }
+    // companion
+    if (h.pet !== v.petKey) {
+      if (v.pet) this.matchRoot.remove(v.pet);
+      v.pet = null; v.petKey = h.pet;
+      const pc = h.pet ? getCosmetic(h.pet) : undefined;
+      if (pc) { v.pet = buildPet(pc.visual.model, pc.visual.color, pc.visual.accent); v.pet.scale.setScalar(h.radius * WS * 0.9); this.matchRoot.add(v.pet); }
+    }
+    if (v.pet) {
+      v.pet.visible = v.group.visible;
+      const side = h.facing + Math.PI * 0.75;
+      const tx = h.x + Math.cos(side) * h.radius * 2.2, ty = h.y + Math.sin(side) * h.radius * 2.2;
+      const kk = Math.min(1, dt * 5);
+      v.petX += (tx - v.petX) * kk; v.petY += (ty - v.petY) * kk;
+      if (Math.abs(v.petX - h.x) > 300 || Math.abs(v.petY - h.y) > 300) { v.petX = tx; v.petY = ty; }
+      v.pet.position.set(v.petX * WS, h.radius * WS * 3.2 + Math.sin(this.time * 3 + h.id) * 0.1 + y, v.petY * WS);
+      v.pet.rotation.y = -h.facing;
+      animatePet(v.pet, this.time + h.id);
+    }
     // RIFT KING crown
     if (h.king && !v.crown) {
       const crown = new THREE.Group();
@@ -961,6 +998,9 @@ export class WorldRenderer {
     const pulse = isMut ? 1 + Math.sin(this.time * 30) * 0.12 + 0.15 : r.state === 'PORTAL' ? Math.max(0.2, 1 - r.stateTime) : 1;
     v.core.scale.setScalar(pulse);
     v.group.children[1].scale.setScalar(pulse);
+    // GIANT mutation
+    const big = r.radius / v.baseR;
+    v.group.scale.setScalar(v.group.scale.x + (big - v.group.scale.x) * Math.min(1, dt * 4));
     // eyes look at the nearest player; squint when angry, wide when scared
     v.eyes.rotation.y = -r.look;
     v.eyes.scale.set(1, r.mood > 0.3 ? 0.6 : r.mood < -0.3 ? 1.25 : 1, 1);
@@ -1223,6 +1263,7 @@ export class WorldRenderer {
     ped2.position.y = -0.46; s.add(ped2);
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshBasicMaterial({ map: radialTexture('rgba(179,136,255,0.7)', 'rgba(179,136,255,0)'), transparent: true, depthWrite: false }));
     glow.rotation.x = -Math.PI / 2; glow.position.y = 0.01; s.add(glow);
+    this.lobby = { ped, ped2, glow, fx: null, kind: '' };
     this.showcaseCam.position.set(0, 1.75, 7.6);
     this.showcaseCam.lookAt(0, 0.95, 0);
   }
@@ -1248,6 +1289,47 @@ export class WorldRenderer {
     this.showcasePop = 0.35;
   }
   private showcasePop = 0;
+  private lobby: { ped: THREE.Mesh; ped2: THREE.Mesh; glow: THREE.Mesh; fx: THREE.Points | null; kind: string } | null = null;
+  private showcasePet: THREE.Group | null = null; private showcasePetKey = '';
+
+  /** Season lobby backdrop: sky colour, pedestal, glow and ambient particles (embers, snow, leaves, neon, stars). */
+  setLobbyTheme(l: SeasonData['lobby']) {
+    if (!l || !this.lobby) return;
+    const s = this.showcase;
+    s.background = new THREE.Color(l.sky);
+    s.fog = new THREE.Fog(l.sky, 9, 22);
+    ((this.lobby.ped.material as THREE.MeshToonMaterial).color).set(l.pedestal);
+    ((this.lobby.ped2.material as THREE.MeshToonMaterial).color).set(l.ring);
+    (this.lobby.glow.material as THREE.MeshBasicMaterial).map = radialTexture(l.glow, l.glow.replace(/[\d.]+\)$/, '0)'));
+    (this.lobby.glow.material as THREE.MeshBasicMaterial).needsUpdate = true;
+    if (this.lobby.kind === l.particle) return;
+    if (this.lobby.fx) s.remove(this.lobby.fx);
+    const n = 160, pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+    const palette: Record<string, string[]> = { embers: ['#ff6b35', '#ffd166', '#ff3d00'], snow: ['#ffffff', '#caf0f8'], leaves: ['#52b788', '#95d5b2', '#d4a373'], neon: ['#f72585', '#4cc9f0', '#b5179e'], stars: ['#ffffff', '#b388ff'] };
+    const c = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 16; pos[i * 3 + 1] = Math.random() * 7 - 0.5; pos[i * 3 + 2] = -Math.random() * 8 + 1.5;
+      c.set(palette[l.particle][i % palette[l.particle].length]); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const fx = new THREE.Points(g, new THREE.PointsMaterial({ size: l.particle === 'leaves' ? 0.14 : l.particle === 'snow' ? 0.09 : 0.07, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, blending: l.particle === 'leaves' ? THREE.NormalBlending : THREE.AdditiveBlending }));
+    s.add(fx);
+    this.lobby.fx = fx; this.lobby.kind = l.particle;
+  }
+
+  /** Companion shown next to the hero in the lobby ('' = none). */
+  setShowcasePet(id: string) {
+    if (id === this.showcasePetKey) return;
+    this.showcasePetKey = id;
+    if (this.showcasePet) this.showcase.remove(this.showcasePet);
+    this.showcasePet = null;
+    const pc = id ? getCosmetic(id) : undefined;
+    if (!pc) return;
+    this.showcasePet = buildPet(pc.visual.model, pc.visual.color, pc.visual.accent);
+    this.showcasePet.scale.setScalar(0.55);
+    this.showcase.add(this.showcasePet);
+  }
   private showcaseU: HeroAnimUniforms | null = null;
 
   renderShowcase(dt: number) {
@@ -1264,6 +1346,22 @@ export class WorldRenderer {
       }
       if (this.showcasePop > 0) { this.showcasePop -= dt; const k = 1 + Math.sin((this.showcasePop / 0.35) * Math.PI) * 0.15; this.showcaseHero.scale.set(0.7 / k, 0.7 * k, 0.7 / k); }
       else this.showcaseHero.scale.setScalar(0.7);
+    }
+    if (this.lobby?.fx) {
+      const a = this.lobby.fx.geometry.attributes.position as THREE.BufferAttribute;
+      const kind = this.lobby.kind, arr = a.array as Float32Array;
+      for (let i = 0; i < a.count; i++) {
+        const vy = kind === 'embers' || kind === 'neon' ? 0.45 : kind === 'stars' ? 0.05 : -0.5;
+        arr[i * 3 + 1] += vy * dt; arr[i * 3] += Math.sin(this.time + i) * 0.12 * dt;
+        if (arr[i * 3 + 1] > 6.5) arr[i * 3 + 1] = -0.5; if (arr[i * 3 + 1] < -0.6) arr[i * 3 + 1] = 6.5;
+      }
+      a.needsUpdate = true;
+    }
+    if (this.showcasePet) {
+      const off = this.showcaseCam.position.x;
+      this.showcasePet.position.set(off + 1.05, 1.25 + Math.sin(this.time * 2.2) * 0.1, 0.4);
+      this.showcasePet.rotation.y = -0.5 + Math.sin(this.time * 0.8) * 0.4;
+      animatePet(this.showcasePet, this.time);
     }
     this.renderer.render(this.showcase, this.showcaseCam);
   }

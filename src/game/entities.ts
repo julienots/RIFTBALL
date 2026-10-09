@@ -93,6 +93,12 @@ export class Hero {
   reviveUsed = false;
   /** CHRONOS rewind history: [time, x, y, hp] every 0.25 s */
   history: number[] = [];
+  /** visual only: equipped trail & companion */
+  trail = ''; pet = '';
+  /** FIFIX: hero picked at match start (rewards / mastery) */
+  originDefId = '';
+  /** last stand used this life */
+  lastStand = false;
   /** combat: combo tracking, perfect dodge, wall slam */
   comboTarget = -1; comboCount = 0; comboUntil = 0;
   perfectAt = -99; rollAt = -99;
@@ -110,6 +116,7 @@ export class Hero {
   ) {
     this.hp = def.hp;
     this.maxHp = def.hp;
+    this.originDefId = def.id;
   }
 
   get radius() { return this.def.radius; }
@@ -196,7 +203,7 @@ export interface RiftEntity {
 }
 
 export type MatchEvent =
-  | { t: 'hit'; x: number; y: number; target: number; amount: number; crit?: boolean; source: number; tag?: 'combo' | 'back' }
+  | { t: 'hit'; x: number; y: number; target: number; amount: number; crit?: boolean; source: number; tag?: 'combo' | 'back' | 'momentum' | 'execute' | 'duo' }
   | { t: 'heal'; x: number; y: number; target: number; amount: number }
   | { t: 'shot'; hero: number; kind: string; x: number; y: number; angle: number }
   | { t: 'melee'; hero: number; x: number; y: number; angle: number; range: number }
@@ -234,6 +241,9 @@ export type MatchEvent =
   | { t: 'crate_break'; x: number; y: number }
   | { t: 'laser'; x: number; y: number; tx: number; ty: number; team: TeamId }
   | { t: 'perfect'; hero: number; x: number; y: number }
+  | { t: 'last_stand'; hero: number }
+  | { t: 'hero_swap'; hero: number; from: string; to: string }
+  | { t: 'fifix_warn'; in: number }
   | { t: 'wall_slam'; hero: number; x: number; y: number }
   | { t: 'boss_phase'; phase: number }
   | { t: 'boss_attack'; name: string; x: number; y: number }
