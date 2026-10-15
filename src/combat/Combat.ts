@@ -115,6 +115,11 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
     target.recentAttackers.set(source.id, m.time);
     if (!opts.noUlt) {
       const mul = source.def.passive.id === 'overcharge' && opts.kind === 'chain' ? source.def.passive.params.ultMul : 1;
+      // VIBE: each landed attack stacks a little speed (capped)
+      if (source.def.passive.id === 'groove') {
+        const p = source.def.passive.params, cur = source.speedBuffUntil > m.time ? source.speedBuff : 0;
+        source.speedBuff = Math.min(p.speedBonus * p.stacks, Math.max(cur, 0) + p.speedBonus); source.speedBuffUntil = m.time + p.duration;
+      }
       source.ult = clamp(source.ult + source.def.ultChargePerHit * mul * (opts.ultScale ?? 1) * (source.overdriveUntil > m.time ? 1.2 : 1) * (m.modifiers.ultChargeMul ?? 1), 0, 100);
     }
   }

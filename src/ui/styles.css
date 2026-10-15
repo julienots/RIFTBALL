@@ -435,3 +435,5 @@ input { font: inherit; }
 /* combat feedback */
 .dmg.combo { color: #ff9f1c; font-size: 1.55em; }
 .dmg.back { color: #c77dff; font-size: 1.3em; }
+.emote-wheel button.dance { background: linear-gradient(135deg, rgba(255,78,205,0.45), rgba(0,245,212,0.35)); border-color: #ff4ecd; }
+.dance-btn { position: absolute; left: calc(50% + 6.5em); bottom: 6.5em; font-size: 0.8em; padding: 0.3em 0.8em; border-radius: 1em; background: linear-gradient(135deg, #ff4ecd, #7b2cbf); color: #fff; border: 0.12em solid var(--ink); pointer-events: auto; z-index: 3; }

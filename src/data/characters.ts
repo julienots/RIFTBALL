@@ -279,6 +279,19 @@ export const CHARACTERS: CharacterData[] = [
     palette: { primary: '#9b5de5', secondary: '#10002b', accent: '#00f5d4', skin: '#c8b6ff', eyes: '#00f5d4' },
     model: 'riftborn', unlock: { type: 'trophies', trophies: 5000 },
   },
+  {
+    id: 'vibe', name: 'VIBE', title: 'Le DJ du Rift', role: 'SUPPORT', rarity: 'LEGENDARY',
+    lore: 'Héros de la Saison 2 RIFT FIESTA : ses platines font trembler le Rift. Quand il lance le son, même les ennemis tapent du pied.',
+    hp: 4700, speed: 315, radius: 31,
+    attack: { kind: 'spread', damage: 190, range: 520, cooldown: 0.55, projectileSpeed: 1150, projectiles: 3, spreadDeg: 22, radius: 16 },
+    ability: { id: 'vibe_bass', name: 'Bass Drop', description: 'Une onde de basse : dégâts autour de lui, repousse et fait lâcher le Rift.', effect: 'bass_drop', cooldown: 7, range: 0, params: { radius: 300, damage: 650, knockback: 520 }, aim: 'self', aiHint: 'nuke' },
+    ultimate: { id: 'vibe_floor', name: 'Piste de Danse', description: 'Une piste disco géante : soigne et accélère les alliés, ralentit et blesse les ennemis.', effect: 'dance_floor', cooldown: 0, range: 650, params: { radius: 330, duration: 5, damage: 220, heal: 260, slow: 0.35 }, aim: 'point', aiHint: 'zone_enemy' },
+    passive: { id: 'groove', name: 'Dans le Groove', description: 'Chaque attaque qui touche donne +6% de vitesse pendant 2 s (cumulable 3 fois).', params: { speedBonus: 0.06, stacks: 3, duration: 2 } },
+    gadget: { id: 'vibe_encore', name: 'Encore !', description: 'Les alliés proches gagnent +30% de vitesse et rechargent leur attaque.', effect: 'haste', cooldown: 2, range: 600, params: { radius: 600, speedBonus: 0.3, duration: 3 }, aim: 'self', aiHint: 'heal_team', charges: 3 },
+    ultChargePerHit: 11,
+    palette: { primary: '#ff4ecd', secondary: '#240046', accent: '#ffd60a', skin: '#c68b59', eyes: '#00f5d4' },
+    model: 'dj', unlock: { type: 'season', season: 's2', passTier: 1 },
+  },
   // ---------------------------------------------------------------- PvE units (not playable)
   {
     id: 'boss_golem', name: 'RIFT COLOSSUS', title: 'Boss', role: 'TANK', lore: 'Un gardien corrompu par le Rift.',

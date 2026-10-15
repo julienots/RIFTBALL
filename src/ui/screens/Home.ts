@@ -1,3 +1,4 @@
+import { COSMETICS } from '../../data/cosmetics';
 import { menuMusic } from '../../audio/music';
 import { h, fmt } from '../dom';
 import type { Controller } from '../Controller';
@@ -103,7 +104,11 @@ export function homeScreen(c: Controller): Screen {
       iconBtn(c.app.seasons.current.icon ?? '🗓️', 'SAISON', () => c.ui.push(seasonScreen(c)), 0, `linear-gradient(${c.app.seasons.current.color},#3a0ca3)`),
       iconBtn('📖', 'GUIDE', () => c.ui.push(guideScreen(c)), 0, 'linear-gradient(#a78bfa,#6d28d9)'));
 
-    el.append(top, evBanner, left, right, heroInfo, bottomLeft, h('div.play-zone', modeBtn, play));
+    // dance emotes: make the lobby hero dance (cycles through the dances you own)
+    const dances = COSMETICS.filter((x) => x.visual.dance && c.app.inventory.owns(x.id));
+    let di = 0;
+    const danceBtn = h('button.dance-btn', { onclick: () => { audio.play('click'); const d0 = dances[di++ % Math.max(1, dances.length)]; c.renderer.showcaseDance(d0?.visual.dance ?? 'groove'); danceBtn.textContent = `${d0?.visual.glyph ?? '🕺'} ${d0?.name.toUpperCase() ?? 'DANSER'}`; } }, '🕺 DANSER');
+    el.append(top, evBanner, left, right, heroInfo, bottomLeft, danceBtn, h('div.play-zone', modeBtn, play));
 
     c.renderer.setShowcase(c.heroId, c.skinId, 0);
     c.renderer.setLobbyTheme(c.app.seasons.current.lobby);

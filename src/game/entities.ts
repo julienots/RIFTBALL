@@ -151,7 +151,7 @@ export class Projectile {
 }
 
 export type ZoneKind = 'magnet_field' | 'storm' | 'heal' | 'slow' | 'black_hole' | 'fire' | 'eruption' | 'electric_trail' | 'lava_burst' | 'mine' | 'ice_floor' | 'blizzard'
-  | 'vines' | 'smoke' | 'eclipse' | 'sanctuary' | 'moon_well' | 'oil' | 'boss_warn' | 'gravity_well';
+  | 'vines' | 'smoke' | 'eclipse' | 'sanctuary' | 'moon_well' | 'oil' | 'boss_warn' | 'gravity_well' | 'dance_floor';
 
 export class Zone {
   active = false;

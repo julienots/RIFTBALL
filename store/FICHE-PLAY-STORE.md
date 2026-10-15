@@ -43,10 +43,11 @@ Aucun héros ni aucune statistique ne s'achète. Tout se débloque en jouant : r
 
 Rejoins l'arène et deviens une LÉGENDE DU RIFT !
 
-## Notes de version (v1.0.7)
-• Nouveau lobby en 3D : portail du Rift géant, îles flottantes et décor qui change à chaque saison
-• 7 nouvelles musiques : thèmes de saison, Boss, Roi du Rift, FifiX
-• PARTIES PRIVÉES : crée un code et joue en ligne avec tes amis
+## Notes de version (v1.0.8)
+• SAISON 2 — RIFT FIESTA : nouveau lobby disco, nouvelle musique et Rift Pass
+• EMOTES DE DANSE : ton héros danse en 3D (Groove, Robot, Floss, Disco)
+• Nouveau héros VIBE, le DJ du Rift + nouvelle arène FIESTA PLAZA
+• Héros, maps et effets de combat entièrement redessinés
 
 ## Catégorie
 Jeux › Action (ou Arcade)

@@ -92,6 +92,14 @@ export function buildPet(model: string, color: string, accent: string): THREE.Gr
       wings(accent, 0.05, 0.3, 0.9);
       eyes(g, 0.19, 0.07, 0.09, 0.05);
       break;
+    case 'disco': {
+      const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28, 1), new THREE.MeshStandardMaterial({ color, metalness: 0.9, roughness: 0.15, flatShading: true, emissive: accent, emissiveIntensity: 0.35 }));
+      ball.userData.slowSpin = 1; g.add(ball);
+      g.add(mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.08, 8), '#adb5bd', [0, 0.3, 0], [1, 1, 1], [0, 0, 0]));
+      for (let i = 0; i < 3; i++) { const n = mesh(O(0.06), ['#ff4ecd', '#ffd60a', '#00f5d4'][i], [0, 0, 0], [1, 1, 1], [0, 0, 0], 1); n.userData.orbit = (i / 3) * Math.PI * 2; g.add(n); }
+      eyes(g, 0.26, 0.05, 0.1, 0.06);
+      break;
+    }
     case 'fifi':
     default:
       g.add(mesh(O(0.3), color, [0, 0, 0], [1, 1, 1], [0, 0, 0], 0.7));
@@ -108,6 +116,7 @@ export function animatePet(g: THREE.Group, t: number) {
   for (const c of g.children) {
     if (c.userData.wing) c.rotation.x = c.userData.wing * (1.2 + Math.sin(t * 14) * 0.5);
     if (c.userData.spin) c.rotation.y += 0.6;
+    if (c.userData.slowSpin) c.rotation.y = t * 1.6;
     if (c.userData.orbit !== undefined) { const a = c.userData.orbit + t * 2; c.position.set(Math.cos(a) * 0.45, Math.sin(t * 3 + c.userData.orbit) * 0.1, Math.sin(a) * 0.45); }
   }
 }

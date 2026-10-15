@@ -13,9 +13,12 @@ import { resolvePalette } from '../../cosmetics/CosmeticsService';
  * Model space: facing +X, up +Y, character ~3 units tall.
  */
 
-export const PART = { BODY: 0, LEG_L: 1, LEG_R: 2, ARM_L: 3, ARM_R: 4, HEAD: 5, FLOAT: 6, EYES: 7 } as const;
+export const PART = { BODY: 0, LEG_L: 1, LEG_R: 2, ARM_L: 3, ARM_R: 4, HEAD: 5, FLOAT: 6, EYES: 7, SHIN_L: 8, SHIN_R: 9, FORE_L: 10, FORE_R: 11 } as const;
+/** Joint pivots (model space). Shins hang from the knee, forearms from the elbow (2-bone limbs). */
+const KNEE_Y = 0.42, ELBOW_Y = 1.02;
 const PIVOTS: Record<number, [number, number, number]> = {
   0: [0, 0, 0], 1: [0, 0.78, 0.27], 2: [0, 0.78, -0.27], 3: [0, 1.38, 0.66], 4: [0, 1.38, -0.66], 5: [0, 1.42, 0], 6: [0, 0, 0], 7: [0, 2.1, 0],
+  8: [0, KNEE_Y, 0.27], 9: [0, KNEE_Y, -0.27], 10: [0, ELBOW_Y, 0.7], 11: [0, ELBOW_Y, -0.7],
 };
 
 type V3 = [number, number, number];
@@ -31,6 +34,13 @@ function add(geo: THREE.BufferGeometry, color: string, pos: V3, rot: V3 = [0, 0,
   g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(...scale)));
   paint(g, color);
   const n = g.attributes.position.count;
+  // standard anatomy: anything below the knee follows the shin, below the elbow follows the forearm (props in hands too)
+  if (!pivotOverride && part >= PART.LEG_L && part <= PART.ARM_R) {
+    g.computeBoundingBox();
+    const cy = (g.boundingBox!.min.y + g.boundingBox!.max.y) / 2;
+    if (part <= PART.LEG_R && cy < KNEE_Y) part = part === PART.LEG_L ? PART.SHIN_L : PART.SHIN_R;
+    else if (part >= PART.ARM_L && cy < ELBOW_Y) part = part === PART.ARM_L ? PART.FORE_L : PART.FORE_R;
+  }
   const pv = pivotOverride ?? PIVOTS[part];
   const pa = new Float32Array(n), pi = new Float32Array(n * 3), gl = new Float32Array(n);
   for (let i = 0; i < n; i++) { pa[i] = part; pi[i * 3] = pv[0]; pi[i * 3 + 1] = pv[1]; pi[i * 3 + 2] = pv[2]; gl[i] = glow; }
@@ -60,26 +70,63 @@ interface BodyOpts { shoe?: string; pants?: string; glove?: string; torso?: stri
 
 function body(p: Pal, o: BodyOpts = {}) {
   const shoe = o.shoe ?? darken(p.secondary, 0.8), pants = o.pants ?? p.secondary, glove = o.glove ?? p.skin, torso = o.torso ?? p.primary, sleeve = o.sleeve ?? torso;
+  const skin = o.skin ?? p.skin;
   if (!o.noLegs) {
     for (const [part, z] of [[PART.LEG_L, 0.27], [PART.LEG_R, -0.27]] as const) on(part, () => {
-      add(CAP(0.19, 0.32), pants, [0, 0.5, z]);
-      add(RB(0.52, 0.24, 0.34, 0.11), shoe, [0.09, 0.13, z]);
-      add(B(0.53, 0.05, 0.35), '#f1f1f1', [0.09, 0.03, z]);
+      // thigh (hip -> knee)
+      add(S(0.18, 14, 10), pants, [0, 0.74, z]);
+      add(CAP(0.165, 0.2), pants, [0.01, 0.58, z]);
+      // knee + shin (auto -> shin part)
+      add(S(0.14, 12, 10), darken(pants, 0.85), [0.04, 0.4, z]);
+      add(CAP(0.135, 0.14), pants, [0, 0.3, z]);
+      // boot: shaft, cuff, foot, toe cap, sole
+      add(C(0.15, 0.16, 0.16, 14), shoe, [0, 0.2, z]);
+      add(T(0.15, 0.035, Math.PI * 2, 6, 18), lighten(shoe, 0.25), [0, 0.28, z], [Math.PI / 2, 0, 0]);
+      add(RB(0.46, 0.2, 0.3, 0.09), shoe, [0.1, 0.11, z]);
+      add(S(0.13, 12, 10), shoe, [0.3, 0.1, z], [0, 0, 0], [1.05, 0.72, 1.1]);
+      add(RB(0.52, 0.05, 0.32, 0.02), '#f1f1f1', [0.11, 0.025, z]);
     });
   }
   on(PART.BODY, () => {
     const ts = o.torsoScale ?? [1, 1, 1];
-    add(lathe([[0, 0.62], [0.44, 0.66], [0.56, 0.82], [0.6, 1.08], [0.62, 1.3], [0.5, 1.48], [0.2, 1.56], [0, 1.57]]), torso, [0, 0, 0], [0, 0, 0], ts);
-    if (o.belt !== null) add(T(0.5 * ts[0], 0.07, Math.PI * 2, 8, 28), o.belt ?? darken(pants, 0.7), [0, 0.74, 0], [Math.PI / 2, 0, 0], [1, ts[2] / ts[0], 1]);
+    // sculpted torso: narrow waist, broad chest & shoulders, flatter front-to-back (less "ball")
+    add(lathe([[0, 0.6], [0.4, 0.62], [0.47, 0.72], [0.43, 0.86], [0.46, 1.02], [0.55, 1.2], [0.6, 1.33], [0.56, 1.45], [0.36, 1.54], [0.16, 1.58], [0, 1.59]], 26), torso, [0, 0, 0], [0, 0, 0], [ts[0], ts[1], ts[2] * 0.86]);
+    // chest plate / pecs
+    add(S(0.3, 14, 10), lighten(torso, 0.12), [0.32, 1.26, 0.17], [0, 0, 0], [0.45, 0.55, 0.9]);
+    add(S(0.3, 14, 10), lighten(torso, 0.12), [0.32, 1.26, -0.17], [0, 0, 0], [0.45, 0.55, 0.9]);
+    // collar + neck
+    add(T(0.24, 0.06, Math.PI * 2, 8, 20), darken(torso, 0.85), [0.02, 1.56, 0], [Math.PI / 2, 0, 0]);
+    add(C(0.15, 0.17, 0.2, 14), skin, [0.02, 1.66, 0]);
+    // pelvis
+    add(S(0.42, 18, 12), pants, [0, 0.72, 0], [0, 0, 0], [1, 0.42, 0.95]);
+    if (o.belt !== null) {
+      add(T(0.47 * ts[0], 0.065, Math.PI * 2, 8, 28), o.belt ?? darken(pants, 0.7), [0, 0.8, 0], [Math.PI / 2, 0, 0], [1, (ts[2] * 0.86) / ts[0], 1]);
+      add(RB(0.08, 0.14, 0.2, 0.03), '#ffd166', [0.45, 0.8, 0], [0, 0, 0], [1, 1, 1], 0.3); // buckle
+    }
   });
   if (!o.noArms) {
     for (const [part, z] of [[PART.ARM_L, 0.7], [PART.ARM_R, -0.7]] as const) on(part, () => {
-      add(S(0.2, 12, 10), sleeve, [0, 1.36, z * 0.95]);
-      add(CAP(0.13, 0.36), sleeve, [0, 1.08, z]);
-      add(S(0.18, 12, 10), glove, [0.02, 0.8, z]);
+      // shoulder cap + upper arm
+      add(S(0.2, 14, 10), sleeve, [0, 1.36, z * 0.95]);
+      add(CAP(0.125, 0.2), sleeve, [0, 1.17, z]);
+      // elbow, forearm, glove, hand + thumb (auto -> forearm part)
+      add(S(0.11, 10, 8), darken(sleeve, 0.85), [0, 1.0, z]);
+      add(CAP(0.11, 0.14), glove === skin ? skin : sleeve, [0.01, 0.87, z]);
+      add(C(0.13, 0.12, 0.09, 12), glove, [0.02, 0.78, z]);
+      add(RB(0.22, 0.2, 0.17, 0.07), glove, [0.04, 0.67, z]);
+      add(CAP(0.045, 0.07), glove, [0.1, 0.7, z + (z > 0 ? -0.09 : 0.09)], [0.6 * Math.sign(z), 0, -0.5]);
     });
   }
-  on(PART.HEAD, () => add(S(o.headR ?? 0.8, 26, 20), o.skin ?? p.skin, [0, o.headY ?? 2.08, 0]));
+  on(PART.HEAD, () => {
+    const hr = o.headR ?? 0.8, hy = o.headY ?? 2.08;
+    // head: slightly taller than wide, flatter sides, with jaw/chin, cheeks, ears and nose -> less "ball"
+    add(S(hr, 28, 22), skin, [0, hy, 0], [0, 0, 0], [0.97, 1, 0.92]);
+    for (const sz of [1, -1]) {
+      add(S(hr * 0.17, 10, 8), skin, [-0.04, hy - 0.02, sz * hr * 0.88], [0, 0, 0], [0.55, 1, 0.42]);
+      add(S(hr * 0.08, 8, 6), darken(skin, 0.85), [-0.03, hy - 0.02, sz * hr * 0.92], [0, 0, 0], [0.4, 0.7, 0.3]);
+    }
+    add(S(hr * 0.085, 10, 8), darken(skin, 0.93), [hr * 0.96, hy - hr * 0.12, 0], [0, 0, 0], [0.7, 0.9, 0.8]);
+  });
 }
 
 type EyeStyle = 'normal' | 'glow' | 'cool' | 'angry' | 'happy' | 'visor';
@@ -163,6 +210,31 @@ function hat(kind: string | undefined, p: Pal, top: number) {
 // ---------------------------------------------------------------- heroes
 
 const BUILDERS: Record<string, (p: Pal) => number> = {
+  dj: (p) => {
+    body(p, { shoe: '#ffffff', pants: '#1b1b2f', glove: p.skin, torso: p.secondary, sleeve: p.primary, belt: p.accent });
+    on(PART.BODY, () => {
+      // open bomber jacket over a tee, gold chain + disco medallion
+      add(RB(0.3, 0.62, 0.18, 0.06), p.primary, [0.36, 1.18, 0.33], [0, 0, 0.06]);
+      add(RB(0.3, 0.62, 0.18, 0.06), p.primary, [0.36, 1.18, -0.33], [0, 0, 0.06]);
+      add(T(0.3, 0.035, Math.PI * 1.2, 6, 18), '#ffd60a', [0.32, 1.4, 0], [0, Math.PI / 2, Math.PI * 1.4], [1, 1, 1], 0.4);
+      add(S(0.12, 12, 10), '#e0e1dd', [0.56, 1.14, 0], [0, 0, 0], [0.5, 1, 1], 0.5);
+      // headphones resting on the neck
+      add(T(0.3, 0.05, Math.PI, 8, 16), '#1b1b1b', [0.02, 1.62, 0], [Math.PI / 2, 0, -Math.PI / 2]);
+      for (const sz of [1, -1]) add(C(0.15, 0.15, 0.1, 14), p.accent, [0.12, 1.6, sz * 0.3], [Math.PI / 2, 0, 0], [1, 1, 1], 0.4);
+      // sound speaker backpack
+      add(RB(0.36, 0.7, 0.62, 0.1), '#1b1b2f', [-0.55, 1.15, 0]);
+      for (const y of [0.98, 1.32]) { add(C(0.2, 0.2, 0.06, 18), '#2b2d42', [-0.92, y, 0], [0, 0, Math.PI / 2]); add(S(0.09, 10, 8), p.primary, [-0.95, y, 0], [0, 0, 0], [0.5, 1, 1], 0.8); }
+    });
+    on(PART.HEAD, () => {
+      // backwards cap + side fade
+      add(S(0.82, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.42), p.primary, [-0.04, 2.14, 0]);
+      add(RB(0.5, 0.06, 0.62, 0.03), p.primary, [-0.82, 2.28, 0], [0, 0, 0.25]); // brim (backwards)
+      add(S(0.1, 8, 6), p.accent, [0, 2.88, 0]);
+      add(RB(0.3, 0.22, 0.3, 0.06), '#ffffff', [0.58, 2.5, 0], [0, 0, -0.5], [1, 1, 1], 0.2);
+    });
+    face(p, 'cool', 2.08, 0.62, 0.29, { mouth: 'smile' });
+    return 2.95;
+  },
   magnet: (p) => {
     body(p, { shoe: '#2b2d42', pants: p.secondary, glove: p.accent, belt: p.accent });
     on(PART.BODY, () => {
@@ -656,6 +728,22 @@ export function buildHeroGeometry(heroId: string, skinId?: string): THREE.Buffer
   const p = resolvePalette(heroId, skinId);
   const top = (BUILDERS[def.model] ?? BUILDERS.magnet)(p);
   hat((p as any).hat, p, top);
+  // v1.0.8 proportions: smaller heads (hair, face and hats scale with them) for a less "ball-like" silhouette
+  if (!def.hidden) {
+    const NECK = new THREE.Vector3(0, 1.62, 0), K = 0.86;
+    for (const g of parts) {
+      const pa = g.attributes.part.array as Float32Array;
+      const pos = g.attributes.position as THREE.BufferAttribute;
+      const pv = g.attributes.pivot as THREE.BufferAttribute;
+      const id = pa[0];
+      g.computeBoundingBox();
+      const above = (g.boundingBox!.min.y + g.boundingBox!.max.y) / 2 > 2.35;
+      if (id !== PART.HEAD && id !== PART.EYES && !(id === PART.FLOAT && above)) continue;
+      for (let i = 0; i < pos.count; i++) pos.setXYZ(i, NECK.x + (pos.getX(i) - NECK.x) * K, NECK.y + (pos.getY(i) - NECK.y) * K, NECK.z + (pos.getZ(i) - NECK.z) * K);
+      if (id === PART.EYES) for (let i = 0; i < pv.count; i++) pv.setY(i, NECK.y + (pv.getY(i) - NECK.y) * K);
+      pos.needsUpdate = true;
+    }
+  }
   const merged = mergeGeometries(parts, false)!;
   merged.computeBoundingSphere();
   parts.length = 0;
@@ -672,38 +760,93 @@ export function heroGeometry(heroId: string, skinId?: string) {
 
 // ---------------------------------------------------------------- animated materials
 
-export interface HeroAnimUniforms { uWalk: { value: number }; uMove: { value: number }; uAtk: { value: number }; uCast: { value: number }; uTime: { value: number }; uFlash: { value: number }; uRim: { value: THREE.Color }; uIri: { value: number }; uTint: { value: THREE.Color }; uTintK: { value: number } }
+export interface HeroAnimUniforms { uWalk: { value: number }; uMove: { value: number }; uAtk: { value: number }; uCast: { value: number }; uTime: { value: number }; uDance: { value: number }; uStyle: { value: number }; uFlash: { value: number }; uRim: { value: THREE.Color }; uIri: { value: number }; uTint: { value: THREE.Color }; uTintK: { value: number } }
 
 const ANIM_GLSL = /* glsl */ `
 attribute float part; attribute vec3 pivot; attribute float glow;
-uniform float uWalk; uniform float uMove; uniform float uAtk; uniform float uCast; uniform float uTime;
+uniform float uWalk; uniform float uMove; uniform float uAtk; uniform float uCast; uniform float uTime; uniform float uDance; uniform float uStyle;
 varying float vGlow;
 mat3 rotZ(float a){ float c = cos(a), s = sin(a); return mat3(c, s, 0., -s, c, 0., 0., 0., 1.); }
 mat3 rotX(float a){ float c = cos(a), s = sin(a); return mat3(1., 0., 0., 0., c, s, 0., -s, c); }
+mat3 rotY(float a){ float c = cos(a), s = sin(a); return mat3(c, 0., -s, 0., 1., 0., s, 0., c); }
+const vec3 WAIST = vec3(0., 0.74, 0.);
+const vec3 HEADP = vec3(0., 1.5, 0.);
+float sideOf(){ return (part > 0.5 && part < 1.5) || (part > 2.5 && part < 3.5) || (part > 7.5 && part < 8.5) || (part > 9.5 && part < 10.5) ? 1. : -1.; }
+// ---- dance poses (uStyle: 0 groove, 1 robot, 2 floss, 3 disco)
+float beat(){ return uTime * 7.5; }
+float hipAng(float s){
+  float walk = s * sin(uWalk) * 0.78 * uMove;
+  float d = uStyle < 0.5 ? s * sin(beat()) * 0.22 : uStyle < 1.5 ? s * step(0., sin(uTime * 4.)) * 0.35 : uStyle < 2.5 ? sin(uTime * 10.) * 0.12 : s * 0.25 + sin(beat()) * 0.08;
+  return mix(walk, d, uDance);
+}
+float kneeAng(float s){
+  // knee bends during the swing phase (leg travelling forward)
+  float walk = -max(0., s * cos(uWalk)) * 1.1 * uMove - 0.05 - (1. - uMove) * 0.04;
+  float d = -max(0., sin(beat() + (s > 0. ? 0. : 3.1416))) * 0.75;
+  return mix(walk, d, uDance);
+}
+float shZ(float s){
+  float walk = -s * sin(uWalk) * 0.62 * uMove;
+  float atk = s < 0. ? uAtk * 1.75 : -uAtk * 0.45;
+  float idle = (1. - uMove) * sin(uTime * 1.3 + s) * 0.04;
+  float base = walk + atk + uCast * 2.2 + idle;
+  float t = uTime, d;
+  if (uStyle < 0.5) d = 2.3 + sin(beat() + (s > 0. ? 0. : 3.1416)) * 0.75;
+  else if (uStyle < 1.5) d = (s > 0. ? step(0., sin(t * 4.)) : 1. - step(0., sin(t * 4.))) * 1.57;
+  else if (uStyle < 2.5) d = sin(t * 10.) * 0.95;
+  else d = s < 0. ? 2.7 + sin(t * 4.) * 0.35 : -0.5 + sin(t * 4.) * 0.3;
+  return mix(base, d, uDance);
+}
+float shX(float s){
+  float base = -s * (uCast * 0.5 + 0.08 + (1. - uMove) * 0.04);
+  float d = uStyle < 1.5 ? -s * 0.55 : uStyle < 2.5 ? -s * 0.15 + sin(uTime * 10.) * 0.55 : -s * 0.35;
+  return mix(base, d, uDance);
+}
+float elbowAng(float s){
+  float base = 0.32 * uMove + 0.22 + uCast * 0.45 - (s < 0. ? uAtk * 0.55 : 0.);
+  float d = uStyle > 0.5 && uStyle < 1.5 ? 1.57 : uStyle > 2.5 ? 0.15 : 0.7 + sin(beat()) * 0.45;
+  return mix(base, d, uDance);
+}
+mat3 torsoM(){
+  float tw = sin(uWalk) * 0.13 * uMove - uAtk * 0.32;
+  float dtw = uStyle < 0.5 ? sin(uTime * 3.75) * 0.28 : uStyle < 1.5 ? (step(0., sin(uTime * 2.)) - 0.5) * 0.6 : uStyle < 2.5 ? -sin(uTime * 10.) * 0.22 : sin(uTime * 2.) * 0.45;
+  float dsw = sin(beat()) * (uStyle < 0.5 ? 0.13 : 0.05);
+  return rotY(mix(tw, dtw, uDance)) * rotX(dsw * uDance);
+}
+mat3 headM(){ return rotZ(sin(uTime * 1.7) * 0.05 - uMove * 0.08 + uAtk * 0.12 + uDance * sin(beat()) * 0.14) * rotX(sin(uWalk * 2.) * 0.06 * uMove + uDance * sin(beat() * 0.5) * 0.1); }
+mat3 legM(float s){ return rotZ(hipAng(s)); }
+mat3 armM(float s){ return rotZ(shZ(s)) * rotX(shX(s)); }
 mat3 partRot(){
-  float sw = sin(uWalk);
-  if (part < 0.5) return rotX(0.0);
-  if (part < 1.5) return rotZ(sw * 0.75 * uMove);
-  if (part < 2.5) return rotZ(-sw * 0.75 * uMove);
-  if (part < 3.5) return rotZ(-sw * 0.6 * uMove + uCast * 2.2) * rotX(-uCast * 0.5 - 0.06);
-  if (part < 4.5) return rotZ(sw * 0.6 * uMove + uAtk * 1.7 + uCast * 2.2) * rotX(uCast * 0.5 + 0.06);
-  if (part < 5.5 || part > 6.5) return rotZ(sin(uTime * 1.7) * 0.05 - uMove * 0.08 + uAtk * 0.12) * rotX(sin(uWalk * 2.0) * 0.06 * uMove);
-  return rotX(0.0);
+  float s = sideOf();
+  if (part < 0.5) return torsoM();
+  if (part < 2.5) return legM(s);
+  if (part < 4.5) return torsoM() * armM(s);
+  if (part < 5.5) return torsoM() * headM();
+  if (part < 6.5) return torsoM();
+  if (part < 7.5) return torsoM() * headM();
+  if (part < 9.5) return legM(s) * rotZ(kneeAng(s));
+  return torsoM() * armM(s) * rotZ(elbowAng(s));
 }
 vec3 animPos(vec3 p){
+  float s = sideOf();
   vec3 q;
-  if (part > 6.5) {
+  if (part < 0.5) q = torsoM() * (p - WAIST) + WAIST;
+  else if (part < 2.5) q = legM(s) * (p - pivot) + pivot;
+  else if (part < 4.5) { q = armM(s) * (p - pivot) + pivot; q = torsoM() * (q - WAIST) + WAIST; }
+  else if (part < 5.5) { q = headM() * (p - pivot) + pivot; q = torsoM() * (q - WAIST) + WAIST; }
+  else if (part < 6.5) { q = p; q.y += sin(uTime * 3.0 + pivot.x) * 0.12; q = torsoM() * (q - WAIST) + WAIST; }
+  else if (part < 7.5) {
     // eyes: blink (squash toward the eye centre every ~3.5 s), then follow the head
     float ph = fract(uTime * 0.29 + pivot.x * 3.1);
     float blink = 1.0 - smoothstep(0.0, 0.03, ph) * (1.0 - smoothstep(0.03, 0.07, ph)) * 0.92;
     vec3 e = p; e.y = pivot.y + (p.y - pivot.y) * blink;
-    q = partRot() * (e - vec3(0.0, 1.42, 0.0)) + vec3(0.0, 1.42, 0.0);
-  } else {
-    q = partRot() * (p - pivot) + pivot;
-    if (part > 5.5) { q.y += sin(uTime * 3.0 + pivot.x) * 0.12; }
+    q = headM() * (e - HEADP) + HEADP; q = torsoM() * (q - WAIST) + WAIST;
   }
-  // idle breathing
+  else if (part < 9.5) { vec3 hip = vec3(0., 0.78, 0.27 * s); q = rotZ(kneeAng(s)) * (p - pivot) + pivot; q = legM(s) * (q - hip) + hip; }
+  else { vec3 sh = vec3(0., 1.38, 0.66 * s); q = rotZ(elbowAng(s)) * (p - pivot) + pivot; q = armM(s) * (q - sh) + sh; q = torsoM() * (q - WAIST) + WAIST; }
+  // idle breathing; a little hop on the dance beat
   q.y *= 1.0 + sin(uTime * 2.4) * 0.012 * (1.0 - uMove);
+  q.y += uDance * abs(sin(beat())) * 0.08 * (part > 7.5 && part < 9.5 ? 0. : 1.);
   return q;
 }
 `;
@@ -716,7 +859,7 @@ function patchVertex(shader: THREE.WebGLProgramParametersWithUniforms, u: HeroAn
 }
 
 export function makeHeroUniforms(rim = '#ffffff'): HeroAnimUniforms {
-  return { uWalk: { value: 0 }, uMove: { value: 0 }, uAtk: { value: 0 }, uCast: { value: 0 }, uTime: { value: 0 }, uFlash: { value: 0 }, uRim: { value: new THREE.Color(rim) }, uIri: { value: 0 }, uTint: { value: new THREE.Color('#ffffff') }, uTintK: { value: 0 } };
+  return { uWalk: { value: 0 }, uMove: { value: 0 }, uAtk: { value: 0 }, uCast: { value: 0 }, uTime: { value: 0 }, uDance: { value: 0 }, uStyle: { value: 0 }, uFlash: { value: 0 }, uRim: { value: new THREE.Color(rim) }, uIri: { value: 0 }, uTint: { value: new THREE.Color('#ffffff') }, uTintK: { value: 0 } };
 }
 
 /** Toon + team-colored rim light + emissive glow parts + hit flash, with vertex-shader limb animation. */
@@ -742,7 +885,7 @@ export function makeHeroMaterial(u: HeroAnimUniforms) {
         outgoingLight = mix(outgoingLight, vec3(1.0), uFlash);
         #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => 'rift-hero-v3';
+  m.customProgramCacheKey = () => 'rift-hero-v4';
   return m;
 }
 
@@ -768,11 +911,32 @@ export function makeOutlineMaterial(thickness = 0.06, color = '#1a1030') {
 
 // ---------------------------------------------------------------- environment decoration
 
-export function decoGeometry(kind: 'tree' | 'rock' | 'crystal' | 'pillar' | 'icepillar' | 'lavarock' | 'beacon' | 'palm' | 'ruin', accent: string, base: string): THREE.BufferGeometry {
+export type DecoKind = 'tree' | 'rock' | 'crystal' | 'pillar' | 'icepillar' | 'lavarock' | 'beacon' | 'palm' | 'ruin' | 'speaker' | 'balloon' | 'lamp';
+export function decoGeometry(kind: DecoKind, accent: string, base: string): THREE.BufferGeometry {
   parts.length = 0; curPart = 0; pivotOverride = null;
   const d = (geo: THREE.BufferGeometry, color: string, pos: V3, rot: V3 = [0, 0, 0], scale: V3 = [1, 1, 1]) => add(geo, color, pos, rot, scale);
   switch (kind) {
-    case 'tree': d(C(0.18, 0.25, 0.9, 8), '#8d5b3a', [0, 0.45, 0]); d(K(0.9, 1.3, 9), base, [0, 1.3, 0]); d(K(0.7, 1.0, 9), accent, [0, 1.95, 0]); break;
+    case 'tree':
+      d(C(0.14, 0.24, 1.0, 8), '#8d5b3a', [0, 0.5, 0]);
+      for (let i = 0; i < 3; i++) d(C(0.05, 0.1, 0.4, 5), '#7a4e31', [Math.cos(i * 2.1) * 0.22, 0.08, Math.sin(i * 2.1) * 0.22], [Math.sin(i * 2.1) * 0.9, 0, -Math.cos(i * 2.1) * 0.9]); // roots
+      d(new THREE.IcosahedronGeometry(0.75, 1), base, [0, 1.35, 0], [0, 0, 0], [1, 0.85, 1]);
+      d(new THREE.IcosahedronGeometry(0.55, 1), accent, [0.25, 1.85, 0.1], [0, 0, 0], [1, 0.85, 1]);
+      d(new THREE.IcosahedronGeometry(0.45, 1), base, [-0.35, 1.7, -0.2], [0, 0, 0], [1, 0.85, 1]);
+      break;
+    case 'speaker':
+      d(B(0.9, 1.3, 0.8), '#1b1b2f', [0, 0.65, 0]);
+      d(C(0.32, 0.32, 0.06, 18), '#2b2d42', [0, 0.45, 0.42], [Math.PI / 2, 0, 0]); d(C(0.12, 0.12, 0.08, 12), accent, [0, 0.45, 0.44], [Math.PI / 2, 0, 0]);
+      d(C(0.18, 0.18, 0.06, 14), '#2b2d42', [0, 0.98, 0.42], [Math.PI / 2, 0, 0]); d(C(0.07, 0.07, 0.08, 10), accent, [0, 0.98, 0.44], [Math.PI / 2, 0, 0]);
+      break;
+    case 'balloon':
+      d(C(0.012, 0.012, 1.4, 4), '#e9ecef', [0, 0.7, 0]);
+      d(S(0.32, 14, 10), accent, [0, 1.6, 0], [0, 0, 0], [1, 1.2, 1]); d(S(0.28, 14, 10), base, [0.35, 1.45, 0.15], [0, 0, 0], [1, 1.2, 1]);
+      d(K(0.05, 0.08, 6), accent, [0, 1.2, 0], [Math.PI, 0, 0]);
+      break;
+    case 'lamp':
+      d(C(0.06, 0.09, 2.2, 8), '#2b2d42', [0, 1.1, 0]); d(B(0.5, 0.08, 0.5), '#2b2d42', [0, 0.04, 0]);
+      d(C(0.22, 0.12, 0.35, 12), '#1b1b2f', [0.12, 2.2, 0], [0, 0, -0.6]); d(C(0.2, 0.2, 0.04, 12), accent, [0.24, 2.12, 0], [0, 0, -0.6]);
+      break;
     case 'palm': d(C(0.14, 0.2, 1.6, 7), '#a47148', [0, 0.8, 0], [0, 0, 0.1]); for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; d(B(1.1, 0.06, 0.32), base, [Math.cos(a) * 0.45 + 0.08, 1.6, Math.sin(a) * 0.45], [0, -a, -0.45]); } break;
     case 'rock': d(new THREE.DodecahedronGeometry(0.6, 0), base, [0, 0.35, 0], [0.4, 0.7, 0.2], [1.2, 0.8, 1]); d(new THREE.DodecahedronGeometry(0.35, 0), accent, [0.55, 0.2, 0.3], [0.1, 0.2, 0.5]); break;
     case 'crystal': d(new THREE.OctahedronGeometry(0.4, 0), accent, [0, 0.6, 0], [0, 0, 0], [0.7, 1.7, 0.7]); d(new THREE.OctahedronGeometry(0.25, 0), accent, [0.35, 0.35, 0.15], [0, 0, 0.5], [0.7, 1.5, 0.7]); d(new THREE.DodecahedronGeometry(0.3, 0), base, [0, 0.1, 0]); break;

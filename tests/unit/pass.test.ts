@@ -16,7 +16,7 @@ describe('Battle pass', () => {
     app.pass.addXp(5000);
     expect(app.pass.canClaim(1, 'free')).toBe(true);
     expect(app.pass.claim(1, 'free')).not.toBeNull();
-    expect(app.inventory.hasHero('ember')).toBe(true);
+    expect(app.inventory.hasHero(app.pass.season.newHero)).toBe(true);
     expect(app.pass.claim(1, 'free')).toBeNull();
     expect(app.pass.canClaim(2, 'premium')).toBe(false);
     expect(app.pass.canClaim(10, 'free')).toBe(false); // not reached

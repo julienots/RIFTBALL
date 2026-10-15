@@ -143,7 +143,7 @@ export class GameServer {
         if (msg.slot === 'attack') h.cmd.attack = true; else if (msg.slot === 'ability') h.cmd.ability = true; else if (msg.slot === 'ult') h.cmd.ult = true; else if (msg.slot === 'gadget') h.cmd.gadget = true; else if (msg.slot === 'roll') h.cmd.roll = true;
         return;
       }
-      case 'emote': if (c.room) c.room.pending.push({ t: 'emote', hero: c.heroEntityId, emote: String(msg.e).slice(0, 8) }); return;
+      case 'emote': if (c.room) c.room.pending.push({ t: 'emote', hero: c.heroEntityId, emote: String(msg.e).slice(0, 16) }); return;
       case 'leave': this.leaveRoom(c); return;
       case 'ping': this.send(c, { t: 'pong', c: msg.c }); return;
     }

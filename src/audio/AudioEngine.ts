@@ -9,7 +9,7 @@ export type Sfx =
   | 'reward' | 'coin' | 'chest_open' | 'chest_shake' | 'level_up' | 'victory' | 'defeat' | 'purchase' | 'error' | 'whoosh' | 'rift_purr' | 'notify' | 'unlock';
 
 export type MusicTrack = 'menu' | 'battle' | 'battle_hot' | 'battle_cold' | 'battle_void' | 'battle_jungle' | 'shop' | 'victory' | 'defeat'
-  | 'menu_s1' | 'menu_s2' | 'menu_s3' | 'menu_s4' | 'boss' | 'king' | 'fifix' | 'none';
+  | 'menu_s1' | 'menu_s2' | 'menu_s3' | 'menu_s4' | 'boss' | 'king' | 'fifix' | 'fiesta' | 'battle_fiesta' | 'none';
 
 const NOTE = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -64,6 +64,11 @@ const TRACKS: Record<Exclude<MusicTrack, 'none'>, TrackDef> = {
     melody: '12:3 12:1 16:4 19:4 16:4 | 17:3 17:1 21:4 19:8 | 19:3 21:1 19:4 17:4 16:4 | 14:4 16:4 12:8', answer: '24:3 24:1 28:4 31:4 28:4 | 29:3 29:1 33:4 31:8 | 31:3 33:1 31:4 29:4 28:4 | 26:4 28:4 24:8', arp: { rate: 2, style: 'up', voice: 'bell', oct: 12 } },
   fifix: { bpm: 124, root: 60, prog: [[0, 4, 7, 10], [-3, 0, 4, 7], [5, 9, 12, 15], [7, 11, 14, 17]], lead: [], bass: 'octave', drums: 'k.hsk.hsk.hsk.hs', wave: 'square', leadWave: 'square', swing: 0.1, pad: false, reverb: 0.25, echo: 0.25, voice: 'pluck',
     melody: '12:2 -:1 12:1 15:2 16:2 19:4 16:2 15:2 | 12:2 10:2 12:4 7:4 -:4 | 12:2 -:1 12:1 15:2 16:2 19:2 21:2 19:2 16:2 | 15:2 16:2 12:12', answer: '24:2 22:2 19:2 16:2 19:4 22:4 | 24:2 -:2 24:2 26:2 28:8 | 26:2 24:2 22:2 19:2 22:4 24:4 | 19:4 16:4 12:8', arp: { rate: 1, style: 'updown', voice: 'pluck', oct: 0 } },
+  // S2 RIFT FIESTA: disco-house groove (four on the floor, offbeat hats, funky bass, bright plucks)
+  fiesta: { bpm: 122, root: 53, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [2, 5, 9, 12], [-5, -1, 2, 5]], lead: [], bass: 'octave', drums: 'k.h.ksh.k.h.ks.h', wave: 'sawtooth', leadWave: 'square', swing: 0.06, pad: true, reverb: 0.35, echo: 0.3, voice: 'brass',
+    melody: '12:3 14:1 16:2 19:2 16:4 -:4 | 14:2 16:2 14:2 12:2 9:8 | 12:3 14:1 16:2 19:2 21:2 19:2 16:4 | 17:2 16:2 14:4 12:8', answer: '24:2 -:2 24:2 23:2 21:4 19:4 | 21:2 19:2 16:2 14:2 16:8 | 24:2 26:2 28:4 26:2 24:2 21:4 | 19:4 16:4 12:8', arp: { rate: 2, style: 'updown', voice: 'pluck', oct: 12 } },
+  battle_fiesta: { bpm: 128, root: 53, prog: [[0, 4, 7, 11], [2, 5, 9, 12], [-3, 0, 4, 7], [-5, -1, 2, 5]], lead: [], bass: 'octave', drums: 'k.hsk.hsk.hsksh.', wave: 'sawtooth', leadWave: 'square', swing: 0.05, pad: false, reverb: 0.25, echo: 0.25, voice: 'pluck',
+    melody: '19:2 -:2 19:2 21:2 19:2 16:2 14:4 | 16:2 -:2 16:2 19:2 16:2 14:2 12:4 | 19:2 -:2 19:2 21:2 23:2 24:2 23:4 | 21:2 19:2 16:12', answer: '24:4 23:4 21:4 19:4 | 21:2 19:2 16:4 14:8 | 12:2 14:2 16:2 19:2 21:4 24:4 | 23:4 19:4 24:8', arp: { rate: 1, style: 'up', voice: 'pluck', oct: 0 } },
   defeat: { bpm: 80, root: 57, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], lead: [12, -1, 10, -1, 8, -1, 7, -1, 5, -1, 3, -1, 2, -1, -1, -1], bass: 'pulse', drums: 'k.......s.......', wave: 'triangle', leadWave: 'sine' },
 };
 

@@ -170,6 +170,19 @@ export function castAbility(m: Match, h: Hero, ab: AbilityData, isUlt: boolean, 
       m.emit({ t: 'explosion', x: h.x, y: h.y, radius: P.radius, color: h.def.palette.primary });
       break;
 
+    case 'bass_drop':
+      for (const e of m.heroes) {
+        if (!e.alive || e.team === h.team) continue;
+        const ddx = e.x - h.x, ddy = e.y - h.y, d = Math.hypot(ddx, ddy) || 1;
+        if (d > P.radius + e.radius) continue;
+        applyDamage(m, e, P.damage, h, { kb: isBoss(e) ? 0 : P.knockback, kbX: ddx / d, kbY: ddy / d });
+        if (e.carrying && !isBoss(e)) m.dropCarried(e);
+      }
+      m.emit({ t: 'explosion', x: h.x, y: h.y, radius: P.radius, color: '#ff4ecd' });
+      break;
+
+    case 'dance_floor': m.addZone('dance_floor', h, px, py, P.radius, P.duration, { damage: P.damage, heal: P.heal, slow: P.slow, tickEvery: 0.5 }); break;
+
     case 'vanish':
       h.invisUntil = m.time + P.duration;
       h.speedBuff = P.speedBonus; h.speedBuffUntil = m.time + P.duration;

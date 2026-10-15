@@ -1,3 +1,4 @@
+import { SEASONS } from '../../data/seasons';
 import { h, fmt } from '../dom';
 import type { Controller } from '../Controller';
 import type { Screen } from '../UIManager';
@@ -9,15 +10,17 @@ import { RARITY_LABEL } from '../../data/cosmetics';
 import { coin, gem } from '../icons';
 import { shopScreen } from './Shop';
 
-const NEW_HEROES = ['zip', 'grill', 'koko', 'luna', 'gear', 'chronos', 'seraph', 'riftborn'];
+const NEW_HEROES = ['vibe'];
 const ROLE_FR: Record<string, string> = { CONTROL: 'CONTRÔLE', ASSASSIN: 'ASSASSIN', BUILDER: 'BÂTISSEUR', STEALTH: 'FURTIF', DAMAGE: 'DÉGÂTS', SUPPORT: 'SOUTIEN', TANK: 'TANK', ARTILLERY: 'ARTILLERIE' };
 
 function unlockText(c: Controller, id: string) {
   const d = getCharacter(id);
   if (d.unlock.type === 'trophies') return `🏆 ${d.unlock.trophies} trophées`;
-  if (d.unlock.type === 'season') return `RIFT PASS Saison 1 — palier ${d.unlock.passTier} (gratuit)`;
+  if (d.unlock.type === 'season') {
+    const sid = d.unlock.season, s = SEASONS.find((x) => x.id === sid);
+    return c.app.seasons.current.id === sid ? `RIFT PASS Saison ${s?.number ?? ''} — palier ${d.unlock.passTier} (gratuit)` : `Héros de la Saison ${s?.number ?? ''} — déblocable en coins`;
+  }
   if (d.unlock.type === 'coins') return `${d.unlock.price} coins`;
-  void c;
   return '';
 }
 
@@ -96,7 +99,7 @@ export function heroDetail(c: Controller, heroId: string): Screen {
           h('button.btn.green', { disabled: c.heroId === heroId, onclick: () => { audio.play('click'); c.heroId = heroId; c.ui.toast('🌈', `${hero.name} en essai !`); render(); } }, c.heroId === heroId ? 'SÉLECTIONNÉ (ESSAI)' : 'ESSAYER'));
         if (!owned) {
           const hd = getCharacter(heroId);
-          const canCoins = hd.unlock.type === 'trophies';
+          const canCoins = hd.unlock.type === 'trophies' || (hd.unlock.type === 'season' && c.app.seasons.current.id !== hd.unlock.season);
           const price = heroCoinPrice(hd.rarity);
           return h('div.col', { style: 'gap:.4em' }, h('div.small-text', { style: 'text-align:center' }, '🔒 ' + unlockText(c, heroId)),
             canCoins ? h('button.btn.yellow', { onclick: async () => {

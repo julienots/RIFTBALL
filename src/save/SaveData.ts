@@ -80,7 +80,7 @@ export function createDefaultSave(now = Date.now()): SaveData {
     xp: 0, level: 1, trophies: 0, bestTrophies: 0,
     heroes,
     cosmetics: [...DEFAULT_COSMETICS],
-    equipped: { emotes: ['emote_gg', 'emote_lol', 'emote_angry', 'emote_gg'], spray: 'spray_rift', effect: 'fx_default', companion: 'pet_orb' },
+    equipped: { emotes: ['emote_gg', 'emote_lol', 'emote_angry', 'dance_groove'], spray: 'spray_rift', effect: 'fx_default', companion: 'pet_orb' },
     entitlements: {},
     pass: { seasonId: '', xp: 0, claimedFree: [], claimedPremium: [], claimedPlus: [] },
     missions: { dailyKey: '', weeklyKey: '', seasonKey: '', progress: {}, claimed: [] },

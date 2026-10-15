@@ -40,7 +40,7 @@ const S1_REWARDS: BattlePassRewardData[] = [
 ];
 
 /** Builds a 30-tier pass for later seasons from its signature cosmetics (cosmetic & currency only). */
-function seasonPass(c: { mythicSkin: string; freeSkin: string; premiumSkin: string; emoteFree: string; emotePremium: string; sprayFree: string; banner: string; title: string; icon: string; effect: string; pet?: string }): BattlePassRewardData[] {
+function seasonPass(c: { mythicSkin: string; freeSkin: string; premiumSkin: string; emoteFree: string; emotePremium: string; sprayFree: string; banner: string; title: string; icon: string; effect: string; pet?: string; hero?: string }): BattlePassRewardData[] {
   const t: BattlePassRewardData[] = [];
   for (let tier = 1; tier <= 30; tier++) {
     const r: BattlePassRewardData = { tier, free: tier % 3 === 0 ? gems(5 + tier) : coins(200 + tier * 12), premium: tier % 2 ? coins(450 + tier * 25) : gems(20 + tier) };
@@ -48,6 +48,7 @@ function seasonPass(c: { mythicSkin: string; freeSkin: string; premiumSkin: stri
     t.push(r);
   }
   const set = (tier: number, track: 'free' | 'premium' | 'plus', item: RewardItem) => { (t[tier - 1] as any)[track] = item; };
+  if (c.hero) set(1, 'free', { kind: 'hero', id: c.hero } as RewardItem);
   set(1, 'premium', cos(c.emotePremium)); set(1, 'plus', cos(c.mythicSkin));
   set(4, 'free', cos(c.sprayFree)); set(7, 'free', cos(c.emoteFree)); set(10, 'free', cos(c.freeSkin));
   set(12, 'premium', cos(c.effect)); set(15, 'plus', gems(60)); set(18, 'premium', cos(c.banner)); set(20, 'free', cos(c.icon));
@@ -58,31 +59,39 @@ function seasonPass(c: { mythicSkin: string; freeSkin: string; premiumSkin: stri
 export const SEASONS: SeasonData[] = [
   {
     id: 's1', number: 1, name: 'ÉVEIL DU RIFT', theme: 'Le Rift s\'éveille et le Noyau Volcanique gronde.',
-    start: '2026-09-01T00:00:00Z', end: '2026-12-01T00:00:00Z', color: '#ff6b35', icon: '🌋',
+    start: '2026-09-01T00:00:00Z', end: '2026-10-15T00:00:00Z', color: '#ff6b35', icon: '🌋',
     lobby: { sky: '#3a0d12', pedestal: '#ffb347', ring: '#ff4800', glow: 'rgba(255,107,53,0.75)', particle: 'embers', css: 'radial-gradient(ellipse at 50% 85%, #ff6b35 0%, #5c1a1b 45%, #1a0508 100%)' },
     newHero: 'ember', newArena: 'volcanic_core', passTiers: 30, passXpPerTier: 1000, passPriceGems: 169, passPlusPriceGems: 299,
     rewards: S1_REWARDS, events: ['rift_frenzy', 'double_xp', 'chaos_week', 'boss_invasion', 'volcanic_week', 'mythic_trial', 'ult_storm', 'halloween_rift'],
   },
   {
+    id: 's2', number: 2, name: 'RIFT FIESTA', theme: 'Le Rift fait la fête ! VIBE le DJ fait trembler les arènes et tout le monde danse : nouvelles emotes de danse 3D.',
+    start: '2026-10-15T00:00:00Z', end: '2027-01-15T00:00:00Z', color: '#ff4ecd', icon: '🪩',
+    lobby: { sky: '#1b0636', pedestal: '#ffd60a', ring: '#ff4ecd', glow: 'rgba(255,78,205,0.75)', particle: 'fiesta', css: 'radial-gradient(ellipse at 50% 85%, #ff4ecd 0%, #5a189a 45%, #12002b 100%)' },
+    newHero: 'vibe', newArena: 'fiesta_plaza', passTiers: 30, passXpPerTier: 1000, passPriceGems: 169, passPlusPriceGems: 299,
+    rewards: seasonPass({ mythicSkin: 'vibe_platinum', freeSkin: 'pulse_fiesta', premiumSkin: 'nova_fiesta', emoteFree: 'dance_robot', emotePremium: 'dance_disco', sprayFree: 'spray_disco', banner: 'banner_fiesta', title: 'title_fiesta', icon: 'icon_disco', effect: 'fx_confetti', pet: 'pet_disco', hero: 'vibe' }),
+    events: ['fiesta_week', 'halloween_rift', 'fifix_event', 'double_xp', 'boss_invasion', 'winter_rift', 'new_year'],
+  },
+  {
     // Next seasons are pure data: drop a new entry to schedule one.
-    id: 's2', number: 2, name: 'HIVER ÉTERNEL', theme: 'Le Laboratoire Gelé s\'est réveillé : FROST et LUNA mènent la résistance contre le froid du Rift.',
-    start: '2026-12-01T00:00:00Z', end: '2027-03-01T00:00:00Z', color: '#4cc9f0', icon: '❄️',
+    id: 's3', number: 3, name: 'HIVER ÉTERNEL', theme: 'Le Laboratoire Gelé s\'est réveillé : FROST et LUNA mènent la résistance contre le froid du Rift.',
+    start: '2027-01-15T00:00:00Z', end: '2027-04-15T00:00:00Z', color: '#4cc9f0', icon: '❄️',
     lobby: { sky: '#0b2545', pedestal: '#e0fbfc', ring: '#4cc9f0', glow: 'rgba(160,230,255,0.7)', particle: 'snow', css: 'radial-gradient(ellipse at 50% 85%, #8ecae6 0%, #134074 45%, #0b132b 100%)' },
     newHero: 'frost', newArena: 'frozen_lab', passTiers: 30, passXpPerTier: 1000, passPriceGems: 169, passPlusPriceGems: 299,
     rewards: seasonPass({ mythicSkin: 'frost_king', freeSkin: 'titan_yeti', premiumSkin: 'luna_frost', emoteFree: 'emote_snowman', emotePremium: 'emote_cocoa', sprayFree: 'spray_igloo', banner: 'banner_aurora', title: 'title_s2', icon: 'icon_penguin', effect: 'fx_aurora', pet: 'pet_penguin' }),
-    events: ['winter_rift', 'new_year', 'double_xp', 'ult_storm', 'mythic_trial', 'bonus_festival'],
+    events: ['double_xp', 'ult_storm', 'mythic_trial', 'bonus_festival'],
   },
   {
-    id: 's3', number: 3, name: 'JUNGLE SAUVAGE', theme: 'Les Ruines de la Jungle s\'étendent. KOKO défend son territoire.',
-    start: '2027-03-01T00:00:00Z', end: '2027-06-01T00:00:00Z', color: '#52b788', icon: '🌿',
+    id: 's4', number: 4, name: 'JUNGLE SAUVAGE', theme: 'Les Ruines de la Jungle s\'étendent. KOKO défend son territoire.',
+    start: '2027-04-15T00:00:00Z', end: '2027-07-15T00:00:00Z', color: '#52b788', icon: '🌿',
     lobby: { sky: '#0f2a1d', pedestal: '#d4a373', ring: '#52b788', glow: 'rgba(149,213,178,0.7)', particle: 'leaves', css: 'radial-gradient(ellipse at 50% 85%, #95d5b2 0%, #2d6a4f 45%, #081c15 100%)' },
     newHero: 'koko', newArena: 'jungle_ruins', passTiers: 30, passXpPerTier: 1000, passPriceGems: 169, passPlusPriceGems: 299,
     rewards: seasonPass({ mythicSkin: 'riftborn_jungle', freeSkin: 'zip_explorer', premiumSkin: 'koko_king', emoteFree: 'emote_parrot', emotePremium: 'emote_monkey', sprayFree: 'spray_vine', banner: 'banner_temple', title: 'title_s3', icon: 'icon_parrot', effect: 'fx_pollen', pet: 'pet_parrot' }),
     events: ['king_festival', 'bonus_festival', 'turbo_weekend', 'boss_invasion', 'double_xp'],
   },
   {
-    id: 's4', number: 4, name: 'NÉON CÉLESTE', theme: 'Les Docks Néon s\'illuminent et le Temple du Ciel s\'ouvre. SERAPH descend.',
-    start: '2027-06-01T00:00:00Z', end: '2027-09-01T00:00:00Z', color: '#f72585', icon: '🌃',
+    id: 's5', number: 5, name: 'NÉON CÉLESTE', theme: 'Les Docks Néon s\'illuminent et le Temple du Ciel s\'ouvre. SERAPH descend.',
+    start: '2027-07-15T00:00:00Z', end: '2027-10-15T00:00:00Z', color: '#f72585', icon: '🌃',
     lobby: { sky: '#10002b', pedestal: '#4cc9f0', ring: '#f72585', glow: 'rgba(247,37,133,0.7)', particle: 'neon', css: 'radial-gradient(ellipse at 50% 85%, #f72585 0%, #3a0ca3 45%, #10002b 100%)' },
     newHero: 'seraph', newArena: 'neon_docks', passTiers: 30, passXpPerTier: 1000, passPriceGems: 169, passPlusPriceGems: 299,
     rewards: seasonPass({ mythicSkin: 'seraph_neon', freeSkin: 'gear_cyber', premiumSkin: 'nova_neon', emoteFree: 'emote_robot', emotePremium: 'emote_dance', sprayFree: 'spray_neon', banner: 'banner_synth', title: 'title_s4', icon: 'icon_robot', effect: 'fx_laser', pet: 'pet_robot' }),

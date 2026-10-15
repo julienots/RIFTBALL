@@ -9,11 +9,12 @@ import type { Hero, MatchEvent, Projectile, RiftEntity, Zone } from '../entities
 import type { Hazard, Wall } from '../../arenas/Arena';
 import { QUALITY_PROFILES, type Quality, type QualityProfile } from '../../core/Settings';
 import { getMutation } from '../../data/mutations';
-import { heroGeometry, makeOutlineMaterial, decoGeometry, makeHeroMaterial, makeHeroOutline, makeHeroUniforms, type HeroAnimUniforms } from './Models';
+import { heroGeometry, makeOutlineMaterial, decoGeometry, type DecoKind, makeHeroMaterial, makeHeroOutline, makeHeroUniforms, type HeroAnimUniforms } from './Models';
 import { radialTexture, ringTexture, toon, toonGradient } from './Toon';
 import { Particles } from './Particles';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../../core/Rng';
+import { paintFloor, wallBlock } from './ArenaArt';
 
 export const WS = 0.01; // world scale: sim units -> three units
 export const TEAM_COLORS = ['#2f9bff', '#ff3b4e'];
@@ -74,6 +75,53 @@ const SWIRL_FS = `uniform float time; uniform vec3 color; uniform float intensit
     float s = sin(a * 3.0 + r * 10.0 - time * 5.0) * 0.5 + 0.5; float edge = smoothstep(1.0, 0.82, r) * smoothstep(0.0, 0.25, r);
     float ring = smoothstep(0.08, 0.0, abs(r - 0.92));
     gl_FragColor = vec4(color * (0.6 + s * 0.8) + ring * 0.5, (s * 0.55 + 0.25) * edge * intensity + ring * intensity); }`;
+const DISCO_FS = `uniform float time; uniform vec3 color; uniform float intensity; varying vec2 vUv;
+  float h(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
+  void main(){
+    vec2 p = vUv - 0.5; float r = length(p) * 2.0; if (r > 1.0) discard;
+    vec2 cell = floor(vUv * 12.0); vec2 f = fract(vUv * 12.0);
+    float beat = floor(time * 2.15);
+    float on = step(0.55, h(cell + beat));
+    vec3 c = 0.5 + 0.5 * cos(6.2831 * (h(cell) + vec3(0.0, 0.33, 0.67)));
+    float edge = smoothstep(0.0, 0.08, f.x) * smoothstep(0.0, 0.08, f.y) * smoothstep(1.0, 0.92, f.x) * smoothstep(1.0, 0.92, f.y);
+    gl_FragColor = vec4(c * edge * (0.25 + on * 0.75), (0.18 + on * 0.4) * smoothstep(1.0, 0.9, r) * intensity);
+  }`;
+/** Crescent slash (melee swing) & 4-point impact star, drawn once. */
+let slashTexC: THREE.Texture | null = null, starTexC: THREE.Texture | null = null, streakTexC: THREE.Texture | null = null;
+function slashTex() {
+  if (slashTexC) return slashTexC;
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d')!;
+  const n = 60;
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1), a0 = -1.15 + t * 2.3, a1 = a0 + 2.3 / n + 0.01;
+    const w = Math.sin(t * Math.PI); // thick in the middle, sharp tips
+    g.strokeStyle = `rgba(255,255,255,${0.15 + w * 0.85})`; g.lineWidth = 4 + w * 30; g.lineCap = 'round';
+    g.beginPath(); g.arc(128, 128, 100 - w * 8, a0, a1); g.stroke();
+  }
+  g.globalCompositeOperation = 'source-atop';
+  const grd = g.createRadialGradient(128, 128, 60, 128, 128, 118); grd.addColorStop(0, 'rgba(255,255,255,0.35)'); grd.addColorStop(1, 'rgba(255,255,255,1)');
+  g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
+  return (slashTexC = new THREE.CanvasTexture(c));
+}
+function starTex() {
+  if (starTexC) return starTexC;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d')!;
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 34); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#ffffff';
+  for (const [w, l] of [[9, 62], [5, 40]] as const) for (let k = 0; k < 4; k++) {
+    g.save(); g.translate(64, 64); g.rotate((k * Math.PI) / 2 + (l < 50 ? Math.PI / 4 : 0));
+    g.beginPath(); g.moveTo(0, -w); g.lineTo(l, 0); g.lineTo(0, w); g.closePath(); g.fill(); g.restore();
+  }
+  return (starTexC = new THREE.CanvasTexture(c));
+}
+function streakTex() {
+  if (streakTexC) return streakTexC;
+  const c = document.createElement('canvas'); c.width = 128; c.height = 32; const g = c.getContext('2d')!;
+  const grd = g.createLinearGradient(0, 0, 128, 0); grd.addColorStop(0, 'rgba(255,255,255,0)'); grd.addColorStop(1, 'rgba(255,255,255,1)');
+  g.fillStyle = grd; g.beginPath(); g.moveTo(0, 16); g.lineTo(128, 4); g.lineTo(128, 28); g.closePath(); g.fill();
+  return (streakTexC = new THREE.CanvasTexture(c));
+}
 const UV_VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
 
 const LAVA_FS = `uniform float time; uniform float uActive; uniform float warn; varying vec2 vUv;
@@ -90,6 +138,8 @@ const ICE_FS = `uniform float time; varying vec2 vUv;
     gl_FragColor = vec4(mix(vec3(0.72, 0.9, 1.0), vec3(1.0), s * 0.8), 0.55 * edge); }`;
 
 /** Three.js 2.5D renderer of a Match: pure view, never mutates the simulation. */
+export const DANCE_STYLES: Record<string, number> = { groove: 0, robot: 1, floss: 2, disco: 3 };
+
 export class WorldRenderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -110,6 +160,8 @@ export class WorldRenderer {
   private bushViews: { rect: { x: number; y: number; w: number; h: number }; mesh: THREE.Mesh }[] = [];
   private shockwaves: { mesh: THREE.Mesh; t: number; dur: number; r0: number; r1: number }[] = [];
   private bolts: { line: THREE.Line; t: number }[] = [];
+  /** short-lived action fx (slashes, impact stars, muzzle flashes) */
+  private fx: { mesh: THREE.Object3D; mat: THREE.MeshBasicMaterial | THREE.SpriteMaterial; t: number; dur: number; s0: number; s1: number; spin: number }[] = [];
   private beams: { mesh: THREE.Mesh; t: number }[] = [];
   private darkK = 0; private baseHemi = 1.4; private baseSun = 2.2;
   private warnBeams: { mesh: THREE.Mesh; t: number; dur: number }[] = [];
@@ -227,7 +279,7 @@ export class WorldRenderer {
     this.matchRoot.clear();
     this.heroViews.clear(); this.riftViews.clear(); this.projViews.clear(); this.projPool = [];
     this.zoneViews.clear(); this.zonePool = []; this.wallViews.clear(); this.hazardViews.clear(); this.bushViews = [];
-    this.shockwaves = []; this.bolts = []; this.beams = []; this.animated = []; this.portalViews = []; this.pickupViews.clear();
+    this.shockwaves = []; this.bolts = []; this.fx = []; this.beams = []; this.animated = []; this.portalViews = []; this.pickupViews.clear();
     this.particles?.clear();
     this.match = null;
   }
@@ -267,10 +319,9 @@ export class WorldRenderer {
       const nx = Math.max(1, Math.round(w.w / 100)), ny = Math.max(1, Math.round(w.h / 100));
       const cw = w.w / nx, ch = w.h / ny;
       for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
-        const hgt = wr.range(0.78, 0.98);
-        wg.push(this.wallBox({ x: w.x + i * cw + 3, y: w.y + j * ch + 3, w: cw - 6, h: ch - 6 }, jitter(th.wallTop, 0.06), jitter(th.wallSide, 0.05), hgt));
-        // cap stone detail
-        wg.push(this.wallBox({ x: w.x + i * cw + 16, y: w.y + j * ch + 16, w: cw - 32, h: ch - 32 }, jitter(th.wallTop, 0.1), th.wallSide, hgt + 0.06));
+        const hgt = wr.range(0.84, 1.0);
+        // sculpted block: plinth + bevelled body + cap trim
+        wg.push(...wallBlock((w.x + i * cw + cw / 2) * WS, (w.y + j * ch + ch / 2) * WS, (cw - 6) * WS, (ch - 6) * WS, hgt, jitter(th.wallTop, 0.06), jitter(th.wallSide, 0.05)));
       }
     }
     if (wg.length) {
@@ -313,6 +364,15 @@ export class WorldRenderer {
       ring.rotation.x = -Math.PI / 2; ring.position.set(sh.x * WS, 0.13, sh.y * WS); ring.userData.ownMat = true;
       this.matchRoot.add(ring);
     }
+    // FIESTA PLAZA: light-up dance floor in the centre circle
+    if (a.data.special === 'fiesta') {
+      const mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, color: { value: new THREE.Color('#ff4ecd') }, intensity: { value: 1 } }, vertexShader: UV_VS, fragmentShader: DISCO_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+      this.animated.push({ mat });
+      const r = 260 * WS;
+      const disco = new THREE.Mesh(new THREE.PlaneGeometry(r * 2, r * 2), mat);
+      disco.rotation.x = -Math.PI / 2; disco.position.set(W / 2, 0.015, H / 2); disco.userData.ownMat = true;
+      this.matchRoot.add(disco);
+    }
     // decoration around the arena
     this.buildDecor(m);
   }
@@ -332,58 +392,38 @@ export class WorldRenderer {
   }
 
   private floorTexture(m: Match) {
-    const a = m.arena, th = a.data.theme;
-    const px = 40; // pixels per 100 world units
-    const c = document.createElement('canvas');
-    c.width = Math.round((a.w / 100) * px); c.height = Math.round((a.h / 100) * px);
-    const g = c.getContext('2d')!;
-    const tiles = 1;
-    for (let y = 0; y < c.height / px; y++) for (let x = 0; x < c.width / px; x++) {
-      g.fillStyle = (x + y) % 2 === 0 ? th.floorA : th.floorB;
-      g.fillRect(x * px * tiles, y * px * tiles, px * tiles, px * tiles);
-    }
-    // subtle grain
-    const rng = new Rng(3);
-    g.globalAlpha = 0.08;
-    for (let i = 0; i < 900; i++) { g.fillStyle = rng.chance(0.5) ? '#000' : '#fff'; g.fillRect(rng.range(0, c.width), rng.range(0, c.height), rng.range(1, 3), rng.range(1, 3)); }
-    g.globalAlpha = 1;
-    // team halves tint
-    const grdL = g.createLinearGradient(0, 0, c.width * 0.3, 0);
-    grdL.addColorStop(0, 'rgba(47,155,255,0.28)'); grdL.addColorStop(1, 'rgba(47,155,255,0)');
-    g.fillStyle = grdL; g.fillRect(0, 0, c.width * 0.3, c.height);
-    const grdR = g.createLinearGradient(c.width, 0, c.width * 0.7, 0);
-    grdR.addColorStop(0, 'rgba(255,59,78,0.28)'); grdR.addColorStop(1, 'rgba(255,59,78,0)');
-    g.fillStyle = grdR; g.fillRect(c.width * 0.7, 0, c.width * 0.3, c.height);
-    // markings
-    g.strokeStyle = 'rgba(255,255,255,0.45)'; g.lineWidth = 4;
-    g.beginPath(); g.moveTo(c.width / 2, 0); g.lineTo(c.width / 2, c.height); g.stroke();
-    g.beginPath(); g.arc(c.width / 2, c.height / 2, px * 2.2, 0, Math.PI * 2); g.stroke();
-    g.fillStyle = 'rgba(255,255,255,0.35)';
-    g.beginPath(); g.arc(c.width / 2, c.height / 2, px * 0.35, 0, Math.PI * 2); g.fill();
-    for (const p of a.portals) {
-      g.strokeStyle = p.team === 0 ? 'rgba(47,155,255,0.7)' : 'rgba(255,59,78,0.7)';
-      const cx = (p.team === 0 ? p.x + p.w : p.x) / 100 * px, cy = (p.y + p.h / 2) / 100 * px;
-      g.beginPath(); g.arc(cx, cy, px * 2.4, p.team === 0 ? -Math.PI / 2 : Math.PI / 2, p.team === 0 ? Math.PI / 2 : Math.PI * 1.5); g.stroke();
-    }
-    const tex = new THREE.CanvasTexture(c);
+    const tex = new THREE.CanvasTexture(paintFloor(m));
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 4;
+    tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
     return tex;
   }
 
   private buildPortal(x: number, z: number, w: number, d: number, team: 0 | 1) {
     const g = new THREE.Group();
     const col = TEAM_COLORS[team];
-    const pillarMat = toon('#e9ecef');
+    const stone = toon('#e9ecef'), dark = toon('#adb5bd'), glow = toon(col, { emissive: col, emissiveIntensity: 0.7 });
     const cx = team === 0 ? x + w * 0.35 : x + w * 0.65;
     for (const zz of [z - 0.15, z + d + 0.15]) {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 1.8, 10), pillarMat);
-      p.position.set(cx, 0.9, zz); p.castShadow = true; g.add(p);
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), toon(col, { emissive: col, emissiveIntensity: 0.6 }));
-      cap.position.set(cx, 1.9, zz); g.add(cap);
+      // base, fluted shaft, collar, glowing crystal cap
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.24, 0.7), dark); base.position.set(cx, 0.12, zz); g.add(base);
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.27, 1.9, 12), stone);
+      p.position.set(cx, 1.15, zz); p.castShadow = true; g.add(p);
+      for (let k = 0; k < 3; k++) { const band = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.035, 6, 18), k === 1 ? glow : dark); band.rotation.x = Math.PI / 2; band.position.set(cx, 0.45 + k * 0.7, zz); g.add(band); }
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.26, 0.2, 12), dark); collar.position.set(cx, 2.17, zz); g.add(collar);
+      const cap = new THREE.Mesh(new THREE.OctahedronGeometry(0.26, 0), glow);
+      cap.position.set(cx, 2.55, zz); cap.scale.y = 1.5; cap.userData.spin = 1; g.add(cap);
     }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.3, d + 0.6), toon(col));
-    beam.position.set(cx, 1.85, z + d / 2); beam.castShadow = true; g.add(beam);
+    // arch over the goal mouth with team keystone
+    const span = d + 0.3;
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(span / 2, 0.13, 8, 28, Math.PI), stone);
+    arch.position.set(cx, 2.27, z + d / 2); arch.rotation.y = Math.PI / 2; arch.scale.y = 0.32; arch.castShadow = true; g.add(arch);
+    const key = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.42, 0.42), glow); key.position.set(cx, 2.27 + (span / 2) * 0.32 + 0.05, z + d / 2); key.rotation.x = Math.PI / 4; g.add(key);
+    // team banners hanging inside the posts
+    for (const zz of [z + 0.25, z + d - 0.25]) {
+      const banner = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 1.0), toon(col)); banner.position.set(cx + (team === 0 ? -0.26 : 0.26), 1.55, zz); banner.rotation.y = team === 0 ? -Math.PI / 2 : Math.PI / 2; g.add(banner);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.25, 3), toon(col)); tip.position.set(banner.position.x, 0.95, zz); tip.rotation.set(Math.PI, 0, 0); tip.rotation.y = Math.PI / 2; tip.scale.z = 0.1; g.add(tip);
+    }
     const mat = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, color: { value: new THREE.Color(col) }, intensity: { value: 1 } }, vertexShader: UV_VS, fragmentShader: SWIRL_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
     this.animated.push({ mat });
     const disc = new THREE.Mesh(new THREE.PlaneGeometry(d * 1.05, 1.7), mat);
@@ -401,7 +441,8 @@ export class WorldRenderer {
   private buildDecor(m: Match) {
     const a = m.arena, th = a.data.theme;
     const W = a.w * WS, H = a.h * WS;
-    const kinds: Record<string, ('tree' | 'rock' | 'crystal' | 'pillar' | 'icepillar' | 'lavarock' | 'beacon' | 'palm' | 'ruin')[]> = {
+    const kinds: Record<string, DecoKind[]> = {
+      fiesta: ['speaker', 'balloon', 'lamp', 'balloon'],
       none: ['tree', 'tree', 'rock', 'crystal'], lava_cycle: ['lavarock', 'lavarock', 'crystal', 'rock'], ice: ['icepillar', 'icepillar', 'rock', 'crystal'],
       void_portals: ['beacon', 'crystal', 'beacon', 'rock'], jungle: ['palm', 'ruin', 'tree', 'palm'],
       canyon: ['crystal', 'rock', 'crystal', 'rock'], sky: ['pillar', 'pillar', 'crystal', 'tree'], docks: ['beacon', 'rock', 'beacon', 'pillar'],
@@ -578,7 +619,11 @@ export class WorldRenderer {
       glow.scale.setScalar(0.7);
       const sh = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshBasicMaterial({ map: radialTexture('rgba(0,0,0,0.4)', 'rgba(0,0,0,0)'), transparent: true, depthWrite: false }));
       sh.rotation.x = -Math.PI / 2; sh.userData.ownMat = true;
-      o.add(mesh, glow, sh);
+      // motion streak behind the projectile
+      const tg = new THREE.PlaneGeometry(1.1, 0.26); tg.translate(-0.55, 0, 0);
+      const tail = new THREE.Mesh(tg, new THREE.MeshBasicMaterial({ map: streakTex(), transparent: true, opacity: 0.75, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+      tail.rotation.order = 'YXZ'; tail.userData.ownMat = true;
+      o.add(mesh, glow, sh, tail);
       this.matchRoot.add(o);
     }
     const mesh = o.children[0] as THREE.Mesh, glow = o.children[1] as THREE.Sprite;
@@ -588,6 +633,10 @@ export class WorldRenderer {
     (glow.material as THREE.SpriteMaterial).color.set(p.kind === 'boss' ? '#ff4d6d' : p.color);
     glow.scale.setScalar(p.kind === 'lob' || p.kind === 'shell' ? 0.9 : p.kind === 'wave' ? 1.1 : 0.7);
     glow.visible = this.q.glow || p.kind === 'boss';
+    const tail = o.children[3] as THREE.Mesh;
+    (tail.material as THREE.MeshBasicMaterial).color.set(p.kind === 'boss' ? '#ff4d6d' : p.color);
+    tail.visible = p.kind !== 'lob' && p.kind !== 'shell' && p.kind !== 'wave';
+    tail.scale.set(p.kind === 'boss' ? 0.8 : 1, p.kind === 'spread' ? 0.8 : 1, 1);
     o.visible = true;
     return o;
   }
@@ -602,7 +651,7 @@ export class WorldRenderer {
       this.matchRoot.add(mesh);
     }
     const col: Record<string, string> = { magnet_field: '#ff4d6d', storm: '#ffe600', heal: '#5cff9d', slow: '#4cc9f0', black_hole: '#7b2ff7', fire: '#ff6b35', eruption: '#ff3d00', electric_trail: '#00f0ff', lava_burst: '#ff5400', mine: '#ffd23f', ice_floor: '#bde0fe', blizzard: '#e0fbfc',
-      vines: '#52b788', smoke: '#6c757d', eclipse: '#7b2cbf', sanctuary: '#ffe66d', moon_well: '#e0aaff', oil: '#fcbf49', gravity_well: '#ff00a0' };
+      vines: '#52b788', smoke: '#6c757d', eclipse: '#7b2cbf', sanctuary: '#ffe66d', moon_well: '#e0aaff', oil: '#fcbf49', gravity_well: '#ff00a0', dance_floor: '#ff4ecd' };
     const mat = mesh.material as THREE.ShaderMaterial;
     mat.uniforms.color.value.set(col[z.kind] ?? '#ffffff');
     mesh.scale.setScalar(z.radius * WS);
@@ -750,6 +799,7 @@ export class WorldRenderer {
       o.position.set(p.x * WS, y, p.y * WS);
       shadow.position.y = -y + 0.02;
       mesh.rotation.y = -Math.atan2(p.vy, p.vx);
+      const tail = o.children[3]; tail.rotation.set(-Math.PI / 2, -Math.atan2(p.vy, p.vx), 0);
       if (p.kind === 'blades' || p.kind === 'boomerang' || p.kind === 'lob' || p.kind === 'shell') { mesh.rotation.x += dt * 14; mesh.rotation.y += dt * 9; }
       if (p.kind === 'wave') { mesh.rotation.x = -Math.PI / 2; mesh.rotation.z = Math.atan2(p.vy, p.vx) - Math.PI / 2; }
       if (this.q.particleMul > 0.5 && Math.random() < 0.5) this.particles.emit(o.position.x, y, o.position.z, 0, 0, 0, p.kind === 'boss' ? '#ff4d6d' : p.color, 0.16, 0.25, 0, 0);
@@ -820,7 +870,7 @@ export class WorldRenderer {
     // portals pulse when a carrier is close
     for (let i = 0; i < this.portalViews.length; i++) {
       const g = this.portalViews[i];
-      g.children.forEach((c, k) => { if (k < 4 && c instanceof THREE.Mesh && c.geometry.type === 'SphereGeometry') c.position.y = 1.9 + Math.sin(this.time * 3 + k) * 0.05; });
+      for (const c of g.children) if (c.userData.spin) { c.rotation.y = this.time * 1.5; c.position.y = 2.55 + Math.sin(this.time * 3 + c.position.z) * 0.08; }
     }
 
     // fx
@@ -837,6 +887,16 @@ export class WorldRenderer {
       b.t -= dt;
       (b.line.material as THREE.LineBasicMaterial).opacity = Math.max(0, b.t / 0.18);
       if (b.t <= 0) { this.matchRoot.remove(b.line); b.line.geometry.dispose(); (b.line.material as THREE.Material).dispose(); this.bolts.splice(i, 1); }
+    }
+    for (let i = this.fx.length - 1; i >= 0; i--) {
+      const f = this.fx[i];
+      f.t += dt;
+      const k = f.t / f.dur;
+      if (k >= 1) { this.matchRoot.remove(f.mesh); f.mat.dispose(); if (f.mesh instanceof THREE.Mesh) f.mesh.geometry.dispose(); this.fx.splice(i, 1); continue; }
+      const e = 1 - Math.pow(1 - k, 3);
+      f.mesh.scale.setScalar(f.s0 + (f.s1 - f.s0) * e);
+      if (f.spin) f.mesh.rotation.z += f.spin * dt;
+      f.mat.opacity = k < 0.25 ? 1 : 1 - (k - 0.25) / 0.75;
     }
     this.particles.update(dt);
     this.updateCamera(dt);
@@ -890,6 +950,11 @@ export class WorldRenderer {
     u.uCast.value = h.anim.castT > 0 ? Math.sin((h.anim.castT / 0.35) * Math.PI) : 0;
     u.uTime.value = this.time + h.id;
     u.uFlash.value = h.anim.hitT > 0 ? 0.55 : 0;
+    // dance emotes: blend in while idle, cancelled by moving / attacking
+    const dancing = h.anim.emote.startsWith('dance:') && h.anim.emoteT > 0 && !moving && h.anim.attackT <= 0 && h.alive;
+    if (!dancing && h.anim.emote.startsWith('dance:') && (moving || h.anim.attackT > 0)) h.anim.emoteT = 0;
+    if (dancing) u.uStyle.value = DANCE_STYLES[h.anim.emote.slice(6)] ?? 0;
+    u.uDance.value += ((dancing ? 1 : 0) - u.uDance.value) * Math.min(1, dt * 8);
     // ghosting (phase / invisible / bush for allies)
     const ghost = h.phaseUntil > m.time || h.invisUntil > m.time || (h.inBush && h.revealedUntil <= m.time);
     const op = ghost ? 0.45 : 1;
@@ -927,7 +992,8 @@ export class WorldRenderer {
       const col = fx?.visual.color ?? '#ffffff';
       const c = col === 'rainbow' ? this.tmpColor.setHSL((this.time * 0.5) % 1, 0.9, 0.6).getStyle()
         : col === 'galaxy' ? (Math.random() < 0.5 ? '#7209b7' : Math.random() < 0.5 ? '#ffffff' : '#4cc9f0')
-        : col === 'fifi' ? ['#ff4ecd', '#ffd60a', '#00f5d4'][Math.floor(Math.random() * 3)] : col;
+        : col === 'fifi' ? ['#ff4ecd', '#ffd60a', '#00f5d4'][Math.floor(Math.random() * 3)]
+        : col === 'confetti' ? ['#ff4ecd', '#ffd60a', '#00f5d4', '#4cc9f0', '#ffffff'][Math.floor(Math.random() * 5)] : col;
       this.particles.emit(v.px * WS + (Math.random() - 0.5) * 0.3, 0.12 + Math.random() * 0.25, v.py * WS + (Math.random() - 0.5) * 0.3, 0, 0.35, 0, c, 0.2, 0.55, 0);
     }
     // companion
@@ -1069,6 +1135,37 @@ export class WorldRenderer {
     this.shockwaves.push({ mesh, t: 0, dur, r0, r1 });
   }
 
+  /** Melee swing: a bright crescent sweeping in front of the hero. */
+  addSlash(x: number, y: number, angle: number, range: number, color: string, big = false) {
+    const mat = new THREE.MeshBasicMaterial({ map: slashTex(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const r = Math.max(0.6, range * WS) * (big ? 1.25 : 1);
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+    mesh.rotation.x = -Math.PI / 2; mesh.rotation.z = -angle;
+    mesh.position.set(x * WS, 0.55, y * WS);
+    this.matchRoot.add(mesh);
+    this.fx.push({ mesh, mat, t: 0, dur: 0.2, s0: r * 0.7, s1: r * 1.05, spin: -3 });
+  }
+
+  /** Impact star (billboard). */
+  addFlash(x: number, y: number, h: number, color: string, size: number, dur = 0.14) {
+    const mat = new THREE.SpriteMaterial({ map: starTex(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, rotation: Math.random() * Math.PI });
+    const sp = new THREE.Sprite(mat);
+    sp.position.set(x * WS, h, y * WS);
+    this.matchRoot.add(sp);
+    this.fx.push({ mesh: sp, mat, t: 0, dur, s0: size * 0.5, s1: size, spin: 0 });
+  }
+
+  /** Muzzle streak in the shot direction. */
+  addMuzzle(x: number, y: number, angle: number, color: string) {
+    const mat = new THREE.MeshBasicMaterial({ map: streakTex(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const g = new THREE.PlaneGeometry(1, 0.3); g.translate(0.5, 0, 0);
+    const mesh = new THREE.Mesh(g, mat);
+    mesh.rotation.x = -Math.PI / 2; mesh.rotation.z = -angle;
+    mesh.position.set(x * WS, 0.6, y * WS);
+    this.matchRoot.add(mesh);
+    this.fx.push({ mesh, mat, t: 0, dur: 0.09, s0: 0.5, s1: 0.9, spin: 0 });
+  }
+
   private addBolt(points: number[], color: string) {
     const pts: THREE.Vector3[] = [];
     for (let i = 0; i < points.length - 2; i += 2) {
@@ -1091,8 +1188,17 @@ export class WorldRenderer {
     switch (e.t) {
       case 'hit': {
         const t = m.heroById(e.target);
-        P.burst(e.x * WS, 0.6, e.y * WS, 6, t ? (t.team === 0 ? '#9fd3ff' : '#ffb3bd') : '#fff', 2.5, 0.18, 0.35, 1.5, -6);
+        const src = m.heroById(e.source);
+        const big = !!e.crit || !!e.tag;
+        P.burst(e.x * WS, 0.6, e.y * WS, big ? 12 : 7, t ? (t.team === 0 ? '#9fd3ff' : '#ffb3bd') : '#fff', big ? 3.5 : 2.5, 0.18, 0.35, 1.5, -6);
+        // directional sparks away from the attacker + impact star
+        if (src && this.q.particleMul > 0.4) {
+          const a = Math.atan2(e.y - src.y, e.x - src.x);
+          for (let i = 0; i < (big ? 7 : 4); i++) { const b = a + (Math.random() - 0.5) * 1.2, sp = 3 + Math.random() * 3; P.emit(e.x * WS, 0.65, e.y * WS, Math.cos(b) * sp, 1 + Math.random() * 2, Math.sin(b) * sp, big ? '#ffe14d' : '#ffffff', 0.12, 0.22, -6); }
+        }
+        this.addFlash(e.x, e.y, 0.7, big ? '#ffe14d' : (src?.def.palette.accent ?? '#ffffff'), big ? 1.5 : 0.95);
         if (e.target === this.focusId) this.addShake(0.06);
+        else if (e.source === this.focusId && big) this.addShake(0.03);
         break;
       }
       case 'explosion':
@@ -1105,13 +1211,19 @@ export class WorldRenderer {
       case 'melee': {
         const h = m.heroById(e.hero);
         if (!h) break;
+        this.addSlash(h.x, h.y, e.angle, e.range, h.def.palette.accent, h.radius > 40);
         for (let i = 0; i < 10 * this.q.particleMul + 3; i++) {
           const a = e.angle + (Math.random() - 0.5) * 1.6, d = e.range * WS * (0.5 + Math.random() * 0.5);
           P.emit(h.x * WS + Math.cos(a) * d, 0.5, h.y * WS + Math.sin(a) * d, Math.cos(a), 0.5, Math.sin(a), '#ffffff', 0.25, 0.25, 0);
         }
         break;
       }
-      case 'shot': P.burst(e.x * WS, 0.55, e.y * WS, 4, '#ffffff', 1.5, 0.15, 0.2, 0.5, 0); break;
+      case 'shot': {
+        const h = m.heroById(e.hero);
+        P.burst(e.x * WS, 0.55, e.y * WS, 4, '#ffffff', 1.5, 0.15, 0.2, 0.5, 0);
+        if (h && !h.pve) { this.addMuzzle(e.x, e.y, e.angle, h.def.palette.accent); this.addFlash(e.x, e.y, 0.6, '#ffffff', 0.6, 0.08); }
+        break;
+      }
       case 'teleport':
         P.burst(e.fx * WS, 0.6, e.fy * WS, 24, '#9ff3ff', 3, 0.25, 0.5, 1, 0);
         P.burst(e.x * WS, 0.6, e.y * WS, 24, '#ffffff', 3, 0.25, 0.5, 1, 0);
@@ -1140,6 +1252,11 @@ export class WorldRenderer {
         const c = getMutation(e.mutation).color;
         if (r) { this.addShockwave(r.x, r.y, 0.5, 10, c, 1); P.burst(r.x * WS, 0.8, r.y * WS, 140, c, 8, 0.45, 1.2, 4, -4); }
         this.addShake(0.3);
+        break;
+      }
+      case 'emote': {
+        const h = m.heroById(e.hero);
+        if (h && e.emote.startsWith('dance:')) { h.anim.emote = e.emote; h.anim.emoteT = 4.2; P.burst(h.x * WS, 1.6, h.y * WS, 18, '#ff6bd6', 2.2, 0.25, 0.7, 1.5, -2); }
         break;
       }
       case 'kill': break;
@@ -1312,7 +1429,7 @@ export class WorldRenderer {
     s.add(this.lobbyScene.group);
     s.fog = new THREE.Fog(l.sky, 18, 55);
     const n = 160, pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
-    const palette: Record<string, string[]> = { embers: ['#ff6b35', '#ffd166', '#ff3d00'], snow: ['#ffffff', '#caf0f8'], leaves: ['#52b788', '#95d5b2', '#d4a373'], neon: ['#f72585', '#4cc9f0', '#b5179e'], stars: ['#ffffff', '#b388ff'] };
+    const palette: Record<string, string[]> = { embers: ['#ff6b35', '#ffd166', '#ff3d00'], snow: ['#ffffff', '#caf0f8'], leaves: ['#52b788', '#95d5b2', '#d4a373'], neon: ['#f72585', '#4cc9f0', '#b5179e'], stars: ['#ffffff', '#b388ff'], fiesta: ['#ff4ecd', '#ffd60a', '#00f5d4', '#4cc9f0', '#ffffff'] };
     const c = new THREE.Color();
     for (let i = 0; i < n; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 16; pos[i * 3 + 1] = Math.random() * 7 - 0.5; pos[i * 3 + 2] = -Math.random() * 8 + 1.5;
@@ -1320,7 +1437,7 @@ export class WorldRenderer {
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const fx = new THREE.Points(g, new THREE.PointsMaterial({ size: l.particle === 'leaves' ? 0.14 : l.particle === 'snow' ? 0.09 : 0.07, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, blending: l.particle === 'leaves' ? THREE.NormalBlending : THREE.AdditiveBlending }));
+    const fx = new THREE.Points(g, new THREE.PointsMaterial({ size: l.particle === 'leaves' ? 0.14 : l.particle === 'fiesta' ? 0.12 : l.particle === 'snow' ? 0.09 : 0.07, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, blending: l.particle === 'leaves' || l.particle === 'fiesta' ? THREE.NormalBlending : THREE.AdditiveBlending }));
     s.add(fx);
     this.lobby.fx = fx; this.lobby.kind = l.particle;
   }
@@ -1338,18 +1455,25 @@ export class WorldRenderer {
     this.showcase.add(this.showcasePet);
   }
   private showcaseU: HeroAnimUniforms | null = null;
+  private showcaseDanceT = 0;
+  /** Lobby: the showcased hero dances for a few seconds (style: groove | robot | floss | disco). */
+  showcaseDance(style: string) { if (this.showcaseU) this.showcaseU.uStyle.value = DANCE_STYLES[style] ?? 0; this.showcaseDanceT = 5.5; }
 
   renderShowcase(dt: number) {
     this.time += dt;
     if (this.showcaseHero) {
-      this.showcaseSpin += dt * 0.5;
-      this.showcaseHero.rotation.y = Math.PI / 2 + Math.sin(this.showcaseSpin) * 0.55 - Math.PI;
+      const dancing = this.showcaseDanceT > 0;
+      this.showcaseDanceT = Math.max(0, this.showcaseDanceT - dt);
+      this.showcaseSpin += dt * (dancing ? 0 : 0.5);
+      const face = Math.PI / 2 + Math.sin(this.showcaseSpin) * 0.55 - Math.PI;
+      this.showcaseHero.rotation.y += ((dancing ? -Math.PI / 2 : face) - this.showcaseHero.rotation.y) * Math.min(1, dt * 6);
       this.showcaseHero.position.y = Math.abs(Math.sin(this.time * 2)) * 0.05;
       if (this.showcaseU) {
         // idle: breathing + an occasional flourish (cast pose)
         this.showcaseU.uTime.value = this.time;
         const cyc = this.time % 6;
-        this.showcaseU.uCast.value = cyc > 4.6 && cyc < 5.6 ? Math.sin(((cyc - 4.6) / 1.0) * Math.PI) * 0.7 : 0;
+        this.showcaseU.uCast.value = !dancing && cyc > 4.6 && cyc < 5.6 ? Math.sin(((cyc - 4.6) / 1.0) * Math.PI) * 0.7 : 0;
+        this.showcaseU.uDance.value += ((dancing ? 1 : 0) - this.showcaseU.uDance.value) * Math.min(1, dt * 6);
       }
       if (this.showcasePop > 0) { this.showcasePop -= dt; const k = 1 + Math.sin((this.showcasePop / 0.35) * Math.PI) * 0.15; this.showcaseHero.scale.set(0.7 / k, 0.7 * k, 0.7 / k); }
       else this.showcaseHero.scale.setScalar(0.7);
@@ -1359,7 +1483,7 @@ export class WorldRenderer {
       const a = this.lobby.fx.geometry.attributes.position as THREE.BufferAttribute;
       const kind = this.lobby.kind, arr = a.array as Float32Array;
       for (let i = 0; i < a.count; i++) {
-        const vy = kind === 'embers' || kind === 'neon' ? 0.45 : kind === 'stars' ? 0.05 : -0.5;
+        const vy = kind === 'embers' || kind === 'neon' ? 0.45 : kind === 'stars' ? 0.05 : kind === 'fiesta' ? -0.8 : -0.5;
         arr[i * 3 + 1] += vy * dt; arr[i * 3] += Math.sin(this.time + i) * 0.12 * dt;
         if (arr[i * 3 + 1] > 6.5) arr[i * 3 + 1] = -0.5; if (arr[i * 3 + 1] < -0.6) arr[i * 3 + 1] = 6.5;
       }

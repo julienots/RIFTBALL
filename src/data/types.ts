@@ -67,7 +67,7 @@ export interface CharacterData {
   gadget?: AbilityData & { charges: number };
   ultChargePerHit: number;   // % gained per successful hit
   palette: { primary: string; secondary: string; accent: string; skin: string; eyes: string };
-  model: 'magnet' | 'blink' | 'block' | 'shade' | 'volt' | 'flux' | 'titan' | 'arc' | 'pulse' | 'vortex' | 'ember' | 'nova' | 'frost'
+  model: 'dj' | 'magnet' | 'blink' | 'block' | 'shade' | 'volt' | 'flux' | 'titan' | 'arc' | 'pulse' | 'vortex' | 'ember' | 'nova' | 'frost'
     | 'koko' | 'zip' | 'mecha' | 'luna' | 'chef' | 'chronos' | 'seraph' | 'riftborn' | 'golem' | 'minion' | 'turret';
   /** Collection rarity (display only — never affects stats). */
   rarity?: Rarity;
@@ -113,8 +113,8 @@ export interface ArenaData {
   shrines?: [number, number][];
   /** World scale applied to the authored 2400x1300 layout (bigger maps). */
   scale?: number;
-  special: 'none' | 'lava_cycle' | 'ice' | 'void_portals' | 'jungle' | 'canyon' | 'sky' | 'docks';
-  music: 'battle' | 'battle_hot' | 'battle_cold' | 'battle_void' | 'battle_jungle';
+  special: 'fiesta' | 'none' | 'lava_cycle' | 'ice' | 'void_portals' | 'jungle' | 'canyon' | 'sky' | 'docks';
+  music: 'battle_fiesta' | 'battle' | 'battle_hot' | 'battle_cold' | 'battle_void' | 'battle_jungle';
   isNew?: boolean;
 }
 
@@ -294,7 +294,7 @@ export interface SeasonData {
   color: string;
   icon?: string;
   /** menu (lobby) backdrop of the season */
-  lobby?: { sky: string; pedestal: string; ring: string; glow: string; particle: 'embers' | 'snow' | 'leaves' | 'neon' | 'stars'; css: string };
+  lobby?: { sky: string; pedestal: string; ring: string; glow: string; particle: 'embers' | 'snow' | 'leaves' | 'neon' | 'stars' | 'fiesta'; css: string };
   /** featured hero / arena of the season */
   newHero: string;
   newArena: string;

@@ -722,11 +722,12 @@ export class Match {
       }
       if (z.kind === 'boss_warn') continue;
       // auras refreshed every frame
-      if (z.kind === 'smoke' || z.kind === 'sanctuary' || z.kind === 'eclipse') {
+      if (z.kind === 'smoke' || z.kind === 'sanctuary' || z.kind === 'eclipse' || z.kind === 'dance_floor') {
         for (const h of this.heroes) {
           if (!h.alive || dist2(z.x, z.y, h.x, h.y) > (z.radius + h.radius) ** 2) continue;
           if (h.team === z.team) {
             if (z.kind === 'smoke' && !h.carrying) h.invisUntil = Math.max(h.invisUntil, this.time + 0.25);
+            if (z.kind === 'dance_floor') { h.speedBuff = Math.max(h.speedBuffUntil > this.time ? h.speedBuff : 0, 0.2); h.speedBuffUntil = this.time + 0.3; }
             if (z.kind === 'sanctuary') { h.dmgReduction = Math.max(h.dmgReductionUntil > this.time ? h.dmgReduction : 0, z.reduce); h.dmgReductionUntil = this.time + 0.3; }
           } else if (z.kind === 'eclipse' && !isBoss(h)) h.silenceUntil = this.time + 0.3;
         }

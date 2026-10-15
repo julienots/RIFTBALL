@@ -299,7 +299,7 @@ export class GameSession {
         audio.play(mine ? 'goal' : 'goal_enemy');
         haptic('heavy', this.app.data.settings.haptics);
         // bots celebrate
-        for (const b of m.heroes) if (b.isBot && !b.pve && b.team === e.team && m.rng.chance(0.35)) m.emit({ t: 'emote', hero: b.id, emote: m.rng.pick(['😎', '🔥', '🥳', '💪', '😂']) });
+        for (const b of m.heroes) if (b.isBot && !b.pve && b.team === e.team && m.rng.chance(0.35)) m.emit({ t: 'emote', hero: b.id, emote: m.rng.pick(['😎', '🔥', '🥳', 'dance:groove', 'dance:robot', 'dance:floss', 'dance:disco']) });
         break;
       }
       case 'ability': if (e.hero === m.humanId || this.vol(e.x, e.y) > 0.4) audio.play(e.ult ? 'ult' : 'ability', { vol: e.hero === m.humanId ? 1 : 0.55 }); if (e.hero === m.humanId && e.ult) haptic('medium', this.app.data.settings.haptics); break;

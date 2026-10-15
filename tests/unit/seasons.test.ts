@@ -89,13 +89,13 @@ describe('Seasons & events', () => {
   it('season end grants rank rewards once and soft-resets trophies', () => {
     const real = Clock.now;
     try {
-      (Clock as any).now = () => Date.parse('2026-11-20T00:00:00Z');
+      (Clock as any).now = () => Date.parse('2026-10-01T00:00:00Z');
       const { app } = makeApp();
       app.seasons.check();
       app.data.trophies = 2000; app.seasons.check();
       expect(app.seasons.rank.id).toBe('diamond');
       const gems = app.data.gems;
-      (Clock as any).now = () => Date.parse('2026-12-02T00:00:00Z');
+      (Clock as any).now = () => Date.parse('2026-10-16T00:00:00Z');
       const end = app.seasons.check()!;
       expect(end.rank).toBe('diamond');
       expect(app.data.trophies).toBe(1500);

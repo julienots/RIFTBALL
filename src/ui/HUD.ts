@@ -125,9 +125,13 @@ export class HUD {
 
   private toggleEmotes() {
     if (this.emoteWheel) { this.emoteWheel.remove(); this.emoteWheel = null; return; }
-    this.emoteWheel = h('div.emote-wheel.panel', this.emotes.map((id) => {
+    // equipped emotes (deduped) + the free groove dance is always available
+    const ids = [...new Set(this.emotes)];
+    if (!ids.some((id) => getCosmetic(id)?.visual.dance)) ids.push('dance_groove');
+    this.emoteWheel = h('div.emote-wheel.panel', ids.map((id) => {
       const c = getCosmetic(id);
-      return h('button.hud-btn-ui', { onclick: () => { this.onEmote(c?.visual.glyph ?? '🙂'); this.toggleEmotes(); } }, c?.visual.glyph ?? '🙂');
+      const payload = c?.visual.dance ? `dance:${c.visual.dance}` : c?.visual.glyph ?? '🙂';
+      return h('button.hud-btn-ui' + (c?.visual.dance ? '.dance' : ''), { onclick: () => { this.onEmote(payload); this.toggleEmotes(); }, title: c?.name ?? '' }, c?.visual.glyph ?? '🙂');
     }));
     this.el.appendChild(this.emoteWheel);
   }
@@ -240,7 +244,8 @@ export class HUD {
       case 'emote': {
         const hero = m.heroById(e.hero);
         if (!hero) break;
-        const b = h('div.emote-bubble', e.emote);
+        const dance = e.emote.startsWith('dance:') ? e.emote.slice(6) : '';
+        const b = h('div.emote-bubble', dance ? ({ groove: '🕺', robot: '🤖', floss: '💃', disco: '🪩' } as Record<string, string>)[dance] ?? '🕺' : e.emote);
         this.el.appendChild(b);
         const t0 = performance.now();
         const follow = () => {

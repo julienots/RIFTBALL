@@ -124,6 +124,24 @@ export const ARENAS: ArenaData[] = [
     hazards: [{ kind: 'teleport', rect: [180, 60, 100, 100], pair: 31, mirror: true }, { kind: 'teleport', rect: [180, 1140, 100, 100], pair: 32, mirror: true }],
     special: 'docks', music: 'battle_void',
   },
+  {
+    id: 'fiesta_plaza', name: 'FIESTA PLAZA', isNew: true, description: 'La place de la fête de la Saison 2 : piste de danse lumineuse au centre, couloirs boost et tremplins de scène.',
+    theme: { floorA: '#3c096c', floorB: '#32075c', wallTop: '#ff4ecd', wallSide: '#7b2cbf', border: '#1b0636', fog: '#240046', light: '#ffe5f7', ambient: 0.72, accent: '#ffd60a', bush: '#2d6a4f' },
+    walls: [...guards, [430, 240, 110, 110], [430, 950, 110, 110], [780, 420, 90, 110], [780, 770, 90, 110], [960, 140, 180, 80], [960, 1080, 180, 80]],
+    centerWalls: [[1150, 330, 100, 80], [1150, 890, 100, 80]],
+    bushes: [[560, 20, 200, 140], [560, 1140, 200, 140]],
+    crates: [[640, 600, 70, 70], [980, 400, 60, 60], [980, 840, 60, 60]],
+    shrines: [[1000, 650]],
+    hazards: [
+      { kind: 'boost', rect: [620, 140, 300, 90], mirror: true },
+      { kind: 'boost', rect: [620, 1070, 300, 90], mirror: true },
+      { kind: 'jump', rect: [320, 1080, 100, 100], pair: 41, mirror: false },
+      { kind: 'jump', rect: [1980, 120, 100, 100], pair: 41, mirror: false },
+      { kind: 'jump', rect: [320, 120, 100, 100], pair: 42, mirror: false },
+      { kind: 'jump', rect: [1980, 1080, 100, 100], pair: 42, mirror: false },
+    ],
+    special: 'fiesta', music: 'battle_fiesta',
+  },
 ];
 
 export const getArena = (id: string) => ARENAS.find((a) => a.id === id) ?? ARENAS[0];

@@ -6,7 +6,7 @@ import { toon } from './Toon';
  * stadium arches with banners and seasonal scenery (volcano, winter, jungle, neon city).
  * Built procedurally, ~40 draw calls, animated by `update`.
  */
-export type LobbyKind = 'embers' | 'snow' | 'leaves' | 'neon' | 'stars';
+export type LobbyKind = 'embers' | 'snow' | 'leaves' | 'neon' | 'stars' | 'fiesta';
 
 const SKY_VS = `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
 const SKY_FS = `uniform vec3 top; uniform vec3 mid; uniform vec3 low; uniform float stars; uniform float time; varying vec3 vP;
@@ -37,6 +37,7 @@ const THEMES: Record<LobbyKind, Theme> = {
   snow: { top: '#0b132b', mid: '#1b3a6b', low: '#8ecae6', stars: 1, ground: '#dbe9f4', ground2: '#4cc9f0', rock: '#8da9c4', crystal: '#a2d2ff', portal1: '#caf0f8', portal2: '#4361ee', banner: '#4cc9f0', arch: '#5c7aa3' },
   leaves: { top: '#081c15', mid: '#1b4332', low: '#95d5b2', stars: 0.3, ground: '#2d6a4f', ground2: '#ffd166', rock: '#6c584c', crystal: '#80ed99', portal1: '#d8f3dc', portal2: '#2d6a4f', banner: '#ffb703', arch: '#7f5539' },
   neon: { top: '#05000f', mid: '#2a0845', low: '#f72585', stars: 1, ground: '#10002b', ground2: '#4cc9f0', rock: '#240046', crystal: '#f72585', portal1: '#4cc9f0', portal2: '#f72585', banner: '#f72585', arch: '#3c096c' },
+  fiesta: { top: '#0d0221', mid: '#3c096c', low: '#ff4ecd', stars: 0.8, ground: '#1b0636', ground2: '#ffd60a', rock: '#2b0a4a', crystal: '#00f5d4', portal1: '#ffd60a', portal2: '#ff4ecd', banner: '#ff4ecd', arch: '#3c096c' },
   stars: { top: '#10002b', mid: '#3c096c', low: '#7b61ff', stars: 1, ground: '#2a1a5e', ground2: '#b388ff', rock: '#3c2a5e', crystal: '#c77dff', portal1: '#e0aaff', portal2: '#5a189a', banner: '#7b61ff', arch: '#4a3a7a' },
 };
 
@@ -51,6 +52,9 @@ export class LobbyScene {
   private spinners: THREE.Object3D[] = [];
   private waves: THREE.Mesh[] = [];
   private blinkers: THREE.MeshToonMaterial[] = [];
+  private tiles: THREE.MeshBasicMaterial[] = [];
+  private beams: THREE.Mesh[] = [];
+  private disco: THREE.Object3D | null = null;
 
   constructor(readonly kind: LobbyKind) {
     const T = THEMES[kind] ?? THEMES.stars;
@@ -142,6 +146,42 @@ export class LobbyScene {
         this.blinkers.push(stripe as THREE.MeshToonMaterial);
       }
       for (let i = -6; i <= 6; i++) { const l = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 40), new THREE.MeshBasicMaterial({ color: '#f72585', transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false })); l.rotation.x = -Math.PI / 2; l.position.set(i * 3, -0.53, -14); g.add(own(l)); }
+    } else if (this.kind === 'fiesta') {
+      // light-up dance floor (each tile has its own colour material, animated in update)
+      const cols = ['#ff4ecd', '#ffd60a', '#00f5d4', '#4cc9f0', '#9d4edd'];
+      for (let ix = -5; ix <= 5; ix++) for (let iz = 0; iz < 7; iz++) {
+        if (Math.abs(ix) < 2 && iz < 2) continue; // keep the hero pedestal clear
+        const mat = new THREE.MeshBasicMaterial({ color: cols[(ix + iz + 10) % cols.length], transparent: true, opacity: 0.5 });
+        const tile = new THREE.Mesh(new THREE.PlaneGeometry(1.55, 1.55), mat);
+        tile.rotation.x = -Math.PI / 2; tile.position.set(ix * 1.65, -0.535, 1 - iz * 1.65); tile.userData.k = ix * 0.7 + iz * 1.3;
+        g.add(own(tile)); this.tiles.push(mat);
+      }
+      // DJ stage with speaker stacks in the back
+      const stage = new THREE.Mesh(new THREE.BoxGeometry(14, 1.2, 4), toon('#240046')); stage.position.set(0, 0, -15); g.add(own(stage));
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 1.4), toon('#10002b')); deck.position.set(0, 1.1, -14.4); g.add(own(deck));
+      for (const sx of [-1, 1]) {
+        const plat = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.08, 24), toon('#111111')); plat.position.set(sx * 1, 1.64, -14.4); g.add(own(plat)); this.spinners.push(plat);
+        for (let k = 0; k < 3; k++) {
+          const sp = new THREE.Mesh(new THREE.BoxGeometry(2, 1.9, 1.6), toon('#1b1b2f')); sp.position.set(sx * 5.5, 1.55 + k * 1.95, -15); g.add(own(sp));
+          for (const dy of [-0.4, 0.45]) { const cone = new THREE.Mesh(new THREE.CylinderGeometry(dy < 0 ? 0.6 : 0.35, dy < 0 ? 0.6 : 0.35, 0.1, 20), toon('#2b2d42')); cone.rotation.x = Math.PI / 2; cone.position.set(sx * 5.5, sp.position.y + dy, -14.15); cone.userData.pump = k + dy; g.add(own(cone)); this.waves.push(cone); }
+        }
+      }
+      // giant disco ball over the portal
+      const ball = new THREE.Group();
+      ball.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.6, 2), new THREE.MeshStandardMaterial({ color: '#e0e1dd', metalness: 0.9, roughness: 0.15, flatShading: true, emissive: '#3c096c', emissiveIntensity: 0.6 })));
+      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 6, 6), toon('#adb5bd')); rope.position.y = 4.6; ball.add(rope);
+      ball.position.set(0, 11, -12); g.add(own(ball)); this.disco = ball;
+      for (const [x, c] of [[-3, '#ffffff'], [3, '#ffd60a']] as const) { const l = new THREE.PointLight(c, 25, 20, 1.5); l.position.set(x, 9, -10); g.add(l); }
+      // sweeping stage light beams
+      for (let i = 0; i < 6; i++) {
+        const beam = new THREE.Mesh(new THREE.ConeGeometry(1.4, 16, 16, 1, true), new THREE.MeshBasicMaterial({ color: cols[i % cols.length], transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+        beam.geometry.translate(0, -8, 0);
+        const holder = new THREE.Group(); holder.position.set((i - 2.5) * 4, 0.8, -15); holder.add(beam); beam.rotation.x = Math.PI; holder.userData.beam = i;
+        g.add(own(holder)); this.beams.push(holder as unknown as THREE.Mesh);
+      }
+      // city skyline with balloons
+      for (let i = 0; i < 12; i++) { const h = 5 + Math.abs(rnd(i)) * 9; const b = new THREE.Mesh(new THREE.BoxGeometry(3.2, h, 3), toon('#1b0636')); b.position.set((i - 5.5) * 5, h / 2 - 0.6, -30 - Math.abs(rnd(i + 3)) * 6); g.add(own(b)); }
+      for (let i = 0; i < 10; i++) { const bl = new THREE.Mesh(new THREE.SphereGeometry(0.45, 14, 10), toon(cols[i % cols.length])); bl.position.set((i - 4.5) * 2.6, 6 + Math.abs(rnd(i + 11)) * 4, -9 - Math.abs(rnd(i)) * 6); bl.scale.y = 1.2; bl.userData.balloon = i; g.add(own(bl)); this.waves.push(bl); }
     } else {
       for (let i = 0; i < 4; i++) { const pl = new THREE.Mesh(new THREE.SphereGeometry(1.5 + i, 20, 14), toon(['#7b61ff', '#c77dff', '#4cc9f0', '#ff70a6'][i])); pl.position.set((i - 1.5) * 12, 10 + i * 2, -34); g.add(own(pl)); }
     }
@@ -159,8 +199,15 @@ export class LobbyScene {
     }
     for (const w of this.waves) {
       if (w.userData.aurora !== undefined) { w.position.x = Math.sin(t * 0.2 + w.userData.aurora) * 4; (w.material as THREE.MeshBasicMaterial).opacity = 0.12 + 0.08 * Math.sin(t * 0.8 + w.userData.aurora * 2); }
+      else if (w.userData.pump !== undefined) w.scale.setScalar(1 + Math.max(0, Math.sin(t * 13.6 + w.userData.pump)) * 0.18);
+      else if (w.userData.balloon !== undefined) w.position.y += Math.sin(t * 1.2 + w.userData.balloon) * 0.004;
       else w.rotation.x = Math.sin(t * 2 + w.position.x) * 0.06;
     }
+    // fiesta: beat-synced floor, sweeping beams, spinning disco ball
+    const beat = Math.floor(t * 2.15);
+    for (let i = 0; i < this.tiles.length; i++) this.tiles[i].opacity = ((i * 7 + beat) % 5 === 0 ? 0.85 : 0.25) + 0.1 * Math.sin(t * 4 + i);
+    for (const b of this.beams) { const i = b.userData.beam as number; b.rotation.z = Math.sin(t * 0.9 + i * 1.1) * 0.55; b.rotation.x = -0.35 + Math.sin(t * 0.7 + i) * 0.25; }
+    if (this.disco) this.disco.rotation.y += dt * 0.6;
     for (const b of this.blinkers) b.emissiveIntensity = 1.2 + Math.sin(t * 6 + b.id) * 0.4;
   }
 
