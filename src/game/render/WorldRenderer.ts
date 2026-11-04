@@ -122,6 +122,28 @@ function streakTex() {
   g.fillStyle = grd; g.beginPath(); g.moveTo(0, 16); g.lineTo(128, 4); g.lineTo(128, 28); g.closePath(); g.fill();
   return (streakTexC = new THREE.CanvasTexture(c));
 }
+/** Aim line texture: dashed body brightening toward the end. */
+let aimLineTexC: THREE.Texture | null = null;
+function aimLineTex() {
+  if (aimLineTexC) return aimLineTexC;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 16; const g = c.getContext('2d')!;
+  for (let x = 0; x < 256; x += 16) { const k = 0.35 + 0.65 * (x / 256); g.fillStyle = `rgba(255,255,255,${k})`; g.fillRect(x, 3, 11, 10); }
+  g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(0, 0, 256, 2); g.fillRect(0, 14, 256, 2);
+  aimLineTexC = new THREE.CanvasTexture(c);
+  return aimLineTexC;
+}
+const SLASH_VS = `varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
+const SLASH_FS = `uniform vec3 color; uniform float prog; uniform float opacity; uniform float uHalf; uniform float dir; varying vec2 vP;
+  void main(){
+    float r = length(vP); float a = atan(vP.y, vP.x) * dir;
+    float u = (a + uHalf) / (2.0 * uHalf);              // 0..1 across the arc in swing direction
+    float head = prog * 1.25;
+    float trail = smoothstep(head - 0.55, head, u) * (1.0 - smoothstep(head, head + 0.04, u));
+    float edge = smoothstep(0.55, 0.97, r) * (1.0 - smoothstep(0.97, 1.0, r));
+    float body = smoothstep(0.25, 0.9, r) * 0.35;
+    vec3 c = mix(color, vec3(1.0), edge * 0.7);
+    gl_FragColor = vec4(c, (edge + body) * trail * opacity);
+  }`;
 const UV_VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
 
 const LAVA_FS = `uniform float time; uniform float uActive; uniform float warn; varying vec2 vUv;
@@ -138,6 +160,16 @@ const ICE_FS = `uniform float time; varying vec2 vUv;
     gl_FragColor = vec4(mix(vec3(0.72, 0.9, 1.0), vec3(1.0), s * 0.8), 0.55 * edge); }`;
 
 /** Three.js 2.5D renderer of a Match: pure view, never mutates the simulation. */
+export interface AimSpec {
+  kind: 'line' | 'point' | 'self' | 'cone' | 'fan';
+  dx: number; dy: number; dist: number; color: string;
+  /** projectile radius (line width) or target radius bonus for cones */
+  width?: number; radius?: number; arc?: number; count?: number;
+  /** distance to the first wall along the line (and per fan line) */
+  clip?: number; clips?: number[];
+  ring?: number; target?: Hero | null;
+}
+
 export const DANCE_STYLES: Record<string, number> = { groove: 0, robot: 1, floss: 2, disco: 3 };
 
 export class WorldRenderer {
@@ -161,7 +193,7 @@ export class WorldRenderer {
   private shockwaves: { mesh: THREE.Mesh; t: number; dur: number; r0: number; r1: number }[] = [];
   private bolts: { line: THREE.Line; t: number }[] = [];
   /** short-lived action fx (slashes, impact stars, muzzle flashes) */
-  private fx: { mesh: THREE.Object3D; mat: THREE.MeshBasicMaterial | THREE.SpriteMaterial; t: number; dur: number; s0: number; s1: number; spin: number }[] = [];
+  private fx: { mesh: THREE.Object3D; mat: THREE.MeshBasicMaterial | THREE.SpriteMaterial | THREE.ShaderMaterial; t: number; dur: number; s0: number; s1: number; spin: number; a?: number }[] = [];
   private beams: { mesh: THREE.Mesh; t: number }[] = [];
   private darkK = 0; private baseHemi = 1.4; private baseSun = 2.2;
   private warnBeams: { mesh: THREE.Mesh; t: number; dur: number }[] = [];
@@ -173,6 +205,17 @@ export class WorldRenderer {
   private aim: THREE.Group;
   private aimLine: THREE.Mesh;
   private aimCircle: THREE.Mesh;
+  /** v1.0.9 precise aim: extra fan lines, end markers, sector (melee/spread), range ring, target reticle */
+  private aimLines: THREE.Mesh[] = [];
+  private aimEnds: THREE.Mesh[] = [];
+  private aimSector!: THREE.Mesh;
+  private aimSectorArc = -1;
+  private aimRange!: THREE.Mesh;
+  private reticle!: THREE.Group;
+  private reticleTarget: Hero | null = null;
+  private aimLook = new THREE.Vector2();
+  private aimLookTarget = new THREE.Vector2();
+  private kick = new THREE.Vector2();
   private camTarget = new THREE.Vector3();
   private shake = 0;
   private time = 0;
@@ -210,6 +253,24 @@ export class WorldRenderer {
     this.aimCircle = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 40), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }));
     this.aimCircle.rotation.x = -Math.PI / 2;
     this.aim.add(this.aimLine, this.aimCircle);
+    const lineTex = aimLineTex();
+    for (let i = 0; i < 5; i++) {
+      const l = i === 0 ? this.aimLine : new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }));
+      (l.material as THREE.MeshBasicMaterial).map = lineTex; (l.material as THREE.MeshBasicMaterial).opacity = 0.55;
+      l.rotation.x = -Math.PI / 2; if (i) this.aim.add(l); this.aimLines.push(l);
+      const end = new THREE.Mesh(new THREE.RingGeometry(0.55, 1, 24), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+      end.rotation.x = -Math.PI / 2; this.aim.add(end); this.aimEnds.push(end);
+    }
+    this.aimSector = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));
+    this.aimSector.rotation.x = -Math.PI / 2; this.aim.add(this.aimSector);
+    this.aimRange = new THREE.Mesh(new THREE.RingGeometry(0.975, 1, 96), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }));
+    this.aimRange.rotation.x = -Math.PI / 2; this.aim.add(this.aimRange);
+    this.reticle = new THREE.Group();
+    const rmat = new THREE.MeshBasicMaterial({ color: '#ff3b4e', transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 40, 1, 0, Math.PI * 2), rmat); ring.rotation.x = -Math.PI / 2; this.reticle.add(ring);
+    for (let i = 0; i < 4; i++) { const t = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.12), rmat); t.rotation.x = -Math.PI / 2; const a = (i / 4) * Math.PI * 2; t.position.set(Math.cos(a) * 1.15, 0, Math.sin(a) * 1.15); t.rotation.z = -a; this.reticle.add(t); }
+    this.reticle.visible = false; this.reticle.renderOrder = 6;
+    this.scene.add(this.reticle);
     this.aim.visible = false;
     this.aim.renderOrder = 5;
     this.scene.add(this.aim);
@@ -592,8 +653,10 @@ export class WorldRenderer {
   // ------------------------------------------------------------------ projectiles / zones / walls / hazards
 
   private setupProjectileAssets() {
-    this.projGeo.bolt = new THREE.SphereGeometry(0.13, 10, 8);
-    this.projGeo.spread = new THREE.SphereGeometry(0.1, 8, 6);
+    // elongated energy bolts (oriented along velocity), sized from the real hit radius
+    this.projGeo.bolt = new THREE.SphereGeometry(0.13, 12, 8).scale(2.1, 0.8, 0.8);
+    this.projGeo.spread = new THREE.SphereGeometry(0.1, 10, 6).scale(1.8, 0.85, 0.85);
+    this.projGeo.core = new THREE.SphereGeometry(0.075, 10, 6).scale(2.3, 0.75, 0.75);
     this.projGeo.blades = new THREE.ConeGeometry(0.14, 0.05, 3).rotateX(Math.PI / 2);
     this.projGeo.lob = new THREE.IcosahedronGeometry(0.18, 0);
     this.projGeo.shell = new THREE.IcosahedronGeometry(0.2, 0);
@@ -623,7 +686,14 @@ export class WorldRenderer {
       const tg = new THREE.PlaneGeometry(1.1, 0.26); tg.translate(-0.55, 0, 0);
       const tail = new THREE.Mesh(tg, new THREE.MeshBasicMaterial({ map: streakTex(), transparent: true, opacity: 0.75, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
       tail.rotation.order = 'YXZ'; tail.userData.ownMat = true;
-      o.add(mesh, glow, sh, tail);
+      const core = new THREE.Mesh(this.projGeo.core, this.projMat('#ffffff'));
+      core.userData.sharedGeo = true;
+      // landing telegraph for lobbed shots (read where it will hit, then dodge)
+      const land = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 40), new THREE.MeshBasicMaterial({ color: '#ff3b4e', transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }));
+      land.rotation.x = -Math.PI / 2; land.userData.ownMat = true;
+      const fill = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: '#ff3b4e', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
+      fill.rotation.x = -Math.PI / 2; fill.userData.ownMat = true;
+      o.add(mesh, glow, sh, tail, core, land, fill);
       this.matchRoot.add(o);
     }
     const mesh = o.children[0] as THREE.Mesh, glow = o.children[1] as THREE.Sprite;
@@ -637,6 +707,17 @@ export class WorldRenderer {
     (tail.material as THREE.MeshBasicMaterial).color.set(p.kind === 'boss' ? '#ff4d6d' : p.color);
     tail.visible = p.kind !== 'lob' && p.kind !== 'shell' && p.kind !== 'wave';
     tail.scale.set(p.kind === 'boss' ? 0.8 : 1, p.kind === 'spread' ? 0.8 : 1, 1);
+    // visual size follows the real collision radius (what can actually hit you)
+    const base = ({ bolt: 13, spread: 10, boss: 20 } as Record<string, number>)[p.kind] ?? 0;
+    const sc = base ? Math.max(0.7, Math.min(2.2, p.radius / base)) : 1;
+    mesh.scale.setScalar(sc);
+    tail.scale.y *= sc;
+    const core = o.children[4] as THREE.Mesh;
+    core.visible = p.kind === 'bolt' || p.kind === 'spread' || p.kind === 'boss';
+    core.scale.setScalar(sc * (p.kind === 'spread' ? 0.8 : 1));
+    const lob = p.kind === 'lob' || p.kind === 'shell';
+    const enemy = p.team !== this.viewerTeam;
+    for (const k of [5, 6]) { const c = o.children[k] as THREE.Mesh; c.visible = lob; (c.material as THREE.MeshBasicMaterial).color.set(enemy ? '#ff3b4e' : TEAM_COLORS[p.team]); }
     o.visible = true;
     return o;
   }
@@ -800,6 +881,14 @@ export class WorldRenderer {
       shadow.position.y = -y + 0.02;
       mesh.rotation.y = -Math.atan2(p.vy, p.vx);
       const tail = o.children[3]; tail.rotation.set(-Math.PI / 2, -Math.atan2(p.vy, p.vx), 0);
+      o.children[4].rotation.y = mesh.rotation.y;
+      if (p.kind === 'lob' || p.kind === 'shell') {
+        const k = Math.min(1, p.t / Math.max(0.01, p.dur)), r = Math.max(0.2, p.areaRadius * WS);
+        const land = o.children[5], fill = o.children[6];
+        land.position.set(p.tx * WS - o.position.x, -y + 0.035, p.ty * WS - o.position.z); land.scale.setScalar(r);
+        fill.position.copy(land.position); fill.position.y -= 0.004; fill.scale.setScalar(r * Math.max(0.05, k));
+        ((fill as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.12 + k * 0.22;
+      }
       if (p.kind === 'blades' || p.kind === 'boomerang' || p.kind === 'lob' || p.kind === 'shell') { mesh.rotation.x += dt * 14; mesh.rotation.y += dt * 9; }
       if (p.kind === 'wave') { mesh.rotation.x = -Math.PI / 2; mesh.rotation.z = Math.atan2(p.vy, p.vx) - Math.PI / 2; }
       if (this.q.particleMul > 0.5 && Math.random() < 0.5) this.particles.emit(o.position.x, y, o.position.z, 0, 0, 0, p.kind === 'boss' ? '#ff4d6d' : p.color, 0.16, 0.25, 0, 0);
@@ -896,7 +985,9 @@ export class WorldRenderer {
       const e = 1 - Math.pow(1 - k, 3);
       f.mesh.scale.setScalar(f.s0 + (f.s1 - f.s0) * e);
       if (f.spin) f.mesh.rotation.z += f.spin * dt;
-      f.mat.opacity = k < 0.25 ? 1 : 1 - (k - 0.25) / 0.75;
+      const op = (k < 0.25 ? 1 : 1 - (k - 0.25) / 0.75) * (f.a ?? 1);
+      if (f.mat instanceof THREE.ShaderMaterial) { f.mat.uniforms.prog.value = k; f.mat.uniforms.opacity.value = op; }
+      else f.mat.opacity = op;
     }
     this.particles.update(dt);
     this.updateCamera(dt);
@@ -1112,8 +1203,17 @@ export class WorldRenderer {
     tx = THREE.MathUtils.clamp(tx, 650, m.arena.w - 650);
     ty = THREE.MathUtils.clamp(ty, 380, m.arena.h - 330);
     const k = snap ? 1 : Math.min(1, dt * 6);
-    this.camTarget.x += (tx * WS - this.camTarget.x) * k;
-    this.camTarget.z += (ty * WS - this.camTarget.z) * k;
+    this.aimLook.lerp(this.aimLookTarget, Math.min(1, dt * 5));
+    this.kick.multiplyScalar(Math.max(0, 1 - dt * 14));
+    this.camTarget.x += (tx * WS + this.aimLook.x + this.kick.x - this.camTarget.x) * k;
+    this.camTarget.z += (ty * WS + this.aimLook.y + this.kick.y - this.camTarget.z) * k;
+    if (this.reticle.visible && this.reticleTarget) {
+      const v = this.heroViews.get(this.reticleTarget.id);
+      this.reticle.position.set((v ? v.px : this.reticleTarget.x) * WS, 0.07, (v ? v.py : this.reticleTarget.y) * WS);
+      this.reticle.rotation.y = this.time * 2.2;
+      const pulse = 1 + Math.sin(this.time * 10) * 0.06;
+      this.reticle.children[0].scale.setScalar(pulse);
+    }
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0, sz = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     this.shake = Math.max(0, this.shake - dt * 1.8);
     this.camera.position.set(this.camTarget.x + sx, 9.6, this.camTarget.z + 9.4 + sz);
@@ -1135,15 +1235,29 @@ export class WorldRenderer {
     this.shockwaves.push({ mesh, t: 0, dur, r0, r1 });
   }
 
-  /** Melee swing: a bright crescent sweeping in front of the hero. */
-  addSlash(x: number, y: number, angle: number, range: number, color: string, big = false) {
-    const mat = new THREE.MeshBasicMaterial({ map: slashTex(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
-    const r = Math.max(0.6, range * WS) * (big ? 1.25 : 1);
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  /** Melee swing: a crescent that sweeps exactly over the hit cone (arc + reach). */
+  private slashDir = 1;
+  addSlash(x: number, y: number, angle: number, range: number, color: string, arcDeg = 100) {
+    const arc = (Math.min(200, arcDeg) * Math.PI) / 180;
+    this.slashDir = -this.slashDir; // alternate swings left/right
+    const mat = new THREE.ShaderMaterial({ uniforms: { color: { value: new THREE.Color(color) }, prog: { value: 0 }, opacity: { value: 1 }, uHalf: { value: arc / 2 }, dir: { value: this.slashDir } }, vertexShader: SLASH_VS, fragmentShader: SLASH_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const r = Math.max(0.5, (range + 25) * WS);
+    const mesh = new THREE.Mesh(new THREE.RingGeometry(0.25, 1, 36, 2, -arc / 2, arc), mat);
     mesh.rotation.x = -Math.PI / 2; mesh.rotation.z = -angle;
-    mesh.position.set(x * WS, 0.55, y * WS);
+    mesh.position.set(x * WS, 0.5, y * WS);
     this.matchRoot.add(mesh);
-    this.fx.push({ mesh, mat, t: 0, dur: 0.2, s0: r * 0.7, s1: r * 1.05, spin: -3 });
+    this.fx.push({ mesh, mat, t: 0, dur: 0.2, s0: r * 0.92, s1: r, spin: 0 });
+  }
+
+  /** Scorch / impact mark on the ground, fades out. */
+  addDecal(x: number, y: number, radius: number, color = '#000000', opacity = 0.42, dur = 1.6) {
+    const mat = new THREE.MeshBasicMaterial({ map: radialTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), color, transparent: true, opacity, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+    mesh.rotation.x = -Math.PI / 2; mesh.rotation.z = Math.random() * 6.28;
+    mesh.position.set(x * WS, 0.012 + Math.random() * 0.004, y * WS);
+    this.matchRoot.add(mesh);
+    const r = Math.max(0.25, radius * WS);
+    this.fx.push({ mesh, mat, t: 0, dur, s0: r * 0.85, s1: r, spin: 0, a: opacity });
   }
 
   /** Impact star (billboard). */
@@ -1204,6 +1318,8 @@ export class WorldRenderer {
       case 'explosion':
         P.burst(e.x * WS, 0.3, e.y * WS, Math.min(60, 10 + e.radius / 6), e.color, Math.max(2, e.radius * WS * 4), 0.35, 0.6, 2.5, -6);
         this.addShockwave(e.x, e.y, 0.2, Math.max(0.5, e.radius * WS), e.color, 0.4);
+        this.addDecal(e.x, e.y, Math.max(30, e.radius * 0.9), '#1a0f0a', e.radius > 60 ? 0.45 : 0.3, e.radius > 60 ? 2.2 : 1.1);
+        if (e.radius > 60) this.addFlash(e.x, e.y, 0.5, e.color, Math.min(3, e.radius * WS * 2.2), 0.18);
         if (e.radius > 150) this.addShake(0.12);
         break;
       case 'chain': this.addBolt(e.points, '#9ff3ff'); break;
@@ -1211,7 +1327,7 @@ export class WorldRenderer {
       case 'melee': {
         const h = m.heroById(e.hero);
         if (!h) break;
-        this.addSlash(h.x, h.y, e.angle, e.range, h.def.palette.accent, h.radius > 40);
+        this.addSlash(h.x, h.y, e.angle, e.range, h.def.palette.accent, e.arc ?? h.def.attack.spreadDeg ?? 100);
         for (let i = 0; i < 10 * this.q.particleMul + 3; i++) {
           const a = e.angle + (Math.random() - 0.5) * 1.6, d = e.range * WS * (0.5 + Math.random() * 0.5);
           P.emit(h.x * WS + Math.cos(a) * d, 0.5, h.y * WS + Math.sin(a) * d, Math.cos(a), 0.5, Math.sin(a), '#ffffff', 0.25, 0.25, 0);
@@ -1321,27 +1437,87 @@ export class WorldRenderer {
 
   // ------------------------------------------------------------------ aim indicator
 
-  setAim(visible: boolean, hero?: Hero, dx = 0, dy = 0, dist = 0, kind: 'line' | 'point' | 'self' = 'line', radius = 0, color = '#ffffff') {
-    this.aim.visible = visible && !!hero;
-    if (!visible || !hero) return;
+  setAim(visible: boolean, hero?: Hero, o?: AimSpec) {
+    this.aim.visible = visible && !!hero && !!o;
+    this.reticle.visible = false; this.reticleTarget = null;
+    this.aimLookTarget.set(0, 0);
+    if (!this.aim.visible || !hero || !o) return;
     const x = hero.x * WS, z = hero.y * WS;
-    (this.aimLine.material as THREE.MeshBasicMaterial).color.set(color);
-    (this.aimCircle.material as THREE.MeshBasicMaterial).color.set(color);
-    if (kind === 'line') {
-      const len = dist * WS;
-      this.aimLine.visible = true; this.aimCircle.visible = false;
-      this.aimLine.scale.set(len, 0.22, 1);
-      this.aimLine.position.set(x + dx * len / 2, 0.05, z + dy * len / 2);
-      this.aimLine.rotation.z = -Math.atan2(dy, dx);
-    } else {
-      this.aimLine.visible = kind === 'point';
-      this.aimCircle.visible = true;
-      const px = kind === 'self' ? x : x + dx * dist * WS, pz = kind === 'self' ? z : z + dy * dist * WS;
-      this.aimCircle.position.set(px, 0.05, pz);
-      this.aimCircle.scale.setScalar(Math.max(0.3, radius * WS));
-      if (kind === 'point') { const len = dist * WS; this.aimLine.scale.set(len, 0.08, 1); this.aimLine.position.set(x + dx * len / 2, 0.05, z + dy * len / 2); this.aimLine.rotation.z = -Math.atan2(dy, dx); }
+    const ang = Math.atan2(o.dy, o.dx);
+    for (const mm of [...this.aimLines, ...this.aimEnds, this.aimCircle, this.aimSector, this.aimRange]) { mm.visible = false; (mm.material as THREE.MeshBasicMaterial).color.set(o.color); }
+    // camera leans toward where you aim (see further in that direction)
+    if (o.kind !== 'self') this.aimLookTarget.set(o.dx * Math.min(1.6, o.dist * WS * 0.22), o.dy * Math.min(1.6, o.dist * WS * 0.22));
+    const line = (i: number, a: number, len: number, w: number, end: boolean, blocked: boolean) => {
+      const l = this.aimLines[i];
+      l.visible = true;
+      l.scale.set(len, w, 1);
+      l.position.set(x + Math.cos(a) * len / 2, 0.05, z + Math.sin(a) * len / 2);
+      l.rotation.z = -a;
+      if (end) {
+        const e = this.aimEnds[i];
+        e.visible = true; e.scale.setScalar(Math.max(0.1, w * 0.6));
+        e.position.set(x + Math.cos(a) * len, 0.055, z + Math.sin(a) * len);
+        (e.material as THREE.MeshBasicMaterial).color.set(blocked ? '#ff6b7a' : o.color);
+      }
+    };
+    if (o.ring) { this.aimRange.visible = true; this.aimRange.position.set(x, 0.04, z); this.aimRange.scale.setScalar(o.ring * WS); }
+    if (o.target && o.target.alive) {
+      this.reticleTarget = o.target; this.reticle.visible = true;
+      this.reticle.scale.setScalar(o.target.radius * WS * 1.5);
+    }
+    const width = Math.max(0.12, (o.width ?? 8) * 2 * WS);
+    switch (o.kind) {
+      case 'line': {
+        const len = Math.min(o.dist, o.clip ?? o.dist) * WS;
+        line(0, ang, len, width, true, (o.clip ?? Infinity) < o.dist - 1);
+        break;
+      }
+      case 'fan': {
+        const n = Math.max(1, Math.min(5, o.count ?? 3)), spread = ((o.arc ?? 20) * Math.PI) / 180;
+        const clips = o.clips ?? [];
+        for (let i = 0; i < n; i++) {
+          const a = ang + (n === 1 ? 0 : -spread / 2 + (spread * i) / (n - 1));
+          const d = Math.min(o.dist, clips[i] ?? o.dist);
+          line(i, a, d * WS, width, true, d < o.dist - 1);
+        }
+        this.showSector(x, z, ang, o.arc ?? 20, o.dist * WS, 0.1);
+        break;
+      }
+      case 'cone':
+        this.showSector(x, z, ang, o.arc ?? 90, (o.dist + (o.width ?? 0)) * WS, 0.28);
+        break;
+      case 'point': {
+        const len = o.dist * WS;
+        line(0, ang, len, 0.08, false, false);
+        this.aimCircle.visible = true;
+        this.aimCircle.position.set(x + o.dx * len, 0.05, z + o.dy * len);
+        this.aimCircle.scale.setScalar(Math.max(0.3, (o.radius ?? 100) * WS));
+        break;
+      }
+      case 'self':
+        this.aimCircle.visible = true;
+        this.aimCircle.position.set(x, 0.05, z);
+        this.aimCircle.scale.setScalar(Math.max(0.3, (o.radius ?? 100) * WS));
+        break;
     }
   }
+
+  private showSector(x: number, z: number, ang: number, arcDeg: number, r: number, opacity: number) {
+    if (arcDeg !== this.aimSectorArc) {
+      const arc = (arcDeg * Math.PI) / 180;
+      this.aimSector.geometry.dispose();
+      this.aimSector.geometry = new THREE.CircleGeometry(1, 40, -arc / 2, arc);
+      this.aimSectorArc = arcDeg;
+    }
+    this.aimSector.visible = true;
+    (this.aimSector.material as THREE.MeshBasicMaterial).opacity = opacity;
+    this.aimSector.position.set(x, 0.045, z);
+    this.aimSector.scale.setScalar(r);
+    this.aimSector.rotation.z = -ang;
+  }
+
+  /** Small camera recoil opposite to the shot (local player). */
+  addKick(dx: number, dy: number, k = 0.12) { this.kick.x -= dx * k; this.kick.y -= dy * k; }
 
   // ------------------------------------------------------------------ projection for DOM HUD
 

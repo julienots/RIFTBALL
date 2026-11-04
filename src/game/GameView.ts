@@ -1,3 +1,5 @@
+import { aimAssist, autoAimTarget } from '../combat/Combat';
+import type { Hero } from './entities';
 import { matchMusic } from '../audio/music';
 import type { App } from '../core/App';
 import type { WorldRenderer } from './render/WorldRenderer';
@@ -45,6 +47,8 @@ export class GameSession {
   readonly hud: HUD;
   readonly input: Input;
   private acc = 0;
+  /** brief slow-motion after your eliminations (offline only: the simulation is local) */
+  private hitStop = 0;
   paused = false;
   private endTimer = -1;
   private ended = false;
@@ -211,7 +215,9 @@ export class GameSession {
     else if (!this.paused && m.phase !== 'ended') {
       const me = m.human;
       if (me) this.input.apply(me.cmd, { attack: me.def.attack.range, ability: Math.max(me.def.ability.range, 300), ult: Math.max(me.def.ultimate.range, 300) });
-      this.acc += Math.min(dt, 0.1);
+      const slow = this.hitStop > 0 ? 0.18 : 1;
+      this.hitStop = Math.max(0, this.hitStop - dt);
+      this.acc += Math.min(dt, 0.1) * slow;
       let steps = 0;
       while (this.acc >= SIM_DT && steps < 6) {
         m.step(SIM_DT);
@@ -247,28 +253,43 @@ export class GameSession {
   }
 
   private updateAim() {
-    const me = this.match.human, a = this.input.aiming;
-    if (!me || !me.alive || !a) { this.r.setAim(false); return; }
+    const m = this.match, me = m.human, a = this.input.aiming;
+    if (!me || !me.alive || !a || a.slot === 'roll') { this.r.setAim(false); return; }
     const isAttack = a.slot === 'attack';
-    if (a.slot === 'roll') { this.r.setAim(false); return; }
     const ab = a.slot === 'ability' ? me.def.ability : a.slot === 'gadget' ? (me.def.gadget ?? me.def.ability) : me.def.ultimate;
-    let dx = a.dx, dy = a.dy;
+    // the preview uses exactly the same auto-aim as the simulation (target + lead)
+    let dx = a.dx, dy = a.dy, target = null as Hero | null, autoDist = 0;
     if (!a.manual) {
-      // preview auto-aim direction
-      let best = null as null | { x: number; y: number }, bd = Infinity;
-      for (const e of this.match.heroes) if (e.alive && e.team !== me.team && this.match.isVisibleTo(e, me.team)) { const d = Math.hypot(e.x - me.x, e.y - me.y); if (d < bd) { bd = d; best = e; } }
-      if (best) { dx = (best.x - me.x) / bd; dy = (best.y - me.y) / bd; } else { dx = Math.cos(me.facing); dy = Math.sin(me.facing); }
+      const auto = autoAimTarget(m, me, isAttack ? me.def.attack.range : Math.max(ab.range, 450) * 1.2);
+      if (auto) { dx = auto.ax; dy = auto.ay; target = auto.target; autoDist = auto.dist; } else { dx = Math.cos(me.facing); dy = Math.sin(me.facing); }
+    } else if (isAttack) {
+      // manual aim: same soft assist as the simulation, so the preview shows the real shot
+      const as = aimAssist(m, me, dx, dy);
+      dx = as.ax; dy = as.ay; target = as.target;
     }
+    const clip = (ddx: number, ddy: number, d: number) => m.rayWallDist(me.x, me.y, ddx, ddy, d);
     if (isAttack) {
-      const lob = me.def.attack.kind === 'lob';
-      if (me.carrying) this.r.setAim(true, me, dx, dy, 600, 'line', 0, '#e0aaff');
-      else if (lob) this.r.setAim(true, me, dx, dy, a.manual ? a.mag * me.def.attack.range : me.def.attack.range * 0.8, 'point', me.def.attack.radius ?? 70, '#ffffff');
-      else this.r.setAim(true, me, dx, dy, me.def.attack.range, 'line', 0, '#ffffff');
+      const atk = me.def.attack, range = atk.range;
+      if (me.carrying) { this.r.setAim(true, me, { kind: 'line', dx, dy, dist: 600, clip: clip(dx, dy, 600), color: '#e0aaff', width: 20 }); return; }
+      const common = { dx, dy, color: '#ffffff', ring: range, target };
+      switch (atk.kind) {
+        case 'lob': this.r.setAim(true, me, { ...common, kind: 'point', dist: a.manual ? Math.max(0.15, a.mag) * range : Math.min(range, autoDist || range * 0.85), radius: atk.radius ?? 70 }); break;
+        case 'melee': this.r.setAim(true, me, { ...common, kind: 'cone', dist: range, arc: atk.spreadDeg ?? 90, width: 25 }); break;
+        case 'spread': case 'blades': {
+          const n = atk.projectiles ?? 3, spread = ((atk.spreadDeg ?? 20) * Math.PI) / 180, base = Math.atan2(dy, dx);
+          const clips: number[] = [];
+          for (let i = 0; i < n; i++) { const an = base + (n === 1 ? 0 : -spread / 2 + (spread * i) / (n - 1)); clips.push(clip(Math.cos(an), Math.sin(an), range)); }
+          this.r.setAim(true, me, { ...common, kind: 'fan', dist: range, arc: atk.spreadDeg ?? 20, count: n, clips, width: atk.radius ?? 10 });
+          break;
+        }
+        case 'chain': this.r.setAim(true, me, { ...common, kind: 'cone', dist: range, arc: 70, width: 0 }); break;
+        default: this.r.setAim(true, me, { ...common, kind: 'line', dist: range, clip: atk.kind === 'boomerang' ? undefined : clip(dx, dy, range), width: atk.radius ?? 12 });
+      }
     } else {
       const color = a.slot === 'ult' ? '#ffcd1f' : a.slot === 'gadget' ? '#3ddc84' : '#2fe0ff';
-      if (ab.aim === 'self') this.r.setAim(true, me, 0, 0, 0, 'self', ab.params.radius ?? me.radius * 2.5, color);
-      else if (ab.aim === 'point') this.r.setAim(true, me, dx, dy, a.manual ? a.mag * ab.range : ab.range * 0.7, 'point', ab.params.radius ?? 120, color);
-      else this.r.setAim(true, me, dx, dy, ab.params.distance ?? ab.range, 'line', 0, color);
+      if (ab.aim === 'self') this.r.setAim(true, me, { kind: 'self', dx: 0, dy: 0, dist: 0, radius: ab.params.radius ?? me.radius * 2.5, color });
+      else if (ab.aim === 'point') this.r.setAim(true, me, { kind: 'point', dx, dy, dist: a.manual ? Math.max(0.1, a.mag) * ab.range : Math.min(ab.range, target ? Math.hypot(target.x - me.x, target.y - me.y) : ab.range * 0.7), radius: ab.params.radius ?? 120, color, ring: ab.range, target });
+      else { const d = ab.params.distance ?? ab.params.length ?? ab.range; this.r.setAim(true, me, { kind: 'line', dx, dy, dist: d, clip: ab.effect === 'laser' ? undefined : clip(dx, dy, d), width: ab.params.width ? ab.params.width / 2 : 22, color, target }); }
     }
   }
 
@@ -285,12 +306,12 @@ export class GameSession {
     const m = this.match, me = m.human;
     const myTeam = me?.team ?? 0;
     switch (e.t) {
-      case 'shot': { const s = m.heroById(e.hero); if (s) audio.play(e.kind === 'lob' ? 'shoot_heavy' : 'shoot', { vol: this.vol(e.x, e.y) * (e.hero === m.humanId ? 1 : 0.6), pitch: e.hero === m.humanId ? 1 : 0.85 }); break; }
-      case 'melee': audio.play('shoot_heavy', { vol: this.vol(e.x, e.y) }); break;
+      case 'shot': { const s = m.heroById(e.hero); if (e.hero === m.humanId) this.r.addKick(Math.cos(e.angle), Math.sin(e.angle), e.kind === 'lob' ? 0.16 : 0.1); if (s) audio.play(e.kind === 'lob' ? 'shoot_heavy' : 'shoot', { vol: this.vol(e.x, e.y) * (e.hero === m.humanId ? 1 : 0.6), pitch: e.hero === m.humanId ? 1 : 0.85 }); break; }
+      case 'melee': if (e.hero === m.humanId) this.r.addKick(-Math.cos(e.angle), -Math.sin(e.angle), 0.08); audio.play('shoot_heavy', { vol: this.vol(e.x, e.y) }); break;
       case 'chain': audio.play('zap', { vol: 0.8 }); break;
       case 'hit': if (e.target === m.humanId || e.source === m.humanId) { audio.play('hit', { vol: e.target === m.humanId ? 1 : 0.7, pitch: e.target === m.humanId ? 0.7 : 1.2 }); if (e.target === m.humanId) haptic('light', this.app.data.settings.haptics); } break;
       case 'heal': if (e.target === m.humanId) audio.play('heal', { vol: 0.5 }); break;
-      case 'kill': if (e.killer === m.humanId) { audio.play('kill'); haptic('medium', this.app.data.settings.haptics); } if (e.victim === m.humanId) { audio.play('death'); haptic('heavy', this.app.data.settings.haptics); } break;
+      case 'kill': if (e.killer === m.humanId) { if (!this.cfg.online) this.hitStop = 0.09; this.r.addShake(0.12); audio.play('kill'); haptic('medium', this.app.data.settings.haptics); } if (e.victim === m.humanId) { audio.play('death'); haptic('heavy', this.app.data.settings.haptics); } break;
       case 'capture': audio.play('capture', { vol: e.hero === m.humanId ? 1 : 0.6 }); break;
       case 'throw': audio.play('throw', { vol: 0.8 }); break;
       case 'drop': audio.play('drop', { vol: 0.7 }); break;

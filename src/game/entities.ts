@@ -206,7 +206,7 @@ export type MatchEvent =
   | { t: 'hit'; x: number; y: number; target: number; amount: number; crit?: boolean; source: number; tag?: 'combo' | 'back' | 'momentum' | 'execute' | 'duo' }
   | { t: 'heal'; x: number; y: number; target: number; amount: number }
   | { t: 'shot'; hero: number; kind: string; x: number; y: number; angle: number }
-  | { t: 'melee'; hero: number; x: number; y: number; angle: number; range: number }
+  | { t: 'melee'; hero: number; x: number; y: number; angle: number; range: number; arc?: number }
   | { t: 'chain'; points: number[]; team: TeamId }
   | { t: 'explosion'; x: number; y: number; radius: number; color: string }
   | { t: 'kill'; killer: number; victim: number; x: number; y: number }

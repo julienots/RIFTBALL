@@ -6,9 +6,11 @@ import { ARENAS } from '../../data/arenas';
 import { MUTATIONS } from '../../data/mutations';
 
 export const MECHANICS: { icon: string; title: string; text: string; isNew?: boolean }[] = [
-  { icon: '🕺', title: 'Emotes de danse', text: 'Ouvre la roue d\'emotes en match (ou appuie sur DANSER dans le lobby) : ton héros danse en 3D. Bouger ou attaquer arrête la danse.', isNew: true },
-  { icon: '🎧', title: 'VIBE, le DJ (Saison 2)', text: 'Bass Drop repousse tout le monde et fait lâcher le Rift. Sa Piste de Danse soigne et accélère les alliés, ralentit les ennemis. Chaque coup réussi lui donne de la vitesse.', isNew: true },
-  { icon: '🪩', title: 'Fiesta Plaza', text: 'Nouvelle arène : piste de danse lumineuse au centre, couloirs boost et tremplins de scène.', isNew: true },
+  { icon: '🎯', title: 'Visée de précision', text: 'Appuie sur ATTAQUE : le tir part vers la meilleure cible (tir dégagé, porteur du Rift, ennemi blessé) en anticipant ses mouvements. Glisse pour viser : le tir se cale sur un ennemi à quelques degrés près. L\'indicateur montre la vraie portée, s\'arrête sur les murs et met un réticule rouge sur la cible.', isNew: true },
+  { icon: '⭕', title: 'Tirs en cloche', text: 'Les tirs en cloche affichent un cercle rouge à l\'endroit où ils vont tomber : sors-en vite !', isNew: true },
+  { icon: '🕺', title: 'Emotes de danse', text: 'Ouvre la roue d\'emotes en match (ou appuie sur DANSER dans le lobby) : ton héros danse en 3D. Bouger ou attaquer arrête la danse.' },
+  { icon: '🎧', title: 'VIBE, le DJ (Saison 2)', text: 'Bass Drop repousse tout le monde et fait lâcher le Rift. Sa Piste de Danse soigne et accélère les alliés, ralentit les ennemis. Chaque coup réussi lui donne de la vitesse.' },
+  { icon: '🪩', title: 'Fiesta Plaza', text: 'Nouvelle arène : piste de danse lumineuse au centre, couloirs boost et tremplins de scène.' },
   { icon: '🔒', title: 'Parties privées', text: 'Modes → Partie privée : crée un code et envoie-le à tes amis. Vous jouez ensemble en ligne, les places vides sont prises par des bots. Sans trophées.' },
   { icon: '🎵', title: 'Nouvelle bande-son', text: 'Chaque saison a son thème de lobby, et le Boss, le Roi du Rift, FifiX et la Fiesta ont leur propre musique.' },
   { icon: '🎰', title: 'Mode FIFIX (temporaire)', text: 'Toutes les 20 s, la Roulette de Fifi transforme chaque joueur en un héros au hasard. Mutations en rafale et bonus. Jusqu\'au 31 octobre !' },
@@ -57,18 +59,18 @@ export function guideScreen(c: Controller): Screen {
 
 /** One-time "what's new" popup for this content update. */
 export function showNews(c: Controller) {
-  const key = 'news_v18';
+  const key = 'news_v19';
   if ((c.data as any).seenNews === key || !c.data.tutorialDone) return;
   (c.data as any).seenNews = key;
   c.app.save.save();
   const m = c.ui.modal('NOUVEAUTÉS', h('div.col', { style: 'gap:.5em;max-width:34em' },
-    h('div.small-text', 'Mise à jour 1.0.8 : SAISON 2 — RIFT FIESTA 🪩'),
+    h('div.small-text', 'Mise à jour 1.0.9 : ATTAQUES DE PRÉCISION 🎯'),
     ...[
-      ['🕺', 'EMOTES DE DANSE : ton héros danse vraiment en 3D (Groove gratuit, Robot, Floss, Disco)'],
-      ['🎧', 'Nouveau héros VIBE, le DJ du Rift : Bass Drop et Piste de Danse'],
-      ['🗺️', 'Maps redessinées en haute définition + nouvelle arène FIESTA PLAZA'],
-      ['🧍', 'Héros redessinés : vraies jambes et bras articulés, animations fluides'],
-      ['⚔️', 'Nouveaux effets : arcs de coups, étincelles d\'impact, traînées de tirs'],
+      ['🎯', 'Visée auto intelligente : vise la meilleure cible et anticipe ses déplacements'],
+      ['🧲', 'Aide à la visée : en visant à la main, le tir se cale sur l\'ennemi tout proche'],
+      ['📏', 'Portées +15 % et indicateurs exacts : arrêt sur les murs, cône des coups, éventail des tirs'],
+      ['💥', 'Coups balayés, projectiles lumineux, impacts au sol, marqueur de touche'],
+      ['📊', 'Dégâts cumulés, barre de vie qui montre les dégâts, recharge de l\'attaque visible'],
     ].map(([i, t]) => h('div.row', { style: 'gap:.6em' }, h('span', { style: 'font-size:1.5em' }, i), h('span', t))),
     h('div.row', { style: 'justify-content:center;gap:.6em;margin-top:.4em' },
       h('button.btn.purple', { onclick: () => { m.close(); c.ui.push(guideScreen(c)); } }, '📖 GUIDE'),

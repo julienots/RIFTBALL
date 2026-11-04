@@ -17,7 +17,7 @@ export const GADGET_ICONS: Record<string, string> = { repulse: '🧲', vanish: '
   smoke: '🌫️', harden: '🪵', ally_warp: '🌙', leap: '🚀', haste: '⏩', sanctuary: '✨', rift_decoy: '🎭' };
 const TAG_FR: Record<string, [string, string]> = { combo: ['COMBO x3 !', '#ff9f1c'], back: ['DANS LE DOS !', '#c77dff'], momentum: ['ÉLAN !', '#4cc9f0'], execute: ['COUP DE GRÂCE !', '#ff4d6d'], duo: ['ATTAQUE EN DUO !', '#80ed99'] };
 
-interface HpEl { root: HTMLElement; fill: HTMLElement; shield: HTMLElement; num: HTMLElement | null; carry: HTMLElement; badges: HTMLElement; lastHp: number; lastCarry: boolean; lastBadges: string }
+interface HpEl { root: HTMLElement; fill: HTMLElement; shield: HTMLElement; chip: HTMLElement; num: HTMLElement | null; carry: HTMLElement; badges: HTMLElement; lastHp: number; lastCarry: boolean; lastBadges: string }
 
 /** In-match DOM HUD: scoreboard, timer, Rift status, health bars, damage numbers, buttons, minimap. */
 export class HUD {
@@ -32,15 +32,16 @@ export class HUD {
   private hpEls = new Map<number, HpEl>();
   private hpLayer: HTMLElement;
   private dmgPool: HTMLElement[] = [];
-  private dmgActive: { el: HTMLElement; t: number; x: number; y: number; vy: number }[] = [];
+  private dmgActive: { el: HTMLElement; t: number; x: number; y: number; vy: number; target?: number; cls?: string; amount?: number }[] = [];
   private offscreen: HTMLElement;
   private meHp: HTMLElement; private meUlt: HTMLElement; private meHpTxt: HTMLElement;
-  private abCd: HTMLElement; private abCdN: HTMLElement; private ultRing: HTMLElement;
+  private abCd: HTMLElement; private abCdN: HTMLElement; private ultRing: HTMLElement; private atkCd = h('div.cd.atk');
   private vignette: HTMLElement; private flash: HTMLElement;
   private respawnEl: HTMLElement;
   private minimap: HTMLCanvasElement; private mmCtx: CanvasRenderingContext2D; private mmT = 0;
   private emoteWheel: HTMLElement | null = null;
   private tmp = { x: 0, y: 0, visible: true };
+  private multi = 0; private lastKillT = -99;
   private lastScore = [0, 0];
   private hurtT = 0;
   private bossBar: HTMLElement | null = null; private bossFill: HTMLElement | null = null; private bossShield: HTMLElement | null = null; private bossPhase: HTMLElement | null = null;
@@ -75,7 +76,7 @@ export class HUD {
     this.btn = {
       gadget: h('div.hud-btn.gadget', { 'data-slot': 'gadget', style: g ? '' : 'display:none' }, h('span.ic', gIcon[g?.effect ?? ''] ?? '✦'), this.gadgetN, h('span.lbl', g ? g.name.toUpperCase() : 'GADGET')),
       roll: h('div.hud-btn.roll', { 'data-slot': 'roll' }, h('span.ic', '💨'), this.rollCd, h('span.lbl', 'ROULADE')),
-      attack: h('div.hud-btn.attack', { 'data-slot': 'attack' }, h('span.ic', '🎯'), h('div.aim-knob', { style: 'display:none' }), h('span.lbl', 'ATTAQUE')),
+      attack: h('div.hud-btn.attack', { 'data-slot': 'attack' }, this.atkCd, h('span.ic', '🎯'), h('div.aim-knob', { style: 'display:none' }), h('span.lbl', 'ATTAQUE')),
       ability: h('div.hud-btn.ability', { 'data-slot': 'ability' }, h('span.ic', '⚡'), this.abCd, this.abCdN, h('span.lbl', 'CAPACITÉ')),
       ult: h('div.hud-btn.ult', { 'data-slot': 'ult' }, this.ultRing, h('span.ic', '★'), h('span.lbl', 'ULTIME')),
     };
@@ -161,6 +162,7 @@ export class HUD {
         this.damageNumber(t, e.amount, e.t === 'heal' ? 'heal' : e.target === m.humanId ? 'me' : e.t === 'hit' && e.tag ? e.tag : '');
         if (e.t === 'hit' && e.tag && e.source === m.humanId && TAG_FR[e.tag]) this.showAnnounce(TAG_FR[e.tag][0], '', TAG_FR[e.tag][1], 600);
         if (e.t === 'hit' && e.target === m.humanId) { this.hurtT = 0.4; }
+        if (e.t === 'hit' && e.source === m.humanId && e.target !== m.humanId) this.hitMarker(t, !!e.crit || !!e.tag);
         break;
       }
       case 'kill': {
@@ -170,7 +172,15 @@ export class HUD {
         this.killfeed.prepend(row);
         while (this.killfeed.children.length > 4) this.killfeed.lastElementChild?.remove();
         setTimeout(() => row.remove(), 4500);
-        if (e.killer === m.humanId && !v.pve) this.showAnnounce('ÉLIMINATION !', '', '#ffe14d', 900);
+        if (e.killer === m.humanId && !v.pve) {
+          // multi-kills within 4 s
+          this.multi = m.time - this.lastKillT < 4 ? this.multi + 1 : 1; this.lastKillT = m.time;
+          const names = ['ÉLIMINATION !', 'DOUBLE ÉLIMINATION !', 'TRIPLE ÉLIMINATION !', 'MÉGA ÉLIMINATION !', 'LÉGENDAIRE !!'];
+          const cols = ['#ffe14d', '#ffb703', '#ff7b00', '#ff3d7f', '#c77dff'];
+          const i = Math.min(names.length - 1, this.multi - 1);
+          this.showAnnounce(names[i], this.multi > 1 ? `x${this.multi}` : '', cols[i], 900 + i * 250);
+          if (this.multi > 1) this.screenFlash('rgba(255,183,3,.25)');
+        }
         break;
       }
       case 'countdown': this.showAnnounce(String(e.n), '', '#fff', 900); break;
@@ -260,14 +270,33 @@ export class HUD {
     }
   }
 
+  /** Crosshair flash on the enemy you just hit (precise feedback). */
+  private hitMarker(t: Hero, big: boolean) {
+    const p = this.r.toScreen(this.r.heroRenderPos(t).x, this.r.heroRenderPos(t).y, this.r.heroScreenHeight(t) * 0.5, this.tmp);
+    if (!p.visible) return;
+    const el = h('div.hitmark' + (big ? '.big' : ''));
+    el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+    this.el.appendChild(el);
+    setTimeout(() => el.remove(), 260);
+  }
+
   private damageNumber(t: Hero, amount: number, cls: string) {
+    // rapid hits on the same target (spread pellets, chains) stack into one growing number
+    const prev = this.dmgActive.find((d) => d.target === t.id && d.cls === cls && d.t < 0.35 && cls !== 'heal');
+    if (prev) {
+      prev.amount = (prev.amount ?? 0) + amount; prev.t = 0.02; prev.vy = -70;
+      prev.el.textContent = String(prev.amount) + (cls === 'combo' ? '!' : cls === 'back' ? ' ↶' : '');
+      prev.el.style.fontSize = Math.min(1.9, 1 + prev.amount / 2500) + 'em';
+      return;
+    }
     const el = this.dmgPool.pop();
     if (!el) return;
     el.className = 'dmg ' + cls;
     el.textContent = (cls === 'heal' ? '+' : '') + amount + (cls === 'combo' ? '!' : cls === 'back' ? ' ↶' : '');
     el.style.display = '';
     const p = this.r.toScreen(t.x, t.y, this.r.heroScreenHeight(t), this.tmp);
-    this.dmgActive.push({ el, t: 0, x: p.x + (Math.random() - 0.5) * 40, y: p.y - 10, vy: -90 });
+    el.style.fontSize = cls === '' || cls === 'me' ? Math.min(1.6, 0.9 + amount / 2500) + 'em' : '';
+    this.dmgActive.push({ el, t: 0, x: p.x + (Math.random() - 0.5) * 40, y: p.y - 10, vy: -90, target: t.id, cls, amount });
   }
 
   update(dt: number) {
@@ -339,6 +368,8 @@ export class HUD {
       this.rollCd.style.setProperty('--p', me.rollCd > 0 ? (100 * me.rollCd) / (me.carrying ? 5.5 : 4) + '%' : '0%');
       this.btn.roll.classList.toggle('cool', me.rollCd > 0);
       this.btn.attack.classList.toggle('carry', me.carrying);
+      // attack reload sweep: you see exactly when the next shot is ready
+      this.atkCd.style.setProperty('--p', me.atkCd > 0 && !me.carrying ? (100 * me.atkCd) / me.def.attack.cooldown + '%' : '0%');
       (this.btn.attack.querySelector('.ic') as HTMLElement).textContent = me.carrying ? '🔮' : '🎯';
       (this.btn.attack.querySelector('.lbl') as HTMLElement).textContent = me.carrying ? (m.mode.id === 'RIFT_KING' ? 'PASSER' : 'LANCER') : 'ATTAQUE';
       if (!me.alive) {
@@ -358,14 +389,14 @@ export class HUD {
       let e = this.hpEls.get(hero.id);
       if (!e) {
         const isMe = hero.id === m.humanId;
-        const fill = h('i'), shield = h('u');
+        const fill = h('i'), shield = h('u'), chip = h('b');
         const num = isMe || hero.def.id === 'boss_golem' ? h('div.hpn.stroke-s') : null;
         const carry = h('div.carry', { style: 'display:none' }, '🔮 RIFT');
         const badges = h('div.badges');
         const color = isMe ? '#3ddc84' : hero.team === viewTeam ? '#2f9bff' : '#ff3b4e';
-        const root = h('div.hpbar' + (isMe ? '.me' : ''), { style: `--hc:${color}` }, carry, badges, h('div.nm', { style: `color:${isMe ? '#ffe14d' : '#fff'}` }, hero.name), h('div.hb', { style: hero.def.id === 'boss_golem' ? 'width:12em;height:1em' : '' }, fill, shield), num);
+        const root = h('div.hpbar' + (isMe ? '.me' : ''), { style: `--hc:${color}` }, carry, badges, h('div.nm', { style: `color:${isMe ? '#ffe14d' : '#fff'}` }, hero.name), h('div.hb', { style: hero.def.id === 'boss_golem' ? 'width:12em;height:1em' : '' }, chip, fill, shield), num);
         this.hpLayer.appendChild(root);
-        e = { root, fill, shield, num, carry, badges, lastHp: -1, lastCarry: false, lastBadges: '' };
+        e = { root, fill, shield, chip, num, carry, badges, lastHp: -1, lastCarry: false, lastBadges: '' };
         this.hpEls.set(hero.id, e);
       }
       const rp = this.r.heroRenderPos(hero);
@@ -373,8 +404,12 @@ export class HUD {
       e.root.style.display = p.visible ? '' : 'none';
       e.root.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -100%)`;
       if (e.lastHp !== hero.hp) {
+        const w = (100 * Math.max(0, hero.hp)) / hero.maxHp + '%';
+        // white "chip" shows the chunk you just took off, then drains
+        if (hero.hp > e.lastHp) { e.chip.style.transition = 'none'; e.chip.style.width = w; }
+        else { e.chip.style.transition = ''; e.chip.style.width = w; }
         e.lastHp = hero.hp;
-        e.fill.style.width = (100 * Math.max(0, hero.hp)) / hero.maxHp + '%';
+        e.fill.style.width = w;
         if (e.num) e.num.textContent = String(Math.ceil(hero.hp));
       }
       e.shield.style.width = hero.shield > 0 && hero.shieldUntil > m.time ? Math.min(100, (100 * hero.shield) / hero.maxHp) + '%' : '0%';

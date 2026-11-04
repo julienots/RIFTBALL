@@ -1,6 +1,6 @@
 import type { Match } from '../game/Match';
 import { Hero, Projectile, type ProjectileKind } from '../game/entities';
-import { clamp, dist2, segmentHitsRect } from '../core/math';
+import { clamp, dist2, segmentHitsRect, segPointDist2 } from '../core/math';
 import type { TeamId } from '../data/types';
 import { isBoss } from '../data/characters';
 
@@ -225,6 +225,66 @@ export function nearestEnemy(m: Match, hero: Hero, range: number, dirX = 0, dirY
   return best;
 }
 
+/**
+ * Smart auto-aim shared by the simulation and the aim preview: picks the best target in range
+ * (clear line of fire first, then Rift carriers and wounded enemies) and leads it by the
+ * projectile's travel time so tap-to-shoot actually connects.
+ */
+export function autoAimTarget(m: Match, h: Hero, range = h.def.attack.range): { target: Hero; ax: number; ay: number; dist: number } | null {
+  const a = h.def.attack;
+  const throughWalls = a.kind === 'lob';
+  let best: Hero | null = null, bs = Infinity;
+  for (const e of m.heroes) {
+    if (!e.alive || e.team === h.team || !m.isVisibleTo(e, h.team)) continue;
+    const d = Math.hypot(e.x - h.x, e.y - h.y);
+    if (d > range * 1.12 + e.radius) continue;
+    let score = d;
+    if (!throughWalls && m.lineBlocked(h.x, h.y, e.x, e.y)) score += 700;
+    if (e.phaseUntil > m.time) score += 900;
+    if (e.carrying) score *= 0.75;
+    score *= 0.8 + 0.2 * (e.hp / e.maxHp);
+    if (score < bs) { bs = score; best = e; }
+  }
+  if (!best) return null;
+  // lead: solve for the interception point (two refinement passes)
+  let tx = best.x, ty = best.y;
+  const sp = a.projectileSpeed;
+  if (sp > 0 && a.kind !== 'melee' && a.kind !== 'chain') {
+    for (let i = 0; i < 2; i++) {
+      const d = Math.hypot(tx - h.x, ty - h.y);
+      const t = Math.min(0.9, a.kind === 'lob' ? Math.max(0.35, d / sp) : d / sp);
+      tx = best.x + best.vx * t * 0.9; ty = best.y + best.vy * t * 0.9;
+    }
+    tx = clamp(tx, 0, m.arena.w); ty = clamp(ty, 0, m.arena.h);
+  }
+  const ax = tx - h.x, ay = ty - h.y, dist = Math.hypot(ax, ay) || 1;
+  return { target: best, ax: ax / dist, ay: ay / dist, dist };
+}
+
+/**
+ * Soft aim assist for manual (dragged) aim: if the aim passes within a few degrees of an enemy in
+ * range with a clear line, the shot snaps onto it (with lead). Lobs keep the exact aimed spot.
+ */
+export function aimAssist(m: Match, h: Hero, dx: number, dy: number): { ax: number; ay: number; target: Hero | null } {
+  const a = h.def.attack;
+  if (a.kind === 'lob' || h.carrying) return { ax: dx, ay: dy, target: null };
+  const maxAng = a.kind === 'melee' ? 0.35 : 0.13; // ~20° melee, ~7.5° shots
+  let best: Hero | null = null, bestAng = maxAng;
+  for (const e of m.heroes) {
+    if (!e.alive || e.team === h.team || !m.isVisibleTo(e, h.team)) continue;
+    const ex = e.x - h.x, ey = e.y - h.y, d = Math.hypot(ex, ey);
+    if (d < 1 || d > a.range + e.radius) continue;
+    const ang = Math.abs(Math.atan2(ex * dy - ey * dx, ex * dx + ey * dy)) - Math.atan2(e.radius, d) * 0.5;
+    if (ang < bestAng && !m.lineBlocked(h.x, h.y, e.x, e.y)) { bestAng = ang; best = e; }
+  }
+  if (!best) return { ax: dx, ay: dy, target: null };
+  const sp = a.projectileSpeed;
+  let tx = best.x, ty = best.y;
+  if (sp > 0 && a.kind !== 'melee' && a.kind !== 'chain') { const t = Math.min(0.9, Math.hypot(tx - h.x, ty - h.y) / sp); tx += best.vx * t * 0.9; ty += best.vy * t * 0.9; }
+  const l = Math.hypot(tx - h.x, ty - h.y) || 1;
+  return { ax: (tx - h.x) / l, ay: (ty - h.y) / l, target: best };
+}
+
 export function spawnProjectile(m: Match, owner: Hero, kind: ProjectileKind, x: number, y: number, dx: number, dy: number, speed: number, range: number, radius: number, damage: number): Projectile {
   const p = m.allocProjectile();
   p.kind = kind; p.owner = owner.id; p.team = owner.team;
@@ -261,6 +321,7 @@ export function performAttack(m: Match, h: Hero, dx: number, dy: number, aimDist
       const kind = a.kind === 'bolt' ? (isBoss(h) ? 'boss' : 'bolt') : a.kind;
       const p = spawnProjectile(m, h, kind, ox, oy, dx, dy, a.projectileSpeed, a.range, a.radius ?? 12, a.damage);
       p.pierce = !!a.pierce || h.pierceNext; p.healAllies = a.healAllies ?? 0; p.knockback = a.knockback ?? 0;
+      p.slow = a.slow ?? 0; p.slowDuration = a.slowDuration ?? 0;
       if (h.pierceNext) { h.pierceNext = false; p.radius *= 1.5; p.color = '#ffbe0b'; }
       break;
     }
@@ -311,7 +372,11 @@ export function performAttack(m: Match, h: Hero, dx: number, dy: number, aimDist
         const ddx = e.x - h.x, ddy = e.y - h.y;
         const d = Math.hypot(ddx, ddy);
         if (d > a.range + e.radius) continue;
-        if (d > 1 && (ddx * dx + ddy * dy) / d < cone) continue;
+        // point-blank enemies are always hit; otherwise the cone is widened by the target's size
+        if (d > h.radius + e.radius) {
+          const half = Math.acos(cone) + Math.atan2(e.radius, d);
+          if ((ddx * dx + ddy * dy) / d < Math.cos(Math.min(Math.PI, half))) continue;
+        }
         applyDamage(m, e, a.damage, h, { kb: a.knockback ?? 0, kbX: ddx, kbY: ddy, attack: true });
       }
       for (const w of m.arena.walls) {
@@ -319,7 +384,9 @@ export function performAttack(m: Match, h: Hero, dx: number, dy: number, aimDist
         const cx = Math.max(w.x, Math.min(h.x + dx * a.range * 0.6, w.x + w.w)), cy = Math.max(w.y, Math.min(h.y + dy * a.range * 0.6, w.y + w.h));
         if (dist2(cx, cy, h.x + dx * a.range * 0.6, h.y + dy * a.range * 0.6) < (a.range * 0.6) ** 2) damageWall(m, w, a.damage);
       }
-      m.emit({ t: 'melee', hero: h.id, x: h.x, y: h.y, angle: h.facing, range: a.range });
+      // short committed lunge into the swing (well under wall-slam speed)
+      if (!immovable(h)) { h.kx += dx * 230; h.ky += dy * 230; }
+      m.emit({ t: 'melee', hero: h.id, x: h.x, y: h.y, angle: h.facing, range: a.range, arc: a.spreadDeg ?? 90 });
       return;
     }
   }
@@ -366,7 +433,13 @@ export function updateProjectiles(m: Match, dt: number) {
       const sp = Math.hypot(p.vx, p.vy);
       p.vx = (ddx / d) * sp; p.vy = (ddy / d) * sp;
     }
-    const nx = p.x + p.vx * dt, ny = p.y + p.vy * dt;
+    let nx = p.x + p.vx * dt, ny = p.y + p.vy * dt;
+    // stop exactly at max range (what the aim indicator shows)
+    if (!(p.kind === 'boomerang' && p.returning)) {
+      const step = Math.hypot(nx - p.x, ny - p.y), left = p.range - p.traveled;
+      if (step > left && step > 0) { const k = Math.max(0, left) / step; nx = p.x + (nx - p.x) * k; ny = p.y + (ny - p.y) * k; }
+    }
+    const px0 = p.x, py0 = p.y;
     if (!p.phase) {
       let hitWall = false;
       for (const w of m.arena.walls) {
@@ -387,8 +460,9 @@ export function updateProjectiles(m: Match, dt: number) {
     // hits
     for (const e of m.heroes) {
       if (!e.alive || p.hit.has(e.id)) continue;
+      // swept test along this step: fast bolts can't tunnel through targets
       const rr = (p.radius + e.radius) * (p.radius + e.radius);
-      if (dist2(p.x, p.y, e.x, e.y) > rr) continue;
+      if (segPointDist2(px0, py0, p.x, p.y, e.x, e.y) > rr) continue;
       if (e.team === p.team) {
         if (p.healAllies > 0 && e.id !== p.owner) { p.hit.add(e.id); healHero(m, e, p.healAllies, (m.heroById(p.owner) ?? null)); }
         continue;
@@ -400,7 +474,7 @@ export function updateProjectiles(m: Match, dt: number) {
       if (!p.pierce) { p.active = false; break; }
     }
     if (!p.active) continue;
-    if (p.traveled >= p.range) {
+    if (p.traveled >= p.range - 0.01) {
       if (p.kind === 'boomerang' && !p.returning) { p.returning = true; p.hit.clear(); }
       else p.active = false;
     }

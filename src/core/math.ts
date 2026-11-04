@@ -64,3 +64,21 @@ export function segmentHitsRect(x0: number, y0: number, x1: number, y1: number, 
   }
   return true;
 }
+
+/** Distance along a normalized ray to an AABB (Infinity if missed). */
+export function rayRectDist(x: number, y: number, dx: number, dy: number, r: Rect): number {
+  let tmin = 0, tmax = Infinity;
+  if (Math.abs(dx) < 1e-9) { if (x < r.x || x > r.x + r.w) return Infinity; }
+  else { let t1 = (r.x - x) / dx, t2 = (r.x + r.w - x) / dx; if (t1 > t2) { const t = t1; t1 = t2; t2 = t; } tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2); if (tmin > tmax) return Infinity; }
+  if (Math.abs(dy) < 1e-9) { if (y < r.y || y > r.y + r.h) return Infinity; }
+  else { let t1 = (r.y - y) / dy, t2 = (r.y + r.h - y) / dy; if (t1 > t2) { const t = t1; t1 = t2; t2 = t; } tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2); if (tmin > tmax) return Infinity; }
+  return tmin;
+}
+
+/** Squared distance from point (px,py) to segment (x0,y0)-(x1,y1). */
+export function segPointDist2(x0: number, y0: number, x1: number, y1: number, px: number, py: number): number {
+  const dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy;
+  const t = l2 > 0 ? Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / l2)) : 0;
+  const qx = x0 + dx * t - px, qy = y0 + dy * t - py;
+  return qx * qx + qy * qy;
+}

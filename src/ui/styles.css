@@ -437,3 +437,12 @@ input { font: inherit; }
 .dmg.back { color: #c77dff; font-size: 1.3em; }
 .emote-wheel button.dance { background: linear-gradient(135deg, rgba(255,78,205,0.45), rgba(0,245,212,0.35)); border-color: #ff4ecd; }
 .dance-btn { position: absolute; left: calc(50% + 6.5em); bottom: 6.5em; font-size: 0.8em; padding: 0.3em 0.8em; border-radius: 1em; background: linear-gradient(135deg, #ff4ecd, #7b2cbf); color: #fff; border: 0.12em solid var(--ink); pointer-events: auto; z-index: 3; }
+/* v1.0.9 hit marker */
+.hitmark { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 4; }
+.hitmark::before, .hitmark::after { content: ''; position: absolute; left: -0.9em; top: -0.09em; width: 1.8em; height: 0.18em; background: linear-gradient(90deg, #fff 0 35%, transparent 35% 65%, #fff 65%); border-radius: 0.1em; box-shadow: 0 0 0.25em rgba(0,0,0,.6); animation: hitmark .26s ease-out forwards; }
+.hitmark::before { transform: rotate(45deg); } .hitmark::after { transform: rotate(-45deg); }
+.hitmark.big::before, .hitmark.big::after { background: linear-gradient(90deg, #ffe14d 0 35%, transparent 35% 65%, #ffe14d 65%); width: 2.4em; left: -1.2em; }
+@keyframes hitmark { 0% { opacity: 1; scale: 1.5; } 100% { opacity: 0; scale: 0.9; } }
+.hpbar .hb > b { position: absolute; inset: 0 auto 0 0; background: #fff; opacity: 0.85; transition: width 0.45s ease-in 0.28s; }
+.hpbar .hb > i { box-shadow: inset 0 -0.18em 0 rgba(0,0,0,0.22), inset 0 0.12em 0 rgba(255,255,255,0.35); }
+.hud-btn .cd.atk { background: conic-gradient(rgba(10,5,30,0.45) var(--p, 0%), transparent 0); }

@@ -4,9 +4,9 @@ import { getCharacter } from '../data/characters';
 import { getMode } from '../data/modes';
 import type { EventModifiers, ModeData, ModeId, MutationId, TeamId } from '../data/types';
 import { Rng } from '../core/Rng';
-import { circleRectPush, dist2, pointInRect, segmentHitsRect } from '../core/math';
+import { circleRectPush, dist2, pointInRect, segmentHitsRect, rayRectDist } from '../core/math';
 import { Hero, Projectile, Zone, type MatchEvent, type Pickup, type PickupKind, type RiftEntity, type ZoneKind } from './entities';
-import { applyDamage, COMBAT, healHero, nearestEnemy, performAttack, updateProjectiles } from '../combat/Combat';
+import { aimAssist, applyDamage, autoAimTarget, COMBAT, healHero, nearestEnemy, performAttack, updateProjectiles } from '../combat/Combat';
 import { castAbility, updateDash, updateLeap } from '../abilities/AbilitySystem';
 import { checkGoal, checkPickup, createRift, RIFT_TUNING, setRiftState, updateRift } from '../rift/Rift';
 import { MutationSystem } from '../rift/MutationSystem';
@@ -192,6 +192,13 @@ export class Match {
   lineBlocked(x0: number, y0: number, x1: number, y1: number) {
     for (const w of this.arena.walls) if (segmentHitsRect(x0, y0, x1, y1, w)) return true;
     return false;
+  }
+
+  /** Distance a straight shot travels before hitting a wall (capped at max). */
+  rayWallDist(x: number, y: number, dx: number, dy: number, max: number) {
+    let best = max;
+    for (const w of this.arena.walls) { const t = rayRectDist(x, y, dx, dy, w); if (t < best) best = t; }
+    return best;
   }
 
   /** Furthest free point along a direction (teleports). */
@@ -531,13 +538,13 @@ export class Match {
         this.throwRift(h, ax / l, ay / l);
       } else if (h.atkCd <= 0) {
         if (!manual) {
-          const e = nearestEnemy(this, h, h.def.attack.range * 1.1);
-          if (e) {
-            // precise auto-aim: lead moving targets by projectile travel time
-            const sp = h.def.attack.projectileSpeed;
-            const t = sp > 0 ? Math.min(0.6, Math.hypot(e.x - h.x, e.y - h.y) / sp) : 0;
-            ax = e.x + e.vx * t * 0.85 - h.x; ay = e.y + e.vy * t * 0.85 - h.y;
-          } else { ax = Math.cos(h.facing); ay = Math.sin(h.facing); }
+          const aim = autoAimTarget(this, h);
+          if (aim) { ax = aim.ax; ay = aim.ay; if (c.aimDist <= 0 && h.def.attack.kind === 'lob') c.aimDist = aim.dist; }
+          else { ax = Math.cos(h.facing); ay = Math.sin(h.facing); }
+        } else if (!h.isBot) {
+          const l0 = Math.hypot(ax, ay) || 1;
+          const as = aimAssist(this, h, ax / l0, ay / l0);
+          ax = as.ax; ay = as.ay;
         }
         const l = Math.hypot(ax, ay) || 1;
         performAttack(this, h, ax / l, ay / l, c.aimDist);
