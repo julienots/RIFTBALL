@@ -11,7 +11,7 @@ describe('Shop', () => {
     const a = app.shop.daily().map((x) => x.cosmetic.id);
     const b = app.shop.daily().map((x) => x.cosmetic.id);
     expect(a).toEqual(b);
-    expect(a.length).toBe(6);
+    expect(a.length).toBe(7);
     const c = app.shop.daily(Clock.now() + DAY_MS).map((x) => x.cosmetic.id);
     expect(c).not.toEqual(a);
   });
@@ -153,5 +153,25 @@ describe('Seasonal products', () => {
       expect(app.pass.season.id).toBe('s2');
       expect(app.iap.isOwnedOneTime('battle_pass')).toBe(true);
     } finally { (Clock as any).now = real; }
+  });
+});
+
+describe('v1.1.0 shop', () => {
+  it('daily shop has 2 deals, a free gift claimable once, and novelties', () => {
+    const { app } = makeApp();
+    const d = app.shop.daily();
+    expect(d.filter((x) => x.discount > 0).length).toBe(2);
+    for (const x of d.filter((x) => x.discount > 0)) expect(x.price.amount).toBeLessThan(x.full);
+    const g = app.shop.dailyGift();
+    expect(g.claimed).toBe(false);
+    expect(app.shop.claimDailyGift()).not.toBeNull();
+    expect(app.shop.claimDailyGift()).toBeNull();
+    const f = app.shop.featured();
+    expect(f.length).toBeGreaterThanOrEqual(10);
+    app.data.coins = 100000;
+    const coinItem = f.find((x) => x.price.currency === 'coins')!;
+    expect(app.shop.buyFeatured(coinItem.cosmetic.id)).not.toBeNull();
+    expect(app.inventory.owns(coinItem.cosmetic.id)).toBe(true);
+    expect(app.shop.buyFeatured(coinItem.cosmetic.id)).toBeNull();
   });
 });

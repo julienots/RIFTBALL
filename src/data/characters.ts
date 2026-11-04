@@ -8,7 +8,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'magnet', name: 'MAGNET', title: 'La Dompteuse de Rift', role: 'CONTROL', rarity: 'COMMON',
     lore: 'Ingénieure de la fosse, elle a appris à parler au Rift avec deux aimants et beaucoup de patience.',
-    hp: 4950, speed: 300, radius: 32,
+    hp: 4950, speed: 335, radius: 32,
     attack: { kind: 'bolt', damage: 350, range: 710, cooldown: 0.55, projectileSpeed: 1150, radius: 14 },
     ability: { id: 'magnet_pull', name: 'Attraction', description: 'Attire le Rift vers elle depuis une longue distance.', effect: 'pull_rift', cooldown: 7, range: 900, params: { force: 1900, duration: 0.9 }, aim: 'self', aiHint: 'pull_rift' },
     ultimate: { id: 'magnet_field', name: 'Champ Polaire', description: 'Crée un champ qui aspire ennemis et Rift vers son centre.', effect: 'magnet_field', cooldown: 0, range: 700, params: { radius: 300, duration: 2.6, pull: 520, damage: 160 }, aim: 'point', aiHint: 'zone_enemy' },
@@ -21,7 +21,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'blink', name: 'BLINK', title: "L'Éclair Furtif", role: 'ASSASSIN', rarity: 'COMMON',
     lore: 'Personne ne l\'a jamais vu arriver. Certains doutent même qu\'il soit parti.',
-    hp: 4350, speed: 330, radius: 30,
+    hp: 4350, speed: 370, radius: 30,
     attack: { kind: 'spread', damage: 220, range: 490, cooldown: 0.45, projectileSpeed: 1350, projectiles: 2, spreadDeg: 10, radius: 11 },
     ability: { id: 'blink_tp', name: 'Saut Quantique', description: 'Se téléporte instantanément dans la direction visée.', effect: 'teleport', cooldown: 5.5, range: 380, params: { distance: 380 }, aim: 'direction', aiHint: 'dash_offense' },
     ultimate: { id: 'blink_chain', name: 'Mille Coupures', description: 'Enchaîne 3 téléportations qui tranchent les ennemis traversés.', effect: 'blink_chain', cooldown: 0, range: 420, params: { jumps: 3, damage: 900, distance: 420 }, aim: 'direction', aiHint: 'dash_offense' },
@@ -34,7 +34,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'block', name: 'BLOCK', title: 'Le Bâtisseur', role: 'BUILDER', rarity: 'RARE',
     lore: 'Il a construit sa maison, son vélo et son meilleur ami. Tout en briques de Rift.',
-    hp: 5650, speed: 285, radius: 34,
+    hp: 5650, speed: 320, radius: 34,
     attack: { kind: 'lob', damage: 440, range: 640, cooldown: 0.8, projectileSpeed: 700, radius: 70 },
     ability: { id: 'block_wall', name: 'Mur Express', description: 'Construit un mur temporaire perpendiculaire à la visée.', effect: 'build_wall', cooldown: 6.5, range: 220, params: { length: 230, thickness: 46, hp: 3750, duration: 7 }, aim: 'direction', aiHint: 'wall_block' },
     ultimate: { id: 'block_fortress', name: 'Forteresse', description: 'Érige un anneau de murs autour de lui et gagne un bouclier.', effect: 'fortress', cooldown: 0, range: 0, params: { radius: 190, segments: 6, hp: 3200, duration: 6, shield: 1500 }, aim: 'self', aiHint: 'self_buff' },
@@ -47,7 +47,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'shade', name: 'SHADE', title: 'Le Spectre', role: 'STEALTH', rarity: 'RARE',
     lore: 'Une ombre qui s\'est détachée de son propriétaire. Elle préfère les buissons.',
-    hp: 4200, speed: 320, radius: 30,
+    hp: 4200, speed: 360, radius: 30,
     attack: { kind: 'bolt', damage: 410, range: 640, cooldown: 0.65, projectileSpeed: 1250, radius: 13, pierce: true },
     ability: { id: 'shade_phase', name: 'Phase', description: 'Devient intangible : traverse murs et attaques pendant 1.8s.', effect: 'phase', cooldown: 8, range: 0, params: { duration: 1.8, speedBonus: 0.3 }, aim: 'self', aiHint: 'phase' },
     ultimate: { id: 'shade_realm', name: 'Royaume des Ombres', description: 'Invisible et +40% vitesse pendant 4s. La prochaine attaque inflige double dégâts.', effect: 'shadow_realm', cooldown: 0, range: 0, params: { duration: 4, speedBonus: 0.4, damageMul: 2 }, aim: 'self', aiHint: 'self_buff' },
@@ -60,7 +60,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'volt', name: 'VOLT', title: 'La Surtension', role: 'DAMAGE', rarity: 'RARE',
     lore: 'Elle a mis les doigts dans la prise du Rift. Elle ne les a jamais retirés.',
-    hp: 4500, speed: 305, radius: 31,
+    hp: 4500, speed: 340, radius: 31,
     attack: { kind: 'chain', damage: 310, range: 600, cooldown: 0.6, projectileSpeed: 0, bounces: 2 },
     ability: { id: 'volt_dash', name: 'Court-Circuit', description: 'Fonce et laisse une traînée électrique qui ralentit.', effect: 'electric_dash', cooldown: 6, range: 340, params: { distance: 340, damage: 350, slow: 0.4 }, aim: 'direction', aiHint: 'dash_offense' },
     ultimate: { id: 'volt_storm', name: 'Orage', description: 'Un orage frappe la zone : dégâts répétés et étourdissement court.', effect: 'thunderstorm', cooldown: 0, range: 650, params: { radius: 260, duration: 2.4, damage: 380, stun: 0.6 }, aim: 'point', aiHint: 'zone_enemy' },
@@ -73,7 +73,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'flux', name: 'FLUX', title: "L'Alchimiste d'Énergie", role: 'DAMAGE', rarity: 'EPIC',
     lore: 'Il transforme les coups reçus en carburant. Ne le frappez pas. Sérieusement.',
-    hp: 4800, speed: 300, radius: 31,
+    hp: 4800, speed: 335, radius: 31,
     attack: { kind: 'boomerang', damage: 290, range: 640, cooldown: 0.75, projectileSpeed: 950, radius: 18, pierce: true },
     ability: { id: 'flux_bubble', name: 'Bulle d\'Absorption', description: 'Bouclier qui absorbe les dégâts et les convertit en charge d\'ultime.', effect: 'absorb_shield', cooldown: 8, range: 0, params: { shield: 1400, duration: 3, convert: 0.03 }, aim: 'self', aiHint: 'self_buff' },
     ultimate: { id: 'flux_nova', name: 'Nova', description: 'Libère une onde d\'énergie massive autour de lui.', effect: 'nova', cooldown: 0, range: 0, params: { radius: 380, damage: 1500, knockback: 700 }, aim: 'self', aiHint: 'nuke' },
@@ -86,7 +86,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'titan', name: 'TITAN', title: 'Le Mur Vivant', role: 'TANK', rarity: 'COMMON',
     lore: 'Ancien gardien de portail. Il ne laisse rien passer, à part peut-être le déjeuner.',
-    hp: 8100, speed: 280, radius: 38,
+    hp: 8100, speed: 315, radius: 38,
     attack: { kind: 'melee', damage: 520, range: 170, cooldown: 0.6, projectileSpeed: 0, spreadDeg: 100, knockback: 380 },
     ability: { id: 'titan_charge', name: 'Charge', description: 'Charge en avant et projette les ennemis.', effect: 'charge', cooldown: 6, range: 420, params: { distance: 420, damage: 500, knockback: 700, stun: 0.4 }, aim: 'direction', aiHint: 'dash_offense' },
     ultimate: { id: 'titan_slam', name: 'Séisme', description: 'Frappe le sol : dégâts et étourdissement autour de lui.', effect: 'slam', cooldown: 0, range: 0, params: { radius: 320, damage: 1100, stun: 1.0 }, aim: 'self', aiHint: 'nuke' },
@@ -99,7 +99,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'arc', name: 'ARC', title: "L'Artilleuse", role: 'ARTILLERY', rarity: 'EPIC',
     lore: 'Elle calcule les trajectoires plus vite que son ombre. Et son ombre est sous elle.',
-    hp: 4050, speed: 295, radius: 30,
+    hp: 4050, speed: 330, radius: 30,
     attack: { kind: 'lob', damage: 480, range: 830, cooldown: 0.9, projectileSpeed: 650, radius: 85 },
     ability: { id: 'arc_leap', name: 'Bond Parabolique', description: 'Saute par-dessus les obstacles vers le point visé.', effect: 'leap', cooldown: 7, range: 450, params: { distance: 450, duration: 0.55, damage: 400 }, aim: 'point', aiHint: 'leap' },
     ultimate: { id: 'arc_barrage', name: 'Barrage', description: 'Fait pleuvoir 6 obus sur la zone visée.', effect: 'barrage', cooldown: 0, range: 850, params: { shells: 6, damage: 650, radius: 120, spread: 200 }, aim: 'point', aiHint: 'zone_enemy' },
@@ -112,7 +112,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'pulse', name: 'PULSE', title: 'Le Cœur de l\'Équipe', role: 'SUPPORT', rarity: 'EPIC',
     lore: 'Son antenne capte les battements de cœur de ses alliés. Et les mauvaises blagues.',
-    hp: 4650, speed: 305, radius: 31,
+    hp: 4650, speed: 340, radius: 31,
     attack: { kind: 'wave', damage: 260, range: 600, cooldown: 0.7, projectileSpeed: 900, radius: 26, pierce: true, healAllies: 420 },
     ability: { id: 'pulse_heal', name: 'Zone Vitale', description: 'Pose une zone qui soigne les alliés.', effect: 'heal_zone', cooldown: 7, range: 450, params: { radius: 220, duration: 3.5, heal: 450 }, aim: 'point', aiHint: 'heal_team' },
     ultimate: { id: 'pulse_overdrive', name: 'Surrégime', description: 'Toute l\'équipe gagne vitesse et réduction de dégâts.', effect: 'overdrive', cooldown: 0, range: 0, params: { duration: 5, speedBonus: 0.3, damageReduction: 0.35, heal: 1200 }, aim: 'self', aiHint: 'heal_team' },
@@ -125,7 +125,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'vortex', name: 'VORTEX', title: 'Le Tourbillon', role: 'CONTROL', rarity: 'LEGENDARY',
     lore: 'Né dans l\'œil d\'une tempête de Rift. Il donne encore le tournis à ses parents.',
-    hp: 4800, speed: 300, radius: 32,
+    hp: 4800, speed: 335, radius: 32,
     attack: { kind: 'blades', damage: 200, range: 580, cooldown: 0.55, projectileSpeed: 1000, projectiles: 3, spreadDeg: 24, radius: 13, slow: 0.25, slowDuration: 1 },
     ability: { id: 'vortex_zone', name: 'Spirale', description: 'Zone tourbillonnante qui ralentit fortement.', effect: 'slow_zone', cooldown: 7, range: 550, params: { radius: 200, duration: 3, slow: 0.55, damage: 120 }, aim: 'point', aiHint: 'zone_enemy' },
     ultimate: { id: 'vortex_hole', name: 'Trou Noir', description: 'Crée un trou noir qui aspire ennemis et Rift.', effect: 'black_hole', cooldown: 0, range: 650, params: { radius: 320, duration: 3, pull: 600, damage: 170 }, aim: 'point', aiHint: 'zone_enemy' },
@@ -138,7 +138,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'ember', name: 'EMBER', title: 'La Braise Éternelle', role: 'DAMAGE', rarity: 'LEGENDARY',
     lore: 'Héroïne de la Saison 1 : née dans le Noyau Volcanique, elle laisse des flammes dans son sillage.',
-    hp: 4550, speed: 310, radius: 31,
+    hp: 4550, speed: 345, radius: 31,
     attack: { kind: 'spread', damage: 160, range: 550, cooldown: 0.5, projectileSpeed: 1050, projectiles: 4, spreadDeg: 28, radius: 12 },
     ability: { id: 'ember_trail', name: 'Sillage Ardent', description: 'Fonce en laissant une traînée de flammes.', effect: 'fire_dash', cooldown: 6.5, range: 360, params: { distance: 360, damage: 260 }, aim: 'direction', aiHint: 'dash_offense' },
     ultimate: { id: 'ember_eruption', name: 'Éruption', description: 'Une colonne de lave jaillit et embrase la zone.', effect: 'eruption', cooldown: 0, range: 650, params: { radius: 240, damage: 1300, burn: 300, duration: 2.5 }, aim: 'point', aiHint: 'zone_enemy' },
@@ -151,7 +151,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'nova', name: 'NOVA', title: 'La Sniper Stellaire', role: 'DAMAGE', rarity: 'LEGENDARY',
     lore: 'Elle vise si loin qu\'elle a déjà touché une étoile. L\'étoile ne s\'en est jamais remise.',
-    hp: 3600, speed: 295, radius: 30,
+    hp: 3600, speed: 330, radius: 30,
     attack: { kind: 'bolt', damage: 760, range: 1130, cooldown: 1.0, projectileSpeed: 2000, radius: 12, pierce: false },
     ability: { id: 'nova_focus', name: 'Visée Laser', description: 'La prochaine attaque traverse les ennemis et inflige +60% de dégâts.', effect: 'focus_shot', cooldown: 6, range: 0, params: { mul: 1.6 }, aim: 'self', aiHint: 'self_buff' },
     ultimate: { id: 'nova_beam', name: 'Rayon Stellaire', description: 'Un rayon traverse toute l\'arène, murs compris.', effect: 'laser', cooldown: 0, range: 2400, params: { damage: 1700, width: 70, length: 2400 }, aim: 'direction', aiHint: 'zone_enemy' },
@@ -164,7 +164,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'frost', name: 'FROST', title: 'Le Gardien du Givre', role: 'CONTROL', rarity: 'LEGENDARY',
     lore: 'Il est né dans le Laboratoire Gelé. Il a toujours froid, même au Noyau Volcanique.',
-    hp: 4400, speed: 290, radius: 32,
+    hp: 4400, speed: 325, radius: 32,
     attack: { kind: 'spread', damage: 230, range: 600, cooldown: 0.6, projectileSpeed: 1050, projectiles: 3, spreadDeg: 18, radius: 13 },
     ability: { id: 'frost_rink', name: 'Patinoire', description: 'Gèle le sol : les ennemis glissent et sont ralentis.', effect: 'ice_floor', cooldown: 7, range: 550, params: { radius: 230, duration: 5, slow: 0.35 }, aim: 'point', aiHint: 'zone_enemy' },
     ultimate: { id: 'frost_blizzard', name: 'Blizzard', description: 'Un blizzard gèle sur place les ennemis touchés puis les ralentit.', effect: 'blizzard', cooldown: 0, range: 650, params: { radius: 320, duration: 3, damage: 220, stun: 1.0, slow: 0.5 }, aim: 'point', aiHint: 'zone_enemy' },
@@ -177,7 +177,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'zip', name: 'ZIP', title: 'La Coursière du Rift', role: 'ASSASSIN', rarity: 'RARE',
     lore: 'Elle livre n\'importe quoi, n\'importe où, en moins de 3 secondes. Le Rift compris. Surtout s\'il n\'est pas à elle.',
-    hp: 4000, speed: 345, radius: 29,
+    hp: 4000, speed: 385, radius: 29,
     attack: { kind: 'spread', damage: 190, range: 480, cooldown: 0.42, projectileSpeed: 1400, projectiles: 3, spreadDeg: 14, radius: 11 },
     ability: { id: 'zip_snatch', name: 'Vol à l\'Arraché', description: 'Fonce en avant. Si elle touche le porteur du Rift, elle le lui vole !', effect: 'snatch_dash', cooldown: 6, range: 420, params: { distance: 420, damage: 300 }, aim: 'direction', aiHint: 'dash_offense' },
     ultimate: { id: 'zip_nitro', name: 'Nitro', description: '+70% vitesse pendant 4 s, purge les ralentissements et recharge la roulade.', effect: 'turbo', cooldown: 0, range: 0, params: { duration: 4, speedBonus: 0.7 }, aim: 'self', aiHint: 'self_buff' },
@@ -190,7 +190,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'grill', name: 'GRILL', title: 'Le Cuistot Explosif', role: 'ARTILLERY', rarity: 'RARE',
     lore: 'Chef étoilé banni de toutes les cuisines du Rift. Ses poêles volent plus vite que ses clients.',
-    hp: 5200, speed: 290, radius: 33,
+    hp: 5200, speed: 325, radius: 33,
     attack: { kind: 'lob', damage: 420, range: 690, cooldown: 0.85, projectileSpeed: 700, radius: 80 },
     ability: { id: 'grill_oil', name: 'Flaque d\'Huile', description: 'Une flaque brûlante et glissante : les ennemis dérapent et brûlent.', effect: 'grease', cooldown: 7, range: 560, params: { radius: 210, duration: 5, damage: 140 }, aim: 'point', aiHint: 'zone_enemy' },
     ultimate: { id: 'grill_feast', name: 'Grand Festin', description: 'Soigne toute l\'équipe de 35% et lui donne +25% de dégâts pendant 5 s.', effect: 'feast', cooldown: 0, range: 0, params: { heal: 0.35, duration: 5 }, aim: 'self', aiHint: 'heal_team' },
@@ -203,7 +203,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'koko', name: 'KOKO', title: 'Le Gorille des Ruines', role: 'TANK', rarity: 'EPIC',
     lore: 'Gardien des Ruines de la Jungle. Il ne parle pas, il tape. Et il tape très bien.',
-    hp: 7600, speed: 285, radius: 37,
+    hp: 7600, speed: 320, radius: 37,
     attack: { kind: 'melee', damage: 480, range: 180, cooldown: 0.65, projectileSpeed: 0, spreadDeg: 110, knockback: 420 },
     ability: { id: 'koko_vines', name: 'Lianes', description: 'Des lianes jaillissent et immobilisent les ennemis dans la zone.', effect: 'vines', cooldown: 7, range: 520, params: { radius: 200, duration: 2.5, root: 0.9, damage: 220 }, aim: 'point', aiHint: 'zone_enemy' },
     ultimate: { id: 'koko_stampede', name: 'Ruée Sauvage', description: 'Charge sur une longue distance, renverse tout et réduit les dégâts reçus de 50%.', effect: 'stampede', cooldown: 0, range: 700, params: { distance: 700, damage: 900, knockback: 900, stun: 0.6, reduction: 0.5 }, aim: 'direction', aiHint: 'dash_offense' },
@@ -216,7 +216,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'luna', name: 'LUNA', title: 'La Prêtresse Lunaire', role: 'SUPPORT', rarity: 'EPIC',
     lore: 'Elle a passé cent ans sur la Lune à regarder le Rift. Elle est descendue quand elle s\'est ennuyée.',
-    hp: 4300, speed: 300, radius: 30,
+    hp: 4300, speed: 335, radius: 30,
     attack: { kind: 'boomerang', damage: 260, range: 640, cooldown: 0.7, projectileSpeed: 900, radius: 20, pierce: true },
     ability: { id: 'luna_well', name: 'Puits de Lune', description: 'Une source de lumière qui soigne les alliés et purge leurs ralentissements.', effect: 'moon_well', cooldown: 7, range: 480, params: { radius: 230, duration: 4, heal: 800 }, aim: 'point', aiHint: 'heal_team' },
     ultimate: { id: 'luna_eclipse', name: 'Éclipse', description: 'Plonge une zone dans l\'ombre : les ennemis dedans ne peuvent plus utiliser de capacités.', effect: 'eclipse', cooldown: 0, range: 650, params: { radius: 340, duration: 4, damage: 150, slow: 0.25 }, aim: 'point', aiHint: 'zone_enemy' },
@@ -229,7 +229,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'gear', name: 'GEAR', title: 'L\'Ingénieur Fou', role: 'BUILDER', rarity: 'EPIC',
     lore: 'Il a construit sa première tourelle à 6 ans. Elle lui tire encore dessus quand il oublie de la nourrir.',
-    hp: 4700, speed: 295, radius: 31,
+    hp: 4700, speed: 330, radius: 31,
     attack: { kind: 'bolt', damage: 300, range: 690, cooldown: 0.5, projectileSpeed: 1200, radius: 13 },
     ability: { id: 'gear_turret', name: 'Tourelle', description: 'Déploie une tourelle automatique qui tire sur les ennemis pendant 10 s.', effect: 'deploy_turret', cooldown: 9, range: 200, params: { duration: 10, hp: 2200 }, aim: 'point', aiHint: 'zone_enemy' },
     ultimate: { id: 'gear_missiles', name: 'Pluie de Missiles', description: 'Dix missiles s\'abattent sur la zone visée.', effect: 'barrage', cooldown: 0, range: 850, params: { shells: 10, damage: 480, radius: 110, spread: 260 }, aim: 'point', aiHint: 'zone_enemy' },
@@ -243,7 +243,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'chronos', name: 'CHRONOS', title: 'Le Maître du Temps', role: 'CONTROL', rarity: 'MYTHIC',
     lore: 'Il était là avant le Rift et sera là après. Il connaît déjà le score final de ce match, mais il ne dira rien.',
-    hp: 4600, speed: 305, radius: 31,
+    hp: 4600, speed: 340, radius: 31,
     attack: { kind: 'bolt', damage: 330, range: 710, cooldown: 0.55, projectileSpeed: 1300, radius: 14, slow: 0.15, slowDuration: 0.8 },
     ability: { id: 'chronos_rewind', name: 'Retour Temporel', description: 'Revient à sa position et ses PV d\'il y a 3 secondes.', effect: 'rewind', cooldown: 9, range: 0, params: { seconds: 3 }, aim: 'self', aiHint: 'phase' },
     ultimate: { id: 'chronos_stop', name: 'Arrêt du Temps', description: 'Fige les ennemis proches et le Rift pendant 2.2 s.', effect: 'time_stop', cooldown: 0, range: 0, params: { radius: 650, duration: 2.2 }, aim: 'self', aiHint: 'nuke' },
@@ -256,7 +256,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'seraph', name: 'SERAPH', title: 'L\'Archange du Rift', role: 'DAMAGE', rarity: 'MYTHIC',
     lore: 'Descendue des cieux du Sky Temple pour juger les tricheurs. Elle a beaucoup de travail.',
-    hp: 4900, speed: 310, radius: 31,
+    hp: 4900, speed: 345, radius: 31,
     attack: { kind: 'bolt', damage: 380, range: 740, cooldown: 0.6, projectileSpeed: 1500, radius: 14, pierce: true },
     ability: { id: 'seraph_lance', name: 'Lance Divine', description: 'Un trait de lumière qui traverse tout sur 900 de distance.', effect: 'laser', cooldown: 7, range: 900, params: { damage: 900, width: 55, length: 900 }, aim: 'direction', aiHint: 'zone_enemy' },
     ultimate: { id: 'seraph_judgement', name: 'Jugement', description: 'S\'envole, intouchable, puis s\'écrase : dégâts massifs aux ennemis, soins aux alliés.', effect: 'judgement', cooldown: 0, range: 800, params: { distance: 800, duration: 1.1, damage: 1500, radius: 380, heal: 1200 }, aim: 'point', aiHint: 'leap' },
@@ -269,7 +269,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'riftborn', name: 'RIFTBORN', title: 'L\'Enfant du Rift', role: 'CONTROL', rarity: 'MYTHIC',
     lore: 'Le Rift a eu un enfant. Personne ne sait avec qui. Le Rift lui obéit, parfois.',
-    hp: 5000, speed: 305, radius: 32,
+    hp: 5000, speed: 340, radius: 32,
     attack: { kind: 'chain', damage: 280, range: 620, cooldown: 0.6, projectileSpeed: 0, bounces: 3 },
     ability: { id: 'riftborn_call', name: 'Appel du Rift', description: 'Le Rift libre proche se téléporte dans ses mains (ou il l\'arrache à un porteur tout proche).', effect: 'rift_call', cooldown: 12, range: 1100, params: { range: 1100, steal: 380 }, aim: 'self', aiHint: 'pull_rift' },
     ultimate: { id: 'riftborn_avatar', name: 'Avatar du Rift', description: 'Se transforme 7 s : géant, +40% dégâts, soigné de 30%, insensible aux ralentissements et étourdissements.', effect: 'avatar', cooldown: 0, range: 0, params: { duration: 7, damage: 0.4, heal: 0.3 }, aim: 'self', aiHint: 'self_buff' },
@@ -282,7 +282,7 @@ export const CHARACTERS: CharacterData[] = [
   {
     id: 'vibe', name: 'VIBE', title: 'Le DJ du Rift', role: 'SUPPORT', rarity: 'LEGENDARY',
     lore: 'Héros de la Saison 2 RIFT FIESTA : ses platines font trembler le Rift. Quand il lance le son, même les ennemis tapent du pied.',
-    hp: 4700, speed: 315, radius: 31,
+    hp: 4700, speed: 355, radius: 31,
     attack: { kind: 'spread', damage: 190, range: 600, cooldown: 0.55, projectileSpeed: 1150, projectiles: 3, spreadDeg: 22, radius: 16 },
     ability: { id: 'vibe_bass', name: 'Bass Drop', description: 'Une onde de basse : dégâts autour de lui, repousse et fait lâcher le Rift.', effect: 'bass_drop', cooldown: 7, range: 0, params: { radius: 300, damage: 650, knockback: 520 }, aim: 'self', aiHint: 'nuke' },
     ultimate: { id: 'vibe_floor', name: 'Piste de Danse', description: 'Une piste disco géante : soigne et accélère les alliés, ralentit et blesse les ennemis.', effect: 'dance_floor', cooldown: 0, range: 650, params: { radius: 330, duration: 5, damage: 220, heal: 260, slow: 0.35 }, aim: 'point', aiHint: 'zone_enemy' },

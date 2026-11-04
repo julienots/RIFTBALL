@@ -16,6 +16,7 @@ export class MutationSystem {
   last: MutationId = 'NORMAL';
   private nextZap = 0;
   private nextGold = 0;
+  private nextMeteor = 0;
   count = 0;
 
   constructor(private m: Match, private interval: number, firstAt: number) {
@@ -69,6 +70,27 @@ export class MutationSystem {
       this.nextGold = m.time + p.every;
       const r = m.mainRift();
       if (r && m.pickups.filter((q) => q.alive).length < p.max) m.spawnPickup(m.rng.pick(['speed', 'shield', 'power', 'ult'] as const), r.x + m.rng.range(-60, 60), r.y + m.rng.range(-60, 60), -1);
+    }
+
+    if (m.mutation === 'METEOR' && m.time >= this.nextMeteor) {
+      const p = m.mutationParams;
+      this.nextMeteor = m.time + p.every;
+      // half aimed near a random hero, half random: always telegraphed by a warning circle
+      const hs = m.heroes.filter((h) => h.alive && !h.pve);
+      const t = hs.length && m.rng.chance(0.5) ? m.rng.pick(hs) : null;
+      const x = t ? t.x + m.rng.range(-120, 120) : m.rng.range(250, m.arena.w - 250), y = t ? t.y + m.rng.range(-120, 120) : m.rng.range(150, m.arena.h - 150);
+      const z = m.addZone('boss_warn', null, x, y, p.radius, p.delay, { burst: p.damage, stun: 0.4 });
+      z.team = -1 as any; // hits everyone
+    }
+
+    if (m.mutation === 'MAGNET') {
+      const p = m.mutationParams;
+      for (const r of m.rifts) {
+        if (!r.alive || r.carrier >= 0 || r.state === 'PORTAL') continue;
+        let best = null as null | { x: number; y: number }, bd = 600 * 600;
+        for (const h of m.heroes) { if (!h.alive || !h.canCarry || h.pve) continue; const d = dist2(h.x, h.y, r.x, r.y); if (d < bd) { bd = d; best = h; } }
+        if (best) { const d = Math.sqrt(bd) || 1; r.vx += ((best.x - r.x) / d) * p.pull * 3 * dt; r.vy += ((best.y - r.y) / d) * p.pull * 3 * dt; }
+      }
     }
 
     if (m.mutation === 'GRAVITY') {
@@ -151,6 +173,9 @@ export class MutationSystem {
         break;
       case 'GOLD':
         this.nextGold = m.time + 0.3;
+        break;
+      case 'METEOR':
+        this.nextMeteor = m.time + 0.4;
         break;
     }
   }

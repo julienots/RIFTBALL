@@ -6,14 +6,17 @@ import { circleRectPush, dist2, pointInRect } from '../core/math';
 
 const BASE = {
   roamSpeed: 95,
-  fleeSpeed: 215,
+  fleeSpeed: 175,
   chaseSpeed: 170,
   frenzySpeed: 420,
-  fleeRange: 250,
+  fleeRange: 210,
   throwSpeed: 1050,
   friction: 2.1,
   radius: 24,
 };
+
+/** Extra pickup distance (world units) beyond touching the Rift. */
+export const PICKUP_REACH = 28;
 
 export function createRift(id: number, x: number, y: number, clone = false): RiftEntity {
   return {
@@ -210,7 +213,8 @@ export function checkPickup(m: Match, r: RiftEntity) {
     if (!h.alive || !h.canCarry || h.carrying || (h.pve && !m.modeRules.pveCanCarry) || h.stunUntil > m.time || h.leap) continue;
     if (r.pickupLockUntil > m.time && (r.pickupLockHero === h.id || r.pickupLockHero === -2)) continue;
     const bonus = h.def.passive.id === 'long_grip' ? 1 + h.def.passive.params.pickupBonus : 1;
-    const reach = (h.radius + r.radius) * bonus;
+    // generous grab: a little reach beyond touching, doubled during the MAGNET mutation
+    const reach = ((h.radius + r.radius) * bonus + PICKUP_REACH) * (m.mutation === 'MAGNET' ? m.mutationParams.reachMul ?? 1 : 1);
     if (dist2(h.x, h.y, r.x, r.y) <= reach * reach) {
       if (r.decoy) {
         if (h.team === r.decoy.team) continue;

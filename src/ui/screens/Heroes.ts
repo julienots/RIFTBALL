@@ -44,7 +44,7 @@ export function heroesScreen(c: Controller): Screen {
         owned ? h('div.mast', '⭐' + hp.masteryLevel) : null,
         owned ? null : h('div.lock.stroke-s', '🔒', h('br'), unlockText(c, hero.id)),
         h('span.rar', RARITY_LABEL[hero.rarity ?? 'COMMON']),
-        NEW_HEROES.includes(hero.id) ? h('span.tagx.red', { style: 'position:absolute;top:1.7em;left:50%;transform:translateX(-50%);font-size:.6em' }, 'NOUVEAU') : null));
+        NEW_HEROES.includes(hero.id) ? h('span.tagx.red', { style: 'position:absolute;top:4.4em;left:50%;transform:translateX(-50%);font-size:.6em' }, 'NOUVEAU') : null));
     }
   };
   return { el, onShow: render, refresh: render, onHide: off };
@@ -112,7 +112,7 @@ export function heroDetail(c: Controller, heroId: string): Screen {
           h('button.btn.green.grow', { disabled: sel.equipped && c.heroId === heroId, onclick: () => { audio.play('click'); c.app.cosmetics.equipSkin(heroId, sel.data.id); c.heroId = heroId; c.ui.toast('⚡', `${hero.name} sélectionné`); render(); } }, sel.equipped && c.heroId === heroId ? 'SÉLECTIONNÉ' : 'CHOISIR'));
         const price = sel.data.priceGems ? h('span.price', sel.data.priceGems + ' ', gem()) : sel.data.priceCoins ? h('span.price', sel.data.priceCoins + ' ', coin()) : null;
         return h('div.col', { style: 'gap:.3em' }, h('div.small-text', { style: 'text-align:center' }, sel.data.source === 'shop' ? 'Disponible en boutique quand il est en rotation' : sel.data.source.startsWith('pass') ? 'Récompense RIFT PASS' : sel.data.source === 'mastery' ? 'Récompense de maîtrise (niv. 20)' : sel.data.source === 'event' ? 'Récompense d\'événement' : 'Caisse Rift'),
-          sel.data.source === 'shop' ? h('button.btn.yellow', { onclick: () => c.ui.push(shopScreen(c, 'skins')) }, 'BOUTIQUE ', price) : null);
+          sel.data.source === 'shop' ? h('button.btn.yellow', { onclick: () => c.ui.push(shopScreen(c, sel.data.isNew ? 'new' : 'daily')) }, 'BOUTIQUE ', price) : null);
       })());
     body.append(left, h('div.grow'), right);
   };

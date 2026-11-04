@@ -29,7 +29,7 @@ describe('Rift', () => {
     expect(a.carrying).toBe(true);
     // carrier slowed
     a.cmd.mx = 1; runUntil(m, () => false, 1);
-    expect(Math.hypot(a.vx, a.vy)).toBeLessThan(a.def.speed * 0.9);
+    expect(Math.hypot(a.vx, a.vy)).toBeLessThan(a.def.speed * 0.95);
     applyDamage(m, a, 999999, m.heroes[1]);
     expect(a.alive).toBe(false);
     expect(r.carrier).toBe(-1);

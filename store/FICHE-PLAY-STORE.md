@@ -43,11 +43,11 @@ Aucun héros ni aucune statistique ne s'achète. Tout se débloque en jouant : r
 
 Rejoins l'arène et deviens une LÉGENDE DU RIFT !
 
-## Notes de version (v1.0.9)
-• Attaques plus précises : visée auto intelligente qui anticipe, aide à la visée, collisions exactes
-• Portées d'attaque augmentées (+15 %) et indicateurs de visée exacts (murs, cônes, éventails)
-• Nouveaux effets : coups balayés, projectiles lumineux, impacts au sol, marqueur de touche
-• Dégâts cumulés, barre de vie qui montre les dégâts, recharge visible, multi-éliminations
+## Notes de version (v1.1.0)
+• Menus entièrement redessinés, textes de match plus discrets
+• Maps plus grandes, héros plus rapides, Rift plus facile à attraper
+• 4 nouvelles mutations : TURBO, AIMANT, PLUIE DE MÉTÉORES, VAMPIRE
+• Boutique du jour (cadeau gratuit + 2 promos par jour) et nouvel onglet NOUVEAUTÉS
 
 ## Catégorie
 Jeux › Action (ou Arcade)

@@ -419,7 +419,8 @@ export class Match {
     // summons (turrets) expire
     if (h.expireAt <= this.time) { h.alive = false; h.hp = 0; h.respawnAt = Infinity; h.lastDamageAt = this.time; this.emit({ t: 'explosion', x: h.x, y: h.y, radius: 80, color: '#f77f00' }); return; }
     const cdMul = h.def.passive.id === 'timekeeper' ? h.def.passive.params.mul : 1;
-    h.atkCd -= dt; h.abCd -= dt * cdMul; h.gadgetCd -= dt * cdMul; h.rollCd -= dt; h.jumpCd -= dt;
+    const turbo = this.mutation === 'TURBO' && !h.pve ? this.mutationParams.cdMul ?? 1 : 1;
+    h.atkCd -= dt * turbo; h.abCd -= dt * cdMul * turbo; h.gadgetCd -= dt * cdMul; h.rollCd -= dt; h.jumpCd -= dt;
     // CHRONOS: remember where we were (rewind)
     if (h.def.ability.effect === 'rewind' && this.frame % 15 === 0) {
       h.history.push(this.time, h.x, h.y, h.hp);
@@ -464,7 +465,7 @@ export class Match {
     let speed = h.def.speed;
     if (h.carrying) {
       const pid = h.def.passive.id;
-      const slow = pid === 'porter' || pid === 'rift_bond' ? 0 : pid === 'courier' ? -h.def.passive.params.carryBonus : 0.15;
+      const slow = pid === 'porter' || pid === 'rift_bond' ? 0 : pid === 'courier' ? -h.def.passive.params.carryBonus : 0.08;
       speed *= 1 - slow + (this.mutation === 'FURY' ? this.mutationParams.carrierSpeed ?? 0 : 0);
     }
     if (h.carrying) { const cr = this.rifts.find((q) => q.carrier === h.id); if (cr?.charged) { speed *= 0.9; h.revealedUntil = this.time + 0.2; } if (this.mutation === 'GIANT') speed *= 1 - (this.mutationParams.carrierSlow ?? 0); }
@@ -473,6 +474,7 @@ export class Match {
     if (h.def.passive.id === 'kindling' && h.hp / h.maxHp < h.def.passive.params.threshold) speed *= 1 + h.def.passive.params.speedBonus;
     if (this.arena.hazardAt(h.x, h.y, 'boost')) speed *= 1.35;
     if (!h.pve) speed *= this.modifiers.heroSpeedMul ?? 1;
+    if (this.mutation === 'TURBO' && !h.pve) speed *= 1 + (this.mutationParams.speed ?? 0);
 
     let mx = stunned ? 0 : c.mx, my = stunned ? 0 : c.my;
     const ml = Math.hypot(mx, my);

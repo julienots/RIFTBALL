@@ -73,7 +73,7 @@ export function homeScreen(c: Controller): Screen {
       iconBtn('🎨', 'COLLECTION', () => c.ui.push(collectionScreen(c)), 0, 'linear-gradient(#06d6a0,#118a6a)'),
       iconBtn('👥', 'CREW', () => c.ui.push(socialScreen(c)), 0, 'linear-gradient(#4cc9f0,#2a7fc2)'));
     const right = h('div.side.right',
-      iconBtn('🛒', 'BOUTIQUE', () => c.ui.push(shopScreen(c)), c.app.shop.offers().filter((o) => o.available && o.offer.price && 'currency' in o.offer.price && o.offer.price.amount === 0).length, 'linear-gradient(#ffd166,#f39a00)'),
+      iconBtn('🛒', 'BOUTIQUE', () => c.ui.push(shopScreen(c)), c.app.shop.offers().filter((o) => o.available && o.offer.price && 'currency' in o.offer.price && o.offer.price.amount === 0).length + (c.app.shop.dailyGift().claimed ? 0 : 1), 'linear-gradient(#ffd166,#f39a00)'),
       iconBtn('🎟️', 'RIFT PASS', () => c.ui.push(passScreen(c)), passClaim, 'linear-gradient(#ff70a6,#c9184a)'),
       iconBtn('🏆', 'CLASSEMENT', () => c.ui.push(leaderboardScreen(c)), 0, 'linear-gradient(#b5179e,#7209b7)'),
       iconBtn('⚙️', 'OPTIONS', () => c.ui.push(settingsScreen(c)), 0, 'linear-gradient(#8d99ae,#4a5168)'));
@@ -97,7 +97,7 @@ export function homeScreen(c: Controller): Screen {
         h('span.pill', { style: 'height:1.8em;font-size:.85em' }, `🏆 ${d.heroes[hero.id].trophies}`),
         h('button.btn.tiny.purple', { onclick: () => { audio.play('click'); c.ui.push(heroesScreen(c)); } }, 'CHANGER')));
 
-    const bottomLeft = h('div', { style: 'position:absolute;left:calc(.9em + var(--safe-l));bottom:.9em;display:flex;gap:.6em;align-items:flex-end' },
+    const bottomLeft = h('div.dock', { style: 'position:absolute;left:calc(.9em + var(--safe-l));bottom:.9em;display:flex;gap:.6em;align-items:flex-end' },
       iconBtn('📋', 'MISSIONS', () => missionsModal(c, render), missionsClaim, 'linear-gradient(#80ed99,#2d9b5a)'),
       iconBtn('💎', 'DÉFIS', () => c.ui.push(challengesScreen(c)), c.app.missions.claimableChallenges, 'linear-gradient(#4cc9f0,#3a0ca3)'),
       iconBtn('🎉', 'ÉVÉNEMENTS', () => eventsModal(c), events.length, 'linear-gradient(#ff7b00,#d00000)'),

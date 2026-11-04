@@ -63,3 +63,34 @@ describe('v1.0.8 RIFT FIESTA', () => {
     for (const h of ar.hazards) if (h.kind === 'jump') expect(Math.abs(h.rect[1] + h.rect[3] / 2 - 650)).toBeGreaterThan(300);
   });
 });
+
+describe('v1.1.0 mutations & feel', () => {
+  const mk = () => { const m = new Match({ mode: 'RIFTBALL', arenaId: 'rift_valley', seed: 5, players: [{ heroId: 'magnet', name: 'A', team: 0, isBot: false, human: true }, { heroId: 'titan', name: 'B', team: 1, isBot: false }] }); skipCountdown(m); return m; };
+  const force = (m: Match, id: any) => { (m as any).mutations.trigger(id); for (let i = 0; i < 60 * 2.2; i++) m.step(1 / 60); expect(m.mutation).toBe(id); };
+  it('TURBO speeds heroes up', () => {
+    const m = mk(); const a = m.human!;
+    force(m, 'TURBO');
+    a.cmd.mx = 1; for (let i = 0; i < 30; i++) m.step(1 / 60);
+    expect(Math.hypot(a.vx, a.vy)).toBeGreaterThan(a.def.speed * 1.2);
+  });
+  it('METEOR drops telegraphed meteors that hit everyone', () => {
+    const m = mk();
+    force(m, 'METEOR');
+    for (let i = 0; i < 60 * 2; i++) m.step(1 / 60);
+    expect(m.zones.some((z) => z.kind === 'boss_warn')).toBe(true);
+  });
+  it('VAMPIRE heals attackers', () => {
+    const m = mk(); const a = m.human!, b = m.heroes[1];
+    force(m, 'VAMPIRE');
+    a.hp = a.maxHp * 0.5; const hp = a.hp;
+    applyDamage(m, b, 600, a, {});
+    expect(a.hp).toBeGreaterThan(hp);
+  });
+  it('the Rift is easier to grab (reach beyond contact)', () => {
+    const m = mk(); const a = m.human!, r = m.mainRift()!;
+    for (let i = 0; i < 60 * 2; i++) m.step(1 / 60);
+    a.x = r.x - (a.radius + r.radius + 20); a.y = r.y; r.vx = r.vy = 0;
+    m.step(1 / 60);
+    expect(r.carrier).toBe(a.id);
+  });
+});

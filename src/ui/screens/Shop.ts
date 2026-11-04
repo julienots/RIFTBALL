@@ -9,11 +9,13 @@ import { RARITY_COLORS, RARITY_LABEL } from '../../data/cosmetics';
 import { PRODUCTS } from '../../data/products';
 import { formatDuration, Clock } from '../../core/Time';
 import type { GrantedItem } from '../../progression/Inventory';
+import type { DailyItem } from '../../shop/ShopService';
 import type { CrateData, ShopOfferData } from '../../data/types';
 import { passScreen } from './Pass';
 
-type Tab = 'offers' | 'skins' | 'gems' | 'pass' | 'crates';
-const TABS: [Tab, string][] = [['offers', '🔥 OFFRES'], ['skins', '🎨 SKINS'], ['gems', '💎 GEMMES'], ['pass', '🎟️ PASS'], ['crates', '🎁 COFFRES']];
+type Tab = 'daily' | 'new' | 'offers' | 'skins' | 'gems' | 'pass' | 'crates';
+const TABS: [Tab, string][] = [['daily', '☀️ DU JOUR'], ['new', '✨ NOUVEAUTÉS'], ['offers', '🔥 OFFRES'], ['gems', '💎 GEMMES'], ['pass', '🎟️ PASS'], ['crates', '🎁 COFFRES']];
+const TYPE_FR: Record<string, string> = { skin: 'SKIN', emote: 'EMOTE', spray: 'SPRAY', effect: 'TRAÎNÉE', companion: 'COMPAGNON', banner: 'BANNIÈRE', title: 'TITRE', icon: 'ICÔNE' };
 
 export function showRewards(c: Controller, items: GrantedItem[], title = 'RÉCOMPENSES') {
   if (!items.length) return;
@@ -54,8 +56,8 @@ export async function buyProduct(c: Controller, productId: string, after?: () =>
   after?.();
 }
 
-export function shopScreen(c: Controller, initial: Tab = 'offers'): Screen {
-  let tab: Tab = initial;
+export function shopScreen(c: Controller, initial: Tab = 'daily'): Screen {
+  let tab: Tab = initial === 'skins' ? 'daily' : initial;
   const tabs = h('div.tabs');
   const content = h('div.scroll', { style: 'flex:1;min-height:0;padding:.8em' });
   const refreshLabel = h('span.small-text', '');
@@ -67,7 +69,7 @@ export function shopScreen(c: Controller, initial: Tab = 'offers'): Screen {
     for (const [t, lbl] of TABS) tabs.appendChild(h('button.tab' + (t === tab ? '.on' : ''), { onclick: () => { audio.play('tab'); tab = t; render(); } }, lbl));
     content.innerHTML = '';
     refreshLabel.textContent = `Boutique renouvelée dans ${formatDuration(c.app.shop.nextRefresh() - Clock.now())}`;
-    if (tab === 'offers') renderOffers(); else if (tab === 'skins') renderDaily(); else if (tab === 'gems') renderGems(); else if (tab === 'pass') renderPass(); else renderCrates();
+    if (tab === 'offers') renderOffers(); else if (tab === 'daily' || tab === 'skins') renderDaily(); else if (tab === 'new') renderNew(); else if (tab === 'gems') renderGems(); else if (tab === 'pass') renderPass(); else renderCrates();
   };
 
   const renderOffers = () => {
@@ -106,23 +108,40 @@ export function shopScreen(c: Controller, initial: Tab = 'offers'): Screen {
     render();
   };
 
+  const itemCard = (it: DailyItem, buy: () => GrantedItem[] | null, big = false) => {
+    const cos = it.cosmetic;
+    const priceTag = (amount: number) => h('span.price', fmt(amount) + ' ', it.price.currency === 'coins' ? coin() : gem());
+    return h('div.card.shop-item' + (big ? '.big' : ''), { class: 'rarity-' + cos.rarity },
+      it.discount ? h('div.deal', `-${it.discount}%`) : cos.isNew ? h('div.deal.new', 'NOUVEAU') : null,
+      h('div.art', cosmeticArt(cos.id, (hh, s) => c.portrait(hh, s))),
+      h('div.name', cos.name), h('span.rlabel', RARITY_LABEL[cos.rarity] + ' · ' + (TYPE_FR[cos.type] ?? cos.type.toUpperCase())),
+      it.owned ? h('span.owned-tag', 'POSSÉDÉ') : h('button.btn.tiny.yellow', { onclick: async () => {
+        const ok = await c.ui.confirm(cos.name, h('div.col', { style: 'align-items:center;gap:.3em' }, h('div', { style: 'font-size:3em' }, cosmeticArt(cos.id, (hh, s) => c.portrait(hh, s))), h('div.title', { style: 'font-size:1.3em' }, priceTag(it.price.amount)), it.discount ? h('div.small-text', { style: 'color:#80ed99' }, `Promo du jour : -${it.discount}% (au lieu de ${fmt(it.full)})`) : null), 'ACHETER', 'yellow');
+        if (!ok) return;
+        const g = buy();
+        if (!g) { audio.play('error'); c.ui.toast('⚠', 'Fonds insuffisants'); return; }
+        audio.play('purchase'); showRewards(c, g, 'NOUVEL OBJET !'); render();
+      } }, it.discount ? h('s.was', fmt(it.full)) : null, priceTag(it.price.amount)));
+  };
+
   const renderDaily = () => {
-    const items = c.app.shop.daily();
-    content.appendChild(h('div.row', h('span.title', 'BOUTIQUE DU JOUR'), h('span.small-text.muted', `· même sélection pour tous les joueurs · renouvellement dans ${formatDuration(c.app.shop.nextRefresh() - Clock.now())}`)));
-    const grid = h('div.grid', { style: 'padding:.6em 0' });
-    for (const it of items) {
-      const cos = it.cosmetic;
-      grid.appendChild(h('div.card', { class: 'rarity-' + cos.rarity, style: 'aspect-ratio:.72' },
-        h('div.art', cosmeticArt(cos.id, (hh, s) => c.portrait(hh, s))),
-        h('div.name', cos.name), h('span.rlabel', RARITY_LABEL[cos.rarity] + ' · ' + cos.type.toUpperCase()),
-        it.owned ? h('span.owned-tag', 'POSSÉDÉ') : h('button.btn.tiny.yellow', { onclick: async () => {
-          const ok = await c.ui.confirm(cos.name, h('div.title', { style: 'font-size:1.3em' }, h('span.price', fmt(it.price.amount) + ' ', it.price.currency === 'coins' ? coin() : gem())), 'ACHETER', 'yellow');
-          if (!ok) return;
-          const g = c.app.shop.buyDaily(cos.id);
-          if (!g) { audio.play('error'); c.ui.toast('⚠', 'Fonds insuffisants'); return; }
-          audio.play('purchase'); showRewards(c, g, 'NOUVEL OBJET !'); render();
-        } }, h('span.price', fmt(it.price.amount) + ' ', it.price.currency === 'coins' ? coin() : gem()))));
-    }
+    const items = c.app.shop.daily(), gift = c.app.shop.dailyGift();
+    content.appendChild(h('div.shop-head', h('span.title.stroke-s', '☀️ BOUTIQUE DU JOUR'), h('span.small-text', `Nouvelle sélection dans ${formatDuration(c.app.shop.nextRefresh() - Clock.now())} · 2 promos chaque jour`)));
+    const grid = h('div.shop-grid');
+    grid.appendChild(h('div.card.shop-item.gift' + (gift.claimed ? '.done' : ''),
+      h('div.deal.free', 'GRATUIT'),
+      h('div.art', { style: 'font-size:3.2em' }, rewardIcon(gift.item)),
+      h('div.name', 'CADEAU DU JOUR'), h('span.rlabel', rewardText(gift.item)),
+      gift.claimed ? h('span.owned-tag', 'RÉCUPÉRÉ') : h('button.btn.tiny.green', { onclick: () => { const g = c.app.shop.claimDailyGift(); if (g) { audio.play('reward'); showRewards(c, g, 'CADEAU DU JOUR'); render(); } } }, 'RÉCUPÉRER')));
+    for (const it of items) grid.appendChild(itemCard(it, () => c.app.shop.buyDaily(it.cosmetic.id)));
+    content.appendChild(grid);
+  };
+
+  const renderNew = () => {
+    const items = c.app.shop.featured();
+    content.appendChild(h('div.shop-head', h('span.title.stroke-s', '✨ NOUVEAUTÉS'), h('span.small-text', 'Les derniers skins, traînées, compagnons et emotes, disponibles tout le temps')));
+    const grid = h('div.shop-grid');
+    items.forEach((it, i) => grid.appendChild(itemCard(it, () => c.app.shop.buyFeatured(it.cosmetic.id), i < 2)));
     content.appendChild(grid);
   };
 

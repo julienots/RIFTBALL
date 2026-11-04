@@ -12,6 +12,11 @@ export const MUTATIONS: RiftMutationData[] = [
   { id: 'BLACKOUT', name: 'BLACKOUT', tagline: 'Les lumières s\'éteignent : on ne voit que de près !', color: '#5a189a', duration: 15, weight: 6, params: { sight: 520 } },
   { id: 'BOUNCE', name: 'REBOND', tagline: 'Tout rebondit : projections x1,8 !', color: '#06d6a0', duration: 16, weight: 7, params: { kbMul: 1.8, throwMul: 1.5 } },
   { id: 'GOLD', name: 'RUÉE VERS L\'OR', tagline: 'Le Rift sème des bonus partout !', color: '#ffd60a', duration: 16, weight: 6, params: { every: 1.1, max: 10 } },
+  // v1.1.0
+  { id: 'TURBO', name: 'TURBO', tagline: 'Tout le monde accélère : +35% vitesse, recharges rapides !', color: '#00bbf9', duration: 15, weight: 7, params: { speed: 0.35, cdMul: 1.6 } },
+  { id: 'MAGNET', name: 'AIMANT', tagline: 'Le Rift colle aux mains : il vient vers vous !', color: '#ff4ecd', duration: 15, weight: 7, params: { reachMul: 2, pull: 160 } },
+  { id: 'METEOR', name: 'PLUIE DE MÉTÉORES', tagline: 'Des météores tombent : sortez des cercles !', color: '#ff5400', duration: 16, weight: 6, params: { every: 0.9, radius: 150, damage: 700, delay: 1.3 } },
+  { id: 'VAMPIRE', name: 'VAMPIRE', tagline: 'Chaque coup vous soigne de 35% des dégâts !', color: '#c1121f', duration: 16, weight: 6, params: { lifesteal: 0.35 } },
   { id: 'CHAOS', name: 'CHAOS', tagline: 'L\'arène se transforme !', color: '#ff7b00', duration: 16, weight: 6, params: { blocks: 6, hazards: 3 } },
 ];
 

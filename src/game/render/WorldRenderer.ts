@@ -1084,6 +1084,7 @@ export class WorldRenderer {
       const c = col === 'rainbow' ? this.tmpColor.setHSL((this.time * 0.5) % 1, 0.9, 0.6).getStyle()
         : col === 'galaxy' ? (Math.random() < 0.5 ? '#7209b7' : Math.random() < 0.5 ? '#ffffff' : '#4cc9f0')
         : col === 'fifi' ? ['#ff4ecd', '#ffd60a', '#00f5d4'][Math.floor(Math.random() * 3)]
+        : col === 'stardust' ? (Math.random() < 0.6 ? '#ffffff' : Math.random() < 0.5 ? '#ffd166' : '#a2d2ff')
         : col === 'confetti' ? ['#ff4ecd', '#ffd60a', '#00f5d4', '#4cc9f0', '#ffffff'][Math.floor(Math.random() * 5)] : col;
       this.particles.emit(v.px * WS + (Math.random() - 0.5) * 0.3, 0.12 + Math.random() * 0.25, v.py * WS + (Math.random() - 0.5) * 0.3, 0, 0.35, 0, c, 0.2, 0.55, 0);
     }

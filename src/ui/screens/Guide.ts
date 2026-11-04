@@ -6,8 +6,10 @@ import { ARENAS } from '../../data/arenas';
 import { MUTATIONS } from '../../data/mutations';
 
 export const MECHANICS: { icon: string; title: string; text: string; isNew?: boolean }[] = [
-  { icon: '🎯', title: 'Visée de précision', text: 'Appuie sur ATTAQUE : le tir part vers la meilleure cible (tir dégagé, porteur du Rift, ennemi blessé) en anticipant ses mouvements. Glisse pour viser : le tir se cale sur un ennemi à quelques degrés près. L\'indicateur montre la vraie portée, s\'arrête sur les murs et met un réticule rouge sur la cible.', isNew: true },
-  { icon: '⭕', title: 'Tirs en cloche', text: 'Les tirs en cloche affichent un cercle rouge à l\'endroit où ils vont tomber : sors-en vite !', isNew: true },
+  { icon: '🌀', title: 'Mutations 1.1', text: 'TURBO : tout le monde accélère et recharge plus vite. AIMANT : le Rift vient vers le héros le plus proche et s\'attrape de plus loin. PLUIE DE MÉTÉORES : sortez des cercles rouges ! VAMPIRE : chaque coup vous soigne de 35 % des dégâts.', isNew: true },
+  { icon: '☀️', title: 'Boutique du jour', text: 'Chaque jour : un cadeau gratuit, une nouvelle sélection et 2 promos (-25 % et -40 %). L\'onglet NOUVEAUTÉS garde les derniers objets en vente tout le temps.', isNew: true },
+  { icon: '🎯', title: 'Visée de précision', text: 'Appuie sur ATTAQUE : le tir part vers la meilleure cible (tir dégagé, porteur du Rift, ennemi blessé) en anticipant ses mouvements. Glisse pour viser : le tir se cale sur un ennemi à quelques degrés près. L\'indicateur montre la vraie portée, s\'arrête sur les murs et met un réticule rouge sur la cible.' },
+  { icon: '⭕', title: 'Tirs en cloche', text: 'Les tirs en cloche affichent un cercle rouge à l\'endroit où ils vont tomber : sors-en vite !' },
   { icon: '🕺', title: 'Emotes de danse', text: 'Ouvre la roue d\'emotes en match (ou appuie sur DANSER dans le lobby) : ton héros danse en 3D. Bouger ou attaquer arrête la danse.' },
   { icon: '🎧', title: 'VIBE, le DJ (Saison 2)', text: 'Bass Drop repousse tout le monde et fait lâcher le Rift. Sa Piste de Danse soigne et accélère les alliés, ralentit les ennemis. Chaque coup réussi lui donne de la vitesse.' },
   { icon: '🪩', title: 'Fiesta Plaza', text: 'Nouvelle arène : piste de danse lumineuse au centre, couloirs boost et tremplins de scène.' },
@@ -59,18 +61,18 @@ export function guideScreen(c: Controller): Screen {
 
 /** One-time "what's new" popup for this content update. */
 export function showNews(c: Controller) {
-  const key = 'news_v19';
+  const key = 'news_v20';
   if ((c.data as any).seenNews === key || !c.data.tutorialDone) return;
   (c.data as any).seenNews = key;
   c.app.save.save();
   const m = c.ui.modal('NOUVEAUTÉS', h('div.col', { style: 'gap:.5em;max-width:34em' },
-    h('div.small-text', 'Mise à jour 1.0.9 : ATTAQUES DE PRÉCISION 🎯'),
+    h('div.small-text', 'Mise à jour 1.1.0 : GRANDE MISE À JOUR 🚀'),
     ...[
-      ['🎯', 'Visée auto intelligente : vise la meilleure cible et anticipe ses déplacements'],
-      ['🧲', 'Aide à la visée : en visant à la main, le tir se cale sur l\'ennemi tout proche'],
-      ['📏', 'Portées +15 % et indicateurs exacts : arrêt sur les murs, cône des coups, éventail des tirs'],
-      ['💥', 'Coups balayés, projectiles lumineux, impacts au sol, marqueur de touche'],
-      ['📊', 'Dégâts cumulés, barre de vie qui montre les dégâts, recharge de l\'attaque visible'],
+      ['🎨', 'Menus entièrement redessinés, textes de match plus petits et plus haut'],
+      ['🗺️', 'Maps plus grandes, héros plus rapides (+12 %), Rift plus facile à attraper'],
+      ['🌀', '4 nouvelles mutations : TURBO, AIMANT, PLUIE DE MÉTÉORES, VAMPIRE'],
+      ['☀️', 'Boutique du jour : cadeau gratuit chaque jour + 2 promos'],
+      ['✨', 'Onglet NOUVEAUTÉS : 14 nouveaux skins, traînées, compagnons et emotes'],
     ].map(([i, t]) => h('div.row', { style: 'gap:.6em' }, h('span', { style: 'font-size:1.5em' }, i), h('span', t))),
     h('div.row', { style: 'justify-content:center;gap:.6em;margin-top:.4em' },
       h('button.btn.purple', { onclick: () => { m.close(); c.ui.push(guideScreen(c)); } }, '📖 GUIDE'),

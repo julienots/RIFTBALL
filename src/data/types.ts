@@ -79,7 +79,7 @@ export interface CharacterData {
 // ---------------------------------------------------------------- Rift
 
 export type RiftState = 'IDLE' | 'ROAM' | 'FLEE' | 'CHASE' | 'ATTRACTED' | 'CARRIED' | 'DROPPED' | 'FRENZY' | 'MUTATING' | 'CLONING' | 'PORTAL';
-export type MutationId = 'NORMAL' | 'FURY' | 'CLONE' | 'ELECTRIC' | 'GRAVITY' | 'PORTAL' | 'PHASE' | 'CHAOS' | 'GIANT' | 'BLACKOUT' | 'BOUNCE' | 'GOLD';
+export type MutationId = 'NORMAL' | 'FURY' | 'CLONE' | 'ELECTRIC' | 'GRAVITY' | 'PORTAL' | 'PHASE' | 'CHAOS' | 'GIANT' | 'BLACKOUT' | 'BOUNCE' | 'GOLD' | 'TURBO' | 'MAGNET' | 'METEOR' | 'VAMPIRE';
 
 export interface RiftMutationData {
   id: MutationId;
@@ -157,6 +157,8 @@ export interface CosmeticData {
   priceCoins?: number;
   priceGems?: number;
   season?: string;
+  /** shown in the shop's NOUVEAUTÉS section */
+  isNew?: boolean;
 }
 
 /** Back-compat alias required by the content spec. */

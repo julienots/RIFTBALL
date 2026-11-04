@@ -13,7 +13,8 @@ import { Clock, DAY_MS, utcDayIndex, utcWeekIndex } from '../core/Time';
 import { hashString, Rng } from '../core/Rng';
 import { getProduct } from '../data/products';
 
-export interface DailyItem { cosmetic: CosmeticData; price: { currency: Currency; amount: number }; owned: boolean; key: string }
+export interface DailyItem { cosmetic: CosmeticData; price: { currency: Currency; amount: number }; owned: boolean; key: string; /** % off today (0 = none) */ discount: number; full: number }
+export interface DailyGift { item: RewardItem; claimed: boolean; key: string }
 export interface OfferView { offer: ShopOfferData; left: number; endsAt: number | null; value: number; available: boolean }
 
 export const COINS_PER_GEM_REF = 33; // reference rate from the 30-gem coin offer (1000 coins)
@@ -39,10 +40,47 @@ export class ShopService {
         const own = c.priceGems ? { currency: 'gems' as const, amount: c.priceGems } : c.priceCoins ? { currency: 'coins' as const, amount: c.priceCoins } : null;
         const byR = DAILY_SHOP.priceByRarity[c.rarity];
         const price = own ?? (byR.gems ? { currency: 'gems' as const, amount: byR.gems } : { currency: 'coins' as const, amount: byR.coins ?? 500 });
-        out.push({ cosmetic: c, price, owned: this.inv.owns(c.id), key: `daily:${key}:${c.id}` });
+        out.push({ cosmetic: c, price: { ...price }, owned: this.inv.owns(c.id), key: `daily:${key}:${c.id}`, discount: 0, full: price.amount });
       }
     }
+    // two daily deals: -25% and -40%, same for everyone
+    const deals = rng.shuffle(out.map((_, i) => i)).slice(0, 2);
+    deals.forEach((i, k) => { const it = out[i]; it.discount = k === 0 ? 40 : 25; it.price.amount = Math.max(1, Math.round((it.full * (100 - it.discount)) / 100 / (it.price.currency === 'gems' ? 1 : 10)) * (it.price.currency === 'gems' ? 1 : 10)); });
     return out;
+  }
+
+  /** Free daily gift (rotates every day), claim once. */
+  dailyGift(now = Clock.now()): DailyGift {
+    const key = this.dayKey(now);
+    const gifts: RewardItem[] = [{ kind: 'coins', amount: 250 }, { kind: 'passXp', amount: 250 }, { kind: 'gems', amount: 5 }, { kind: 'crate', id: 'crate_small', count: 1 }, { kind: 'coins', amount: 400 }, { kind: 'passXp', amount: 400 }, { kind: 'gems', amount: 10 }];
+    const item = gifts[Number(key) % gifts.length];
+    const k = `gift@${key}`;
+    return { item, claimed: (this.d.shop.purchases[k] ?? 0) > 0, key: k };
+  }
+
+  claimDailyGift(): GrantedItem[] | null {
+    const g = this.dailyGift();
+    if (g.claimed) return null;
+    this.d.shop.purchases[g.key] = 1;
+    const out = this.inv.grant([g.item], { source: 'shop_gift', txn: g.key, verified: false });
+    this.save.save();
+    return out;
+  }
+
+  /** NOUVEAUTÉS: the newest cosmetics, always on sale at their list price. */
+  featured(): DailyItem[] {
+    return COSMETICS.filter((c) => c.isNew).map((c) => {
+      const price = c.priceGems ? { currency: 'gems' as const, amount: c.priceGems } : { currency: 'coins' as const, amount: c.priceCoins ?? 1000 };
+      return { cosmetic: c, price, owned: this.inv.owns(c.id), key: `new:${c.id}`, discount: 0, full: price.amount };
+    }).sort((a, b) => Number(a.owned) - Number(b.owned));
+  }
+
+  buyFeatured(cosmeticId: string): GrantedItem[] | null {
+    const item = this.featured().find((x) => x.cosmetic.id === cosmeticId);
+    if (!item || item.owned) return null;
+    const ok = item.price.currency === 'coins' ? this.inv.spendCoins(item.price.amount) : this.inv.spendGems(item.price.amount, item.key, item.key);
+    if (!ok) return null;
+    return this.inv.grant([{ kind: 'cosmetic', id: cosmeticId }], { source: 'shop_new', txn: item.key, verified: false });
   }
 
   /** Called on app start / shop open; notifies once per rotation. */

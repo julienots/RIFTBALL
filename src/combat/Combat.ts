@@ -110,6 +110,8 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
     credit.stats.damage += amount;
     if (isBoss(target)) credit.stats.bossDamage += dmg;
   }
+  // VAMPIRE mutation: attackers heal for a share of the damage
+  if (m.mutation === 'VAMPIRE' && source && source.alive && source !== target && dmg > 0 && !source.pve) healHero(m, source, dmg * (m.mutationParams.lifesteal ?? 0), null);
   if (source) {
     target.lastHitBy = source.id;
     target.recentAttackers.set(source.id, m.time);

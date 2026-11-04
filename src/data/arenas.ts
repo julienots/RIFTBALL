@@ -3,7 +3,7 @@ import type { ArenaData } from './types';
 /** Authored layout size (world units). Each arena is scaled by `scale` (default ARENA_SCALE) at runtime. */
 export const ARENA_W = 2400;
 export const ARENA_H = 1300;
-export const ARENA_SCALE = 1.3;
+export const ARENA_SCALE = 1.5;
 export const PORTAL = { depth: 110, height: 300 };
 
 const guards: [number, number, number, number][] = [
@@ -98,7 +98,7 @@ export const ARENAS: ArenaData[] = [
   {
     id: 'sky_temple', name: 'SKY TEMPLE', isNew: true, description: 'Un temple flottant battu par le vent. Couloirs d\'accélération et tremplins vers le centre.',
     theme: { floorA: '#f1f5f9', floorB: '#e2e8f0', wallTop: '#ffd166', wallSide: '#c9a227', border: '#7dd3fc', fog: '#bae6fd', light: '#ffffff', ambient: 0.9, accent: '#38bdf8' },
-    scale: 1.45,
+    scale: 1.65,
     walls: [...guards, [420, 300, 90, 90], [420, 910, 90, 90], [760, 200, 90, 90], [760, 1010, 90, 90], [940, 600, 90, 100]],
     centerWalls: [[1150, 200, 100, 100], [1150, 1000, 100, 100]],
     bushes: [[560, 560, 140, 180]],

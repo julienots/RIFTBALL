@@ -152,7 +152,7 @@ export class GameSession {
       // 2) client-side prediction of our own movement
       const canMove = me.alive && !me.leap && !me.dash && me.stunUntil <= m.time && (m.phase === 'play' || m.phase === 'overtime');
       if (canMove) {
-        let speed = me.def.speed * (me.carrying && me.def.passive.id !== 'porter' ? 0.85 : 1);
+        let speed = me.def.speed * (me.carrying && me.def.passive.id !== 'porter' ? 0.92 : 1) * (m.mutation === 'TURBO' ? 1 + (m.mutationParams.speed ?? 0) : 1);
         if (me.speedBuffUntil > m.time) speed *= 1 + me.speedBuff;
         const l = Math.hypot(c.mx, c.my) || 1, k = Math.min(1, l);
         me.x += (c.mx / l) * k * speed * dt; me.y += (c.my / l) * k * speed * dt;
