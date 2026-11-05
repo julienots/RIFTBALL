@@ -25,6 +25,21 @@ type V3 = [number, number, number];
 const parts: THREE.BufferGeometry[] = [];
 let curPart = 0;
 let pivotOverride: V3 | null = null;
+/** v1.4 PBR surface per vertex: [roughness, metalness]. Explicit override, else guessed from color/part. */
+let surfOverride: [number, number] | null = null;
+let skinHex = '';
+const METALS = new Set(['#adb5bd', '#e9ecef', '#495057', '#ced4da', '#c0c0c0', '#9ca3af', '#6c757d']);
+const surfOf = (color: string, part: number, glow: number): [number, number] => {
+  if (surfOverride) return surfOverride;
+  if (glow > 0.5) return [0.4, 0];
+  if (part === PART.EYES) return [0.06, 0];                  // wet, glossy eyes
+  const c = color.toLowerCase();
+  if (METALS.has(c)) return [0.28, 0.85];                     // blades, steel, armour
+  if (c === skinHex) return [0.52, 0];                        // skin: soft sheen
+  if (c === '#ffffff' || c === '#f1f1f1') return [0.45, 0];   // soles, white plastic
+  return [0.7, 0.02];                                         // cloth / matte paint
+};
+const surf = (r: number, m: number, fn: () => void) => { const prev = surfOverride; surfOverride = [r, m]; fn(); surfOverride = prev; };
 
 function add(geo: THREE.BufferGeometry, color: string, pos: V3, rot: V3 = [0, 0, 0], scale: V3 = [1, 1, 1], glow = 0, part = curPart) {
   let g = geo.index ? geo.toNonIndexed() : geo;
@@ -47,6 +62,9 @@ function add(geo: THREE.BufferGeometry, color: string, pos: V3, rot: V3 = [0, 0,
   g.setAttribute('part', new THREE.BufferAttribute(pa, 1));
   g.setAttribute('pivot', new THREE.BufferAttribute(pi, 3));
   g.setAttribute('glow', new THREE.BufferAttribute(gl, 1));
+  const sf = surfOf(color, part, glow), sa = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) { sa[i * 2] = sf[0]; sa[i * 2 + 1] = sf[1]; }
+  g.setAttribute('surf', new THREE.BufferAttribute(sa, 2));
   parts.push(g);
 }
 const on = (p: number, fn: () => void, pivot: V3 | null = null) => { const prev = curPart, pp = pivotOverride; curPart = p; pivotOverride = pivot; fn(); curPart = prev; pivotOverride = pp; };
@@ -177,9 +195,10 @@ function hat(kind: string | undefined, p: Pal, top: number) {
   if (!kind) return;
   on(PART.HEAD, () => {
     switch (kind) {
-      case 'crown':
+      case 'crown': surf(0.22, 1, () => {
         add(C(0.46, 0.5, 0.26, 16), '#ffd60a', [0, top, 0]);
         for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; add(K(0.1, 0.28, 6), '#ffd60a', [Math.cos(a) * 0.42, top + 0.25, Math.sin(a) * 0.42]); add(S(0.05, 6, 6), i % 2 ? '#ff006e' : '#3ec7ff', [Math.cos(a) * 0.5, top, Math.sin(a) * 0.5], [0, 0, 0], [1, 1, 1], 0.6); }
+        });
         break;
       case 'beanie':
         add(S(0.8, 20, 12, ), p.accent, [0, top - 0.42, 0], [0, 0, 0], [1, 0.72, 1]);
@@ -827,6 +846,7 @@ export function buildHeroGeometry(heroId: string, skinId?: string): THREE.Buffer
   curPart = 0; pivotOverride = null;
   const def = getCharacter(heroId);
   const p = resolvePalette(heroId, skinId);
+  skinHex = String(p.skin).toLowerCase();
   const top = (BUILDERS[def.model] ?? BUILDERS.magnet)(p);
   hat((p as any).hat, p, top);
   // v1.0.8 proportions: smaller heads (hair, face and hats scale with them) for a less "ball-like" silhouette
@@ -861,11 +881,11 @@ export function heroGeometry(heroId: string, skinId?: string) {
 
 // ---------------------------------------------------------------- animated materials
 
-export interface HeroAnimUniforms { uWalk: { value: number }; uMove: { value: number }; uAtk: { value: number }; uCast: { value: number }; uTime: { value: number }; uDance: { value: number }; uStyle: { value: number }; uFlash: { value: number }; uRim: { value: THREE.Color }; uIri: { value: number }; uTint: { value: THREE.Color }; uTintK: { value: number } }
+export interface HeroAnimUniforms { uHit: { value: number }; uRun: { value: number }; uWalk: { value: number }; uMove: { value: number }; uAtk: { value: number }; uCast: { value: number }; uTime: { value: number }; uDance: { value: number }; uStyle: { value: number }; uFlash: { value: number }; uRim: { value: THREE.Color }; uIri: { value: number }; uTint: { value: THREE.Color }; uTintK: { value: number } }
 
 const ANIM_GLSL = /* glsl */ `
 attribute float part; attribute vec3 pivot; attribute float glow;
-uniform float uWalk; uniform float uMove; uniform float uAtk; uniform float uCast; uniform float uTime; uniform float uDance; uniform float uStyle;
+uniform float uWalk; uniform float uMove; uniform float uAtk; uniform float uCast; uniform float uTime; uniform float uDance; uniform float uStyle; uniform float uHit; uniform float uRun;
 varying float vGlow;
 mat3 rotZ(float a){ float c = cos(a), s = sin(a); return mat3(c, s, 0., -s, c, 0., 0., 0., 1.); }
 mat3 rotX(float a){ float c = cos(a), s = sin(a); return mat3(1., 0., 0., 0., c, s, 0., -s, c); }
@@ -876,18 +896,18 @@ float sideOf(){ return (part > 0.5 && part < 1.5) || (part > 2.5 && part < 3.5) 
 // ---- dance poses (uStyle: 0 groove, 1 robot, 2 floss, 3 disco)
 float beat(){ return uTime * 7.5; }
 float hipAng(float s){
-  float walk = s * sin(uWalk) * 0.78 * uMove;
+  float walk = s * sin(uWalk) * (0.68 + uRun * 0.22) * uMove;
   float d = uStyle < 0.5 ? s * sin(beat()) * 0.22 : uStyle < 1.5 ? s * step(0., sin(uTime * 4.)) * 0.35 : uStyle < 2.5 ? sin(uTime * 10.) * 0.12 : s * 0.25 + sin(beat()) * 0.08;
   return mix(walk, d, uDance);
 }
 float kneeAng(float s){
   // knee bends during the swing phase (leg travelling forward)
-  float walk = -max(0., s * cos(uWalk)) * 1.1 * uMove - 0.05 - (1. - uMove) * 0.04;
+  float walk = -max(0., s * cos(uWalk)) * (1.0 + uRun * 0.35) * uMove - 0.05 - (1. - uMove) * 0.04 - max(0., -s * sin(uWalk)) * 0.25 * uMove;
   float d = -max(0., sin(beat() + (s > 0. ? 0. : 3.1416))) * 0.75;
   return mix(walk, d, uDance);
 }
 float shZ(float s){
-  float walk = -s * sin(uWalk) * 0.62 * uMove;
+  float walk = -s * sin(uWalk) * (0.55 + uRun * 0.3) * uMove + uHit * 0.5;
   float atk = s < 0. ? uAtk * 1.75 : -uAtk * 0.45;
   float idle = (1. - uMove) * sin(uTime * 1.3 + s) * 0.04;
   float base = walk + atk + uCast * 2.2 + idle;
@@ -912,9 +932,12 @@ mat3 torsoM(){
   float tw = sin(uWalk) * 0.13 * uMove - uAtk * 0.32;
   float dtw = uStyle < 0.5 ? sin(uTime * 3.75) * 0.28 : uStyle < 1.5 ? (step(0., sin(uTime * 2.)) - 0.5) * 0.6 : uStyle < 2.5 ? -sin(uTime * 10.) * 0.22 : sin(uTime * 2.) * 0.45;
   float dsw = sin(beat()) * (uStyle < 0.5 ? 0.13 : 0.05);
-  return rotY(mix(tw, dtw, uDance)) * rotX(dsw * uDance);
+  // walk: counter-rotation of the chest + side-to-side roll; run leans forward; hit snaps back
+  float roll = sin(uWalk) * 0.05 * uMove;
+  float lean = -uMove * (0.05 + uRun * 0.1) + uHit * 0.35 + uAtk * -0.12;
+  return rotY(mix(tw, dtw, uDance)) * rotX(mix(roll, dsw, uDance)) * rotZ(lean * (1. - uDance));
 }
-mat3 headM(){ return rotZ(sin(uTime * 1.7) * 0.05 - uMove * 0.08 + uAtk * 0.12 + uDance * sin(beat()) * 0.14) * rotX(sin(uWalk * 2.) * 0.06 * uMove + uDance * sin(beat() * 0.5) * 0.1); }
+mat3 headM(){ return rotZ(sin(uTime * 1.7) * 0.05 + uMove * (0.02 + uRun * 0.07) + uAtk * 0.12 - uHit * 0.25 + uDance * sin(beat()) * 0.14) * rotX(sin(uWalk * 2.) * 0.06 * uMove + uDance * sin(beat() * 0.5) * 0.1); }
 mat3 legM(float s){ return rotZ(hipAng(s)); }
 mat3 armM(float s){ return rotZ(shZ(s)) * rotX(shX(s)); }
 mat3 partRot(){
@@ -947,6 +970,7 @@ vec3 animPos(vec3 p){
   else { vec3 sh = vec3(0., 1.38, 0.66 * s); q = rotZ(elbowAng(s)) * (p - pivot) + pivot; q = armM(s) * (q - sh) + sh; q = torsoM() * (q - WAIST) + WAIST; }
   // idle breathing; a little hop on the dance beat
   q.y *= 1.0 + sin(uTime * 2.4) * 0.012 * (1.0 - uMove);
+  q.y += abs(cos(uWalk)) * 0.07 * uMove * (part > 7.5 && part < 9.5 ? 0.3 : 1.);
   q.y += uDance * abs(sin(beat())) * 0.08 * (part > 7.5 && part < 9.5 ? 0. : 1.);
   return q;
 }
@@ -960,33 +984,32 @@ function patchVertex(shader: THREE.WebGLProgramParametersWithUniforms, u: HeroAn
 }
 
 export function makeHeroUniforms(rim = '#ffffff'): HeroAnimUniforms {
-  return { uWalk: { value: 0 }, uMove: { value: 0 }, uAtk: { value: 0 }, uCast: { value: 0 }, uTime: { value: 0 }, uDance: { value: 0 }, uStyle: { value: 0 }, uFlash: { value: 0 }, uRim: { value: new THREE.Color(rim) }, uIri: { value: 0 }, uTint: { value: new THREE.Color('#ffffff') }, uTintK: { value: 0 } };
+  return { uHit: { value: 0 }, uRun: { value: 0 }, uWalk: { value: 0 }, uMove: { value: 0 }, uAtk: { value: 0 }, uCast: { value: 0 }, uTime: { value: 0 }, uDance: { value: 0 }, uStyle: { value: 0 }, uFlash: { value: 0 }, uRim: { value: new THREE.Color(rim) }, uIri: { value: 0 }, uTint: { value: new THREE.Color('#ffffff') }, uTintK: { value: 0 } };
 }
 
-/** Toon + team-colored rim light + emissive glow parts + hit flash, with vertex-shader limb animation. */
+/** PBR (environment-lit) hero: per-vertex roughness/metalness, team rim light, emissive parts, hit flash, vertex-shader animation. */
 export function makeHeroMaterial(u: HeroAnimUniforms) {
-  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), transparent: true });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 0.7, metalness: 0.02, envMapIntensity: 1 });
   m.onBeforeCompile = (shader) => {
     patchVertex(shader, u);
-    shader.fragmentShader = 'varying float vGlow; uniform float uFlash; uniform vec3 uRim; uniform float uIri; uniform float uTime; uniform vec3 uTint; uniform float uTintK;\n' + shader.fragmentShader
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * vGlow * (0.85 + uIri * 0.4 * sin(uTime * 4.0));')
+    shader.vertexShader = 'attribute vec2 surf; varying vec2 vSurf;\n' + shader.vertexShader.replace('vGlow = glow;', 'vGlow = glow; vSurf = surf;');
+    shader.fragmentShader = 'varying float vGlow; varying vec2 vSurf; uniform float uFlash; uniform vec3 uRim; uniform float uIri; uniform float uTime; uniform vec3 uTint; uniform float uTintK;\n' + shader.fragmentShader
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vSurf.x;')
+      .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vSurf.y;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * vGlow * (1.1 + uIri * 0.4 * sin(uTime * 4.0));')
       .replace('#include <opaque_fragment>', `
         vec3 nV = normalize(normal), vV = normalize(vViewPosition);
         float rimF = 1.0 - clamp(dot(nV, vV), 0.0, 1.0);
-        // soft top light / ground bounce: rounder, more readable volumes
-        outgoingLight *= 0.9 + 0.18 * clamp(nV.y * 0.5 + 0.5, 0.0, 1.0);
-        // toon specular highlight
-        vec3 hV = normalize(vV + vec3(0.35, 0.8, 0.45));
-        outgoingLight += vec3(1.0) * smoothstep(0.94, 0.985, max(dot(nV, hV), 0.0)) * 0.14 * (1.0 - vGlow);
-        outgoingLight += uRim * smoothstep(0.55, 0.95, rimF) * 0.55;
-        // MYTHIC heroes: animated iridescent rim
+        // soft sky/ground bounce keeps volumes readable from the top-down camera
+        outgoingLight *= 0.92 + 0.16 * clamp(nV.y * 0.5 + 0.5, 0.0, 1.0);
+        outgoingLight += uRim * smoothstep(0.6, 0.98, rimF) * 0.35;
         vec3 iri = 0.5 + 0.5 * cos(6.2831 * (rimF * 0.8 + uTime * 0.25 + vec3(0.0, 0.33, 0.67)));
-        outgoingLight += iri * smoothstep(0.35, 1.0, rimF) * uIri * 0.9;
+        outgoingLight += iri * smoothstep(0.35, 1.0, rimF) * uIri * 0.8;
         outgoingLight = mix(outgoingLight, uTint, uTintK);
         outgoingLight = mix(outgoingLight, vec3(1.0), uFlash);
         #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => 'rift-hero-v4';
+  m.customProgramCacheKey = () => 'rift-hero-pbr-v5';
   return m;
 }
 
@@ -1049,6 +1072,6 @@ export function decoGeometry(kind: DecoKind, accent: string, base: string): THRE
   }
   const merged = mergeGeometries(parts, false)!;
   parts.length = 0;
-  for (const n of ['part', 'pivot', 'glow']) merged.deleteAttribute(n);
+  for (const n of ['part', 'pivot', 'glow', 'surf']) merged.deleteAttribute(n);
   return merged;
 }

@@ -13,6 +13,7 @@ import { heroGeometry, makeOutlineMaterial, decoGeometry, type DecoKind, makeHer
 import { radialTexture, ringTexture, toon, toonGradient } from './Toon';
 import { Particles } from './Particles';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Rng } from '../../core/Rng';
 import { paintFloor, wallBlock } from './ArenaArt';
 
@@ -24,7 +25,7 @@ interface HeroView {
   group: THREE.Group;
   body: THREE.Mesh;
   outline: THREE.Mesh;
-  mat: THREE.MeshToonMaterial;
+  mat: THREE.MeshStandardMaterial;
   outlineMat: THREE.ShaderMaterial;
   u: HeroAnimUniforms;
   ring: THREE.Mesh;
@@ -223,6 +224,23 @@ export class WorldRenderer {
   private time = 0;
   match: Match | null = null;
   viewerTeam: 0 | 1 = 0;
+  /** shared image-based lighting (RoomEnvironment through PMREM) */
+  envMap!: THREE.Texture;
+  /** pooled dynamic point lights for explosions / impacts (cheap: fixed count, intensity animated) */
+  private flashLights: { l: THREE.PointLight; t: number; dur: number; i0: number }[] = [];
+  private grass: THREE.InstancedMesh | null = null;
+  private grassMat: THREE.ShaderMaterial | null = null;
+  /** Light up the surroundings for a moment (explosions, ults, goals). */
+  lightFlash(x: number, y: number, color: string, intensity = 8, dur = 0.35, height = 1.2) {
+    if (this.quality === 'LOW') return;
+    let f = this.flashLights.find((q) => q.t >= q.dur);
+    if (!f) {
+      if (this.flashLights.length >= 4) f = this.flashLights[0];
+      else { const l = new THREE.PointLight('#ffffff', 0, 6, 1.8); this.scene.add(l); f = { l, t: 1, dur: 1, i0: 0 }; this.flashLights.push(f); }
+    }
+    f.l.color.set(color); f.l.position.set(x * WS, height, y * WS); f.l.distance = 3 + intensity * 0.5;
+    f.t = 0; f.dur = dur; f.i0 = intensity;
+  }
   /** offline: fraction of the next simulation step already elapsed (0..1); positions are interpolated */
   simAlpha = 1;
   interpolate = false;
@@ -252,10 +270,17 @@ export class WorldRenderer {
     this.q = QUALITY_PROFILES[quality];
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: quality !== 'LOW', powerPreference: 'high-performance', alpha: false, stencil: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.NoToneMapping;
+    // v1.4 realistic pipeline: neutral filmic tone mapping + image-based lighting (PBR reflections)
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    const pm = new THREE.PMREMGenerator(this.renderer);
+    this.envMap = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    pm.dispose();
+    this.scene.environment = this.envMap;
+    this.scene.environmentIntensity = 0.55;
     this.camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.5, 200);
-    this.hemi = new THREE.HemisphereLight('#ffffff', '#5d6b8a', 1.4);
-    this.sun = new THREE.DirectionalLight('#fff4dc', 2.2);
+    this.hemi = new THREE.HemisphereLight('#ffffff', '#5d6b8a', 0.75);
+    this.sun = new THREE.DirectionalLight('#fff4dc', 2.6);
     this.sun.position.set(-6, 14, 8);
     this.scene.add(this.hemi, this.sun, this.sun.target, this.matchRoot);
     this.aim = new THREE.Group();
@@ -297,7 +322,7 @@ export class WorldRenderer {
     const dpr = Math.min(window.devicePixelRatio || 1, this.q.maxDpr) * this.q.resolutionScale;
     this.renderer.setPixelRatio(dpr);
     this.renderer.shadowMap.enabled = this.q.shadows;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.sun.castShadow = this.q.shadows;
     if (this.q.shadows) {
       this.sun.shadow.mapSize.set(q === 'HIGH' ? 2048 : 1024, q === 'HIGH' ? 2048 : 1024);
@@ -335,7 +360,7 @@ export class WorldRenderer {
     this.scene.background = new THREE.Color(th.border);
     this.scene.fog = new THREE.Fog(th.border, 22, 46);
     this.hemi.color.set(th.light);
-    this.hemi.intensity = 0.9 + th.ambient * 0.8;
+    this.hemi.intensity = 0.35 + th.ambient * 0.5;
     this.sun.color.set(th.light);
     this.baseHemi = this.hemi.intensity; this.baseSun = this.sun.intensity; this.darkK = 0;
     this.buildArena(m);
@@ -366,7 +391,7 @@ export class WorldRenderer {
     this.matchRoot.add(outer);
     // floor texture
     const tex = this.floorTexture(m);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshToonMaterial({ map: tex, gradientMap: toonGradient() }));
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshStandardMaterial({ map: tex, normalMap: this.floorNormal(tex), normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.86, metalness: 0 }));
     floor.userData.ownMat = true;
     floor.rotation.x = -Math.PI / 2; floor.position.set(W / 2, 0, H / 2);
     floor.receiveShadow = true;
@@ -398,7 +423,7 @@ export class WorldRenderer {
     }
     if (wg.length) {
       const geo = mergeGeometries(wg)!;
-      const mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() }));
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.02 }));
       mesh.userData.ownMat = true;
       mesh.castShadow = true; mesh.receiveShadow = true;
       this.matchRoot.add(mesh);
@@ -418,7 +443,7 @@ export class WorldRenderer {
         gs.push(g);
       }
       if (!gs.length) continue;
-      const mat = new THREE.MeshToonMaterial({ color: th.bush ?? '#2f8f3a', gradientMap: toonGradient(), transparent: true });
+      const mat = new THREE.MeshStandardMaterial({ color: th.bush ?? '#2f8f3a', roughness: 0.9, transparent: true });
       const mesh = new THREE.Mesh(mergeGeometries(gs)!, mat);
       mesh.userData.ownMat = true;
       mesh.castShadow = true;
@@ -447,6 +472,7 @@ export class WorldRenderer {
     }
     // decoration around the arena
     this.buildDecor(m);
+    this.buildGrass(m);
   }
 
   private wallBox(w: { x: number; y: number; w: number; h: number }, top: string, side: string, height: number) {
@@ -461,6 +487,31 @@ export class WorldRenderer {
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     g.deleteAttribute('uv');
     return g;
+  }
+
+  /** Normal map derived from the painted floor (tile bevels, grout, cracks catch the light). */
+  private floorNormal(tex: THREE.CanvasTexture) {
+    const src = tex.image as HTMLCanvasElement;
+    const W = Math.max(2, Math.round(src.width / 2)), H = Math.max(2, Math.round(src.height / 2));
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d')!;
+    g.drawImage(src, 0, 0, W, H);
+    const img = g.getImageData(0, 0, W, H), d = img.data;
+    const hgt = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) hgt[i] = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) / 255;
+    const out = g.createImageData(W, H), o = out.data, k = 2.2;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const xm = hgt[y * W + Math.max(0, x - 1)], xp = hgt[y * W + Math.min(W - 1, x + 1)];
+      const ym = hgt[Math.max(0, y - 1) * W + x], yp = hgt[Math.min(H - 1, y + 1) * W + x];
+      let nx = (xm - xp) * k, ny = (ym - yp) * k, nz = 1;
+      const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+      const i = (y * W + x) * 4;
+      o[i] = (nx * 0.5 + 0.5) * 255; o[i + 1] = (ny * 0.5 + 0.5) * 255; o[i + 2] = (nz * 0.5 + 0.5) * 255; o[i + 3] = 255;
+    }
+    g.putImageData(out, 0, 0);
+    const n = new THREE.CanvasTexture(c);
+    n.anisotropy = tex.anisotropy;
+    return n;
   }
 
   private floorTexture(m: Match) {
@@ -510,6 +561,63 @@ export class WorldRenderer {
     return g;
   }
 
+  /** Wind-swept grass tufts on natural arenas (one instanced draw call, GPU-animated). */
+  private buildGrass(m: Match) {
+    this.grass = null; this.grassMat = null;
+    const sp = m.arena.data.special;
+    if (this.quality === 'LOW' || !(sp === 'none' || sp === 'jungle' || sp === 'sky')) return;
+    const a = m.arena, th = a.data.theme;
+    const n = this.quality === 'HIGH' ? 7000 : 3600;
+    const blade = new THREE.BufferGeometry();
+    // 3 crossed blades per tuft
+    const pos: number[] = [], hgt: number[] = [];
+    for (let b = 0; b < 3; b++) {
+      const ang = (b / 3) * Math.PI, cx = Math.cos(ang) * 0.035, cz = Math.sin(ang) * 0.035;
+      const ox = (b - 1) * 0.03, oz = ((b * 7) % 3 - 1) * 0.03;
+      pos.push(ox - cx, 0, oz - cz, ox + cx, 0, oz + cz, ox + cx * 0.6, 0.3 + b * 0.05, oz);
+      hgt.push(0, 0, 1);
+    }
+    blade.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    blade.setAttribute('h', new THREE.Float32BufferAttribute(hgt, 1));
+    const c1 = new THREE.Color(th.floorA).multiplyScalar(0.55), c2 = new THREE.Color(th.floorA).lerp(new THREE.Color('#f4ffb0'), 0.45);
+    this.grassMat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 }, c1: { value: c1 }, c2: { value: c2 } },
+      vertexShader: `attribute float h; uniform float time; varying float vH;
+        void main(){ vH = h; vec4 w = instanceMatrix * vec4(position, 1.0);
+          float s = sin(time * 1.6 + w.x * 0.9 + w.z * 0.6) + 0.5 * sin(time * 2.7 + w.x * 2.1);
+          w.x += s * 0.045 * h; w.z += s * 0.02 * h;
+          gl_Position = projectionMatrix * viewMatrix * modelMatrix * w; }`,
+      fragmentShader: `uniform vec3 c1; uniform vec3 c2; varying float vH;
+void main(){
+  gl_FragColor = vec4(mix(c1, c2, vH), 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.InstancedMesh(blade, this.grassMat, n);
+    mesh.userData.ownMat = true;
+    const rng = new Rng(21), mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    let k = 0;
+    for (let tries = 0; tries < n * 3 && k < n; tries++) {
+      const x = rng.range(20, a.w - 20), y = rng.range(20, a.h - 20);
+      if (a.pointBlocked(x, y, 18)) continue;
+      if (a.hazards.some((hz) => x > hz.x - 10 && x < hz.x + hz.w + 10 && y > hz.y - 10 && y < hz.y + hz.h + 10)) continue;
+      if (Math.abs(x - a.w / 2) < 280 && Math.abs(y - a.h / 2) < 280) continue; // keep the centre emblem clean
+      if (a.portals.some((pt) => x > pt.x - 260 && x < pt.x + pt.w + 260 && y > pt.y - 80 && y < pt.y + pt.h + 80)) continue;
+      q.setFromAxisAngle(up, rng.range(0, Math.PI * 2));
+      const s = rng.range(0.7, 1.35);
+      sc.set(s, s * rng.range(0.8, 1.3), s);
+      p.set(x * WS, 0, y * WS);
+      mtx.compose(p, q, sc);
+      mesh.setMatrixAt(k++, mtx);
+    }
+    mesh.count = k;
+    mesh.frustumCulled = false;
+    this.matchRoot.add(mesh);
+    this.grass = mesh;
+  }
+
   private buildDecor(m: Match) {
     const a = m.arena, th = a.data.theme;
     const W = a.w * WS, H = a.h * WS;
@@ -535,7 +643,7 @@ export class WorldRenderer {
       place(-1.4 - rng.range(0, 1.4), z); place(W + 1.4 + rng.range(0, 1.4), z);
     }
     const geo = mergeGeometries(gs)!;
-    const mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.02 }));
     mesh.userData.ownMat = true;
     mesh.castShadow = this.q.shadows;
     this.matchRoot.add(mesh);
@@ -762,7 +870,7 @@ export class WorldRenderer {
       const side = w.crate ? crateSide : team === 0 ? '#2f6fd1' : team === 1 ? '#c22f45' : '#c46b12';
       const geo = this.wallBox({ x: -w.w / 2, y: -w.h / 2, w: w.w, h: w.h }, top, side, w.crate ? 0.65 : 0.75);
       const key = top;
-      if (!this.dynWallMat[key]) this.dynWallMat[key] = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() });
+      if (!this.dynWallMat[key]) this.dynWallMat[key] = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.02 });
       const mesh = new THREE.Mesh(geo, this.dynWallMat[key]);
       mesh.position.set((w.x + w.w / 2) * WS, 0, (w.y + w.h / 2) * WS);
       mesh.scale.y = w.crate ? 1 : 0.01;
@@ -964,7 +1072,7 @@ export class WorldRenderer {
     for (const b of this.bushViews) {
       let inside = false;
       for (const h of m.heroes) if (h.alive && h.team === this.viewerTeam && h.x >= b.rect.x && h.x <= b.rect.x + b.rect.w && h.y >= b.rect.y && h.y <= b.rect.y + b.rect.h) inside = true;
-      const mat = b.mesh.material as THREE.MeshToonMaterial;
+      const mat = b.mesh.material as THREE.MeshStandardMaterial;
       mat.opacity += ((inside ? 0.45 : 1) - mat.opacity) * 0.2;
     }
 
@@ -1001,6 +1109,8 @@ export class WorldRenderer {
       if (f.mat instanceof THREE.ShaderMaterial) { f.mat.uniforms.prog.value = k; f.mat.uniforms.opacity.value = op; }
       else f.mat.opacity = op;
     }
+    for (const f of this.flashLights) { f.t += dt; const k = Math.min(1, f.t / f.dur); f.l.intensity = f.i0 * (1 - k) * (1 - k); }
+    if (this.grassMat) this.grassMat.uniforms.time.value = this.time;
     this.particles.update(dt);
     this.updateCamera(dt);
   }
@@ -1047,7 +1157,11 @@ export class WorldRenderer {
     const u = v.u;
     u.uMove.value += ((moving ? 1 : 0) - u.uMove.value) * Math.min(1, dt * 10);
     const mv = u.uMove.value;
-    const bob = mv * Math.abs(Math.sin(v.walk * 0.9)) * 0.08 + (1 - mv) * Math.sin(this.time * 2.5 + h.id) * 0.02;
+    const bob = (1 - mv) * Math.sin(this.time * 2.5 + h.id) * 0.02; // walking bounce is now in the skeleton shader
+    // run intensity from the displayed speed (0 walk .. 1 sprint)
+    const spd = dt > 0 ? stepLen / dt : 0;
+    u.uRun.value += (Math.min(1, Math.max(0, (spd - 220) / 260)) - u.uRun.value) * Math.min(1, dt * 6);
+    u.uHit.value = h.anim.hitT > 0 ? Math.sin(Math.min(1, h.anim.hitT / 0.18) * Math.PI) : Math.max(0, u.uHit.value - dt * 8);
     const atk = h.anim.attackT > 0 ? Math.sin((h.anim.attackT / 0.22) * Math.PI) * 0.12 : 0;
     const cast = h.anim.castT > 0 ? Math.sin((h.anim.castT / 0.35) * Math.PI) * 0.18 : 0;
     inner.position.y = bob * v.scale * 4;
@@ -1055,8 +1169,8 @@ export class WorldRenderer {
     v.avatarK += ((h.avatarUntil > m.time ? 1.4 : 1) - v.avatarK) * Math.min(1, dt * 6);
     const S0 = v.scale * v.avatarK;
     inner.scale.set(S0 * (1 + atk * 0.25 + cast * 0.2), S0 * (1 - atk * 0.15 + cast * 0.4), S0 * (1 + atk * 0.25 + cast * 0.2));
-    v.lean += ((moving ? -0.12 : 0) - v.lean) * Math.min(1, dt * 8);
-    inner.rotation.z = v.lean; // lean into the run (eased, never snaps)
+    v.lean += ((moving ? -0.05 : 0) - v.lean) * Math.min(1, dt * 8);
+    inner.rotation.z = v.lean; // slight whole-body lean; torso/head lean is in the shader
     // limb animation (vertex shader) + hit flash
     u.uWalk.value = v.walk * 0.9;
     u.uAtk.value = h.anim.attackT > 0 ? Math.sin((h.anim.attackT / 0.25) * Math.PI) : 0;
@@ -1339,6 +1453,7 @@ export class WorldRenderer {
         break;
       }
       case 'explosion':
+        this.lightFlash(e.x, e.y, e.color, Math.min(14, 4 + e.radius / 25), 0.3 + Math.min(0.4, e.radius / 600));
         P.burst(e.x * WS, 0.3, e.y * WS, Math.min(60, 10 + e.radius / 6), e.color, Math.max(2, e.radius * WS * 4), 0.35, 0.6, 2.5, -6);
         this.addShockwave(e.x, e.y, 0.2, Math.max(0.5, e.radius * WS), e.color, 0.4);
         this.addDecal(e.x, e.y, Math.max(30, e.radius * 0.9), '#1a0f0a', e.radius > 60 ? 0.45 : 0.3, e.radius > 60 ? 2.2 : 1.1);
@@ -1371,6 +1486,7 @@ export class WorldRenderer {
       case 'throw': { const r = m.rifts.find((x) => x.id === e.rift); if (r) P.burst(r.x * WS, 0.7, r.y * WS, 16, '#ffffff', 2.5, 0.25, 0.4, 1, 0); break; }
       case 'goal': {
         const c = TEAM_COLORS[e.team];
+        this.lightFlash(e.x, e.y, c, 22, 1.1, 1.8);
         for (let i = 0; i < 3; i++) this.addShockwave(e.x, e.y, 0.3, 3 + i * 1.5, i === 1 ? '#ffffff' : c, 0.6 + i * 0.25);
         P.burst(e.x * WS, 1, e.y * WS, 120, c, 7, 0.45, 1.4, 6, -7);
         P.burst(e.x * WS, 1, e.y * WS, 80, '#ffe14d', 6, 0.35, 1.4, 7, -8);
@@ -1381,7 +1497,7 @@ export class WorldRenderer {
         const h = m.heroById(e.hero);
         if (!h) break;
         P.burst(h.x * WS, 0.5, h.y * WS, e.ult ? 50 : 18, e.ult ? '#ffe14d' : h.def.palette.accent, e.ult ? 5 : 3, 0.3, 0.6, 2, -4);
-        if (e.ult) { this.addShockwave(h.x, h.y, 0.3, 2.5, '#ffe14d', 0.5); this.addShake(0.15); }
+        if (e.ult) { this.addShockwave(h.x, h.y, 0.3, 2.5, '#ffe14d', 0.5); this.addShake(0.15); this.lightFlash(h.x, h.y, h.def.palette.accent, 10, 0.5); }
         break;
       }
       case 'wall': P.burst((e.x + e.w / 2) * WS, 0.2, (e.y + e.h / 2) * WS, 20, '#d9c7a5', 2.5, 0.3, 0.6, 2, -6); break;
@@ -1571,7 +1687,8 @@ export class WorldRenderer {
   private setupShowcase() {
     const s = this.showcase;
     s.background = new THREE.Color('#2a1a5e');
-    s.add(new THREE.HemisphereLight('#ffffff', '#6b5bd6', 1.6));
+    s.environment = this.envMap; s.environmentIntensity = 0.6;
+    s.add(new THREE.HemisphereLight('#ffffff', '#6b5bd6', 0.8));
     const key = new THREE.DirectionalLight('#ffffff', 2.4); key.position.set(3, 6, 5); s.add(key);
     const rim = new THREE.DirectionalLight('#b388ff', 2.2); rim.position.set(-4, 3, -4); s.add(rim);
     const ped = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.4, 0.4, 40), toon('#ffd166').clone()); // recoloured per season: own material
@@ -1618,8 +1735,8 @@ export class WorldRenderer {
     const s = this.showcase;
     s.background = new THREE.Color(l.sky);
     s.fog = new THREE.Fog(l.sky, 9, 22);
-    ((this.lobby.ped.material as THREE.MeshToonMaterial).color).set(l.pedestal);
-    ((this.lobby.ped2.material as THREE.MeshToonMaterial).color).set(l.ring);
+    ((this.lobby.ped.material as THREE.MeshStandardMaterial).color).set(l.pedestal);
+    ((this.lobby.ped2.material as THREE.MeshStandardMaterial).color).set(l.ring);
     (this.lobby.glow.material as THREE.MeshBasicMaterial).map = radialTexture(l.glow, l.glow.replace(/[\d.]+\)$/, '0)'));
     (this.lobby.glow.material as THREE.MeshBasicMaterial).needsUpdate = true;
     if (this.lobby.kind === l.particle) return;
@@ -1709,8 +1826,10 @@ export class WorldRenderer {
   /** Offscreen portrait of a hero (data URL) for UI cards. */
   portrait(heroId: string, skinId: string, size = 256): string {
     const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight('#ffffff', '#555577', 2));
-    const d = new THREE.DirectionalLight('#ffffff', 2); d.position.set(2, 3, 4); scene.add(d);
+    scene.environment = this.envMap; scene.environmentIntensity = 0.7;
+    scene.add(new THREE.HemisphereLight('#ffffff', '#555577', 0.9));
+    const d = new THREE.DirectionalLight('#ffffff', 2.4); d.position.set(2, 3, 4); scene.add(d);
+    const rimL = new THREE.DirectionalLight('#b8a6ff', 1.4); rimL.position.set(-3, 2, -3); scene.add(rimL);
     const geo = heroGeometry(heroId, skinId);
     const g = new THREE.Group();
     const pu = makeHeroUniforms('#ffffff');

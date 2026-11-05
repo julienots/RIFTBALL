@@ -15,18 +15,24 @@ export function toonGradient() {
 
 const matCache = new Map<string, THREE.Material>();
 
-export function toon(color: string | number, opts: { emissive?: string; emissiveIntensity?: number; transparent?: boolean; opacity?: number } = {}) {
-  const key = `${color}|${opts.emissive ?? ''}|${opts.emissiveIntensity ?? 0}|${opts.transparent ? 1 : 0}|${opts.opacity ?? 1}`;
-  let m = matCache.get(key);
+/**
+ * v1.4 physically based look: every "toon" material is now a MeshStandardMaterial (lit by the
+ * scene's environment map + sun, ACES tone mapping). Cached and shared: clone before mutating,
+ * never dispose (userData.cached marks them).
+ */
+export function toon(color: string | number, opts: { emissive?: string; emissiveIntensity?: number; transparent?: boolean; opacity?: number; roughness?: number; metalness?: number } = {}): THREE.MeshStandardMaterial {
+  const key = `${color}|${opts.emissive ?? ''}|${opts.emissiveIntensity ?? 0}|${opts.transparent ? 1 : 0}|${opts.opacity ?? 1}|${opts.roughness ?? ''}|${opts.metalness ?? ''}`;
+  let m = matCache.get(key) as THREE.MeshStandardMaterial | undefined;
   if (!m) {
-    m = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient(), emissive: opts.emissive ?? '#000000', emissiveIntensity: opts.emissiveIntensity ?? 0, transparent: !!opts.transparent, opacity: opts.opacity ?? 1 });
+    m = new THREE.MeshStandardMaterial({ color, roughness: opts.roughness ?? 0.68, metalness: opts.metalness ?? 0.02, emissive: opts.emissive ?? '#000000', emissiveIntensity: opts.emissiveIntensity ?? 0, transparent: !!opts.transparent, opacity: opts.opacity ?? 1 });
+    m.userData.cached = true;
     matCache.set(key, m);
   }
   return m;
 }
 
-/** Vertex-colored toon material (merged character meshes = 1 draw call). */
-export const vertexToon = () => new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() });
+/** Vertex-colored PBR material (merged meshes = 1 draw call). */
+export const vertexToon = (roughness = 0.75) => new THREE.MeshStandardMaterial({ vertexColors: true, roughness, metalness: 0.02 });
 
 let outlineMat: THREE.MeshBasicMaterial | null = null;
 /** Inverted-hull outline material (thick dark cartoon outline). */

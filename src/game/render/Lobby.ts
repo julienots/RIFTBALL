@@ -51,7 +51,7 @@ export class LobbyScene {
   private islands: { o: THREE.Object3D; y: number; p: number }[] = [];
   private spinners: THREE.Object3D[] = [];
   private waves: THREE.Mesh[] = [];
-  private blinkers: THREE.MeshToonMaterial[] = [];
+  private blinkers: THREE.MeshStandardMaterial[] = [];
   private tiles: THREE.MeshBasicMaterial[] = [];
   private beams: THREE.Mesh[] = [];
   private disco: THREE.Object3D | null = null;
@@ -143,7 +143,7 @@ export class LobbyScene {
         const b = new THREE.Mesh(new THREE.BoxGeometry(3, h, 3), toon('#140021')); b.position.set(x, h / 2 - 0.6, -24 - Math.abs(rnd(i + 7)) * 8); g.add(own(b));
         const stripe = toon(i % 2 ? '#4cc9f0' : '#f72585', { emissive: i % 2 ? '#4cc9f0' : '#f72585', emissiveIntensity: 1.5 }).clone(); // animated: own copy
         for (let k = 1; k < h / 2; k++) { const w = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.12, 0.05), stripe); w.position.set(x, k * 2 - 0.6, b.position.z + 1.53); g.add(own(w)); }
-        this.blinkers.push(stripe as THREE.MeshToonMaterial);
+        this.blinkers.push(stripe as THREE.MeshStandardMaterial);
       }
       for (let i = -6; i <= 6; i++) { const l = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 40), new THREE.MeshBasicMaterial({ color: '#f72585', transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false })); l.rotation.x = -Math.PI / 2; l.position.set(i * 3, -0.53, -14); g.add(own(l)); }
     } else if (this.kind === 'fiesta') {
@@ -213,7 +213,7 @@ export class LobbyScene {
 
   dispose() {
     // toon() materials are shared (cache): only geometries and our own shader/basic materials are freed
-    this.group.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); const mat = m.material as THREE.Material | undefined; if (mat && !(mat as any).isMeshToonMaterial) mat.dispose(); });
+    this.group.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); const mat = m.material as THREE.Material | undefined; if (mat && !mat.userData.cached) mat.dispose(); });
     for (const b of this.blinkers) b.dispose();
   }
 }
