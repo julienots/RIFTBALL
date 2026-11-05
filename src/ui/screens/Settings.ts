@@ -33,6 +33,7 @@ export function settingsScreen(c: Controller): Screen {
     body.append(
       h('div.title', { style: 'margin:.3em 0' }, '🎨 GRAPHISMES'),
       row('Qualité', seg<Quality>([['LOW', 'BASSE'], ['MEDIUM', 'MOYENNE'], ['HIGH', 'HAUTE']], s.quality, (v) => { s.quality = v; c.renderer.applyQuality(v); }), 'Effets, particules, ombres, résolution et post-traitement'),
+      row('Qualité automatique', toggle(s.autoQuality, (v) => (s.autoQuality = v)), 'Baisse les effets si le téléphone n\'arrive pas à rester fluide'),
       row('Afficher les FPS', toggle(s.showFps, (v) => (s.showFps = v))),
       h('div.title', { style: 'margin:.5em 0 .3em' }, '🔊 AUDIO'),
       row('Musique', slider(s.musicVolume, (v) => (s.musicVolume = v))),

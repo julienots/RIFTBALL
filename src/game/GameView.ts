@@ -57,6 +57,8 @@ export class GameSession {
   onFrame: ((dt: number) => void) | null = null;
   private stepsThisSecond = 0;
   simRate = 60;
+  /** adaptive quality: rendered frames per second and how long we've been too slow */
+  private fpsFrames = 0; private fpsT = 0; private slowSec = 0; private warmup = 4;
   private rateT = 0;
 
   constructor(private app: App, private r: WorldRenderer, private ui: UIManager, readonly cfg: SessionConfig, portrait: string) {
@@ -79,6 +81,8 @@ export class GameSession {
     this.hud = new HUD(this.match, r, portrait, d.equipped.emotes);
     this.hud.portraitOf = (heroId) => r.portrait(heroId, `${heroId}_default`, 192);
     ui.root.appendChild(this.hud.el);
+    const pcache = new Map<string, string>();
+    if (cfg.mode !== 'TUTORIAL') this.hud.showVsIntro((id, skin) => { const k = id + '|' + skin; let p = pcache.get(k); if (!p) { p = r.portrait(id, skin, 160); pcache.set(k, p); } return p; });
     this.input = new Input(this.hud.ctrl, this.hud.joyBase, this.hud.joyKnob, this.hud.btn);
     this.input.screenToWorldDir = (sx, sy) => {
       const me = this.match.human;
@@ -234,6 +238,7 @@ export class GameSession {
     } else { this.r.interpolate = !this.cfg.online && this.paused; this.r.simAlpha = 1; }
     this.rateT += dt;
     if (this.rateT >= 1) { this.simRate = this.stepsThisSecond / this.rateT; this.stepsThisSecond = 0; this.rateT = 0; }
+    this.adaptQuality(dt);
     this.updateAim();
     this.r.update(this.paused ? 0 : dt);
     this.hud.update(dt);
@@ -251,6 +256,25 @@ export class GameSession {
       }
       this.endTimer -= dt;
       if (this.endTimer <= 0) this.finish(false);
+    }
+  }
+
+  /** Steps the graphics quality down when the game can't hold ~40 FPS for 4 s (never up, never below LOW). */
+  private adaptQuality(dt: number) {
+    const st = this.app.data.settings;
+    if (!st.autoQuality || this.paused) return;
+    this.fpsFrames++; this.fpsT += dt;
+    if (this.fpsT < 1) return;
+    const fps = this.fpsFrames / this.fpsT;
+    this.fpsFrames = 0; this.fpsT = 0;
+    if (this.warmup > 0) { this.warmup--; return; } // ignore shader compilation at kickoff
+    this.slowSec = fps < 40 ? this.slowSec + 1 : 0;
+    if (this.slowSec >= 4 && st.quality !== 'LOW') {
+      st.quality = st.quality === 'HIGH' ? 'MEDIUM' : 'LOW';
+      this.r.applyQuality(st.quality);
+      this.app.save.save();
+      this.slowSec = 0; this.warmup = 2;
+      this.ui.toast('⚡', 'Qualité ajustée', 'Graphismes réduits pour garder le jeu fluide (Options).');
     }
   }
 

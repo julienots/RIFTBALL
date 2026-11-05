@@ -1583,12 +1583,14 @@ export class WorldRenderer {
     this.lobby = { ped, ped2, glow, fx: null, kind: '' };
     this.showcaseCam.position.set(0, 1.75, 7.6);
     this.showcaseCam.lookAt(0, 0.95, 0);
+    this.showcaseBase.set(0, 1.75, 7.6); this.showcaseLook.set(0, 0.95, 0);
   }
 
   setShowcase(heroId: string, skinId: string, offsetX = 0) {
     const key = heroId + '|' + skinId;
     this.showcaseCam.position.set(-offsetX, 1.75, 7.6);
     this.showcaseCam.lookAt(-offsetX, 0.95, 0);
+    this.showcaseBase.set(-offsetX, 1.75, 7.6); this.showcaseLook.set(-offsetX, 0.95, 0);
     if (key === this.showcaseKey) return;
     this.showcaseKey = key;
     if (this.showcaseHero) this.showcase.remove(this.showcaseHero);
@@ -1655,11 +1657,16 @@ export class WorldRenderer {
   }
   private showcaseU: HeroAnimUniforms | null = null;
   private showcaseDanceT = 0;
+  private showcaseBase = new THREE.Vector3();
+  private showcaseLook = new THREE.Vector3();
   /** Lobby: the showcased hero dances for a few seconds (style: groove | robot | floss | disco). */
   showcaseDance(style: string) { if (this.showcaseU) this.showcaseU.uStyle.value = DANCE_STYLES[style] ?? 0; this.showcaseDanceT = 5.5; }
 
   renderShowcase(dt: number) {
     this.time += dt;
+    // slow cinematic breathing of the lobby camera
+    const bx = this.showcaseBase.x, by = this.showcaseBase.y, bz = this.showcaseBase.z;
+    if (this.showcaseBase.lengthSq() > 0) { this.showcaseCam.position.set(bx + Math.sin(this.time * 0.25) * 0.18, by + Math.sin(this.time * 0.37) * 0.06, bz + Math.sin(this.time * 0.19) * 0.12); this.showcaseCam.lookAt(this.showcaseLook); }
     if (this.showcaseHero) {
       const dancing = this.showcaseDanceT > 0;
       this.showcaseDanceT = Math.max(0, this.showcaseDanceT - dt);
@@ -1689,7 +1696,7 @@ export class WorldRenderer {
       a.needsUpdate = true;
     }
     if (this.showcasePet) {
-      const off = this.showcaseCam.position.x;
+      const off = this.showcaseBase.x;
       this.showcasePet.position.set(off + 1.05, 1.25 + Math.sin(this.time * 2.2) * 0.1, 0.4);
       this.showcasePet.rotation.y = -0.5 + Math.sin(this.time * 0.8) * 0.4;
       animatePet(this.showcasePet, this.time);

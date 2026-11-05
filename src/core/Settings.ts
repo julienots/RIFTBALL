@@ -23,6 +23,8 @@ export interface GameSettings {
   sfxVolume: number;
   haptics: boolean;
   showFps: boolean;
+  /** lower the quality automatically when the device can't keep up */
+  autoQuality: boolean;
   language: 'fr' | 'en';
   leftHanded: boolean;
   botDifficulty: 'EASY' | 'NORMAL' | 'HARD' | 'EXPERT';
@@ -36,6 +38,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   sfxVolume: 0.8,
   haptics: true,
   showFps: false,
+  autoQuality: true,
   language: 'fr',
   leftHanded: false,
   botDifficulty: 'NORMAL',

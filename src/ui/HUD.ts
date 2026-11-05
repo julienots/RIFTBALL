@@ -184,7 +184,7 @@ export class HUD {
         break;
       }
       case 'countdown': this.showAnnounce(String(e.n), '', '#fff', 900); break;
-      case 'kickoff': this.showAnnounce(m.overtime ? 'SUDDEN DEATH' : 'GO !', m.overtime ? 'Le prochain point gagne !' : '', m.overtime ? '#ff6b7a' : '#ffe14d', 1100); break;
+      case 'kickoff': this.hideVsIntro(); this.showAnnounce(m.overtime ? 'SUDDEN DEATH' : 'GO !', m.overtime ? 'Le prochain point gagne !' : '', m.overtime ? '#ff6b7a' : '#ffe14d', 1100); break;
       case 'goal': {
         if (m.mode.id === 'RIFT_BOSS') { this.showAnnounce('IMPACT !', 'Le Colosse vacille !', '#ffe14d', 1400); break; }
         if (m.mode.id === 'SURVIVAL') { this.showAnnounce('NOVA !', 'Équipe soignée, créatures repoussées', '#5cff9d', 1400); break; }
@@ -268,6 +268,29 @@ export class HUD {
         break;
       }
     }
+  }
+
+  private vsEl: HTMLElement | null = null;
+  /** Animated "VS" splash with both line-ups, shown during the kickoff countdown. */
+  showVsIntro(portraitOf: (heroId: string, skinId: string) => string) {
+    const m = this.m, my = m.human?.team ?? 0;
+    const side = (team: number) => m.heroes.filter((x) => x.team === team && !(x.pve && x.def.id === 'minion') && x.def.id !== 'turret').slice(0, 4);
+    const card = (x: typeof m.heroes[number], i: number, left: boolean) => h('div.vs-card' + (x.id === m.humanId ? '.me' : ''), { style: `animation-delay:${0.08 + i * 0.09}s;--tc:${x.team === 0 ? '#2f9bff' : '#ff3b4e'}` },
+      h('img', { src: portraitOf(x.def.id, x.skinId) }),
+      h('div.vs-n', x.name), h('div.vs-h', x.def.name));
+    const el = h('div.vs-intro',
+      h('div.vs-side.l', side(my).map((x, i) => card(x, i, true))),
+      h('div.vs-mid', h('div.vs-v', 'VS'), h('div.vs-mode', m.mode.name), h('div.vs-arena', m.arena.data.name)),
+      h('div.vs-side.r', side(my === 0 ? 1 : 0).map((x, i) => card(x, i, false))));
+    this.el.appendChild(el);
+    this.vsEl = el;
+    setTimeout(() => this.hideVsIntro(), 5000); // normally hidden at kickoff
+  }
+  hideVsIntro() {
+    const el = this.vsEl; if (!el) return;
+    this.vsEl = null;
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 380);
   }
 
   /** Crosshair flash on the enemy you just hit (precise feedback). */

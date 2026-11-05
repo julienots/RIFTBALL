@@ -29,22 +29,50 @@ export class UIManager {
 
   push(screen: Screen) {
     const cur = this.current;
-    if (cur) { cur.onHide?.(); cur.el.style.display = 'none'; }
+    if (cur) {
+      cur.onHide?.();
+      // keep the old screen visible for the slide, then hide it
+      const old = cur.el;
+      old.classList.add('scr-out');
+      setTimeout(() => { if (this.current !== cur) { old.style.display = 'none'; old.classList.remove('scr-out'); } }, 230);
+    }
     this.stack.push(screen);
+    screen.el.classList.remove('scr-back'); screen.el.classList.add('scr-in');
     this.root.insertBefore(screen.el, this.toasts);
     screen.onShow?.();
+    UIManager.stagger(screen.el);
+    setTimeout(() => screen.el.classList.remove('scr-in'), 400);
     audio.play('whoosh');
   }
 
   pop() {
     if (this.stack.length <= 1) return;
     const s = this.stack.pop()!;
-    s.onHide?.(); s.el.remove();
+    s.onHide?.();
+    const leaving = s.el;
+    leaving.classList.add('scr-leave');
+    leaving.style.pointerEvents = 'none';
+    setTimeout(() => leaving.remove(), 200);
     const cur = this.current;
+    cur.el.classList.remove('scr-out');
     cur.el.style.display = '';
+    cur.el.classList.add('scr-back');
+    setTimeout(() => cur.el.classList.remove('scr-back'), 320);
     cur.refresh?.();
     cur.onShow?.();
     audio.play('tab');
+  }
+
+  /** Cascade-in animation for the cards of a freshly rendered list/grid. */
+  static stagger(root: HTMLElement) {
+    const items = root.querySelectorAll<HTMLElement>('.grid > *, .shop-grid > *, .mode-grid > *, .offer, .pass-cell, .icon-btn');
+    let i = 0;
+    for (const el of Array.from(items)) {
+      if (i > 40) break;
+      el.style.animationDelay = Math.min(0.45, i * 0.025) + 's';
+      el.classList.remove('pop-in'); void el.offsetWidth; el.classList.add('pop-in');
+      i++;
+    }
   }
 
   modal(title: string | null, body: HTMLElement | HTMLElement[], opts: { closable?: boolean; className?: string; onClose?: () => void } = {}) {
@@ -53,6 +81,7 @@ export class UIManager {
       opts.closable !== false ? h('button.close', { onclick: () => { audio.play('click'); close(); } }, '✕') : null,
       title ? h('h2.stroke', title) : null,
       body);
+    setTimeout(() => UIManager.stagger(box), 0);
     const wrap = h('div.modal-wrap', { onclick: (e: Event) => { if (e.target === wrap && opts.closable !== false) close(); } }, box);
     this.root.appendChild(wrap);
     this.modals.push(wrap);

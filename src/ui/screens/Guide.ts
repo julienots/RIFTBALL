@@ -62,18 +62,18 @@ export function guideScreen(c: Controller): Screen {
 
 /** One-time "what's new" popup for this content update. */
 export function showNews(c: Controller) {
-  const key = 'news_v21';
+  const key = 'news_v22';
   if ((c.data as any).seenNews === key || !c.data.tutorialDone) return;
   (c.data as any).seenNews = key;
   c.app.save.save();
   const m = c.ui.modal('NOUVEAUTÉS', h('div.col', { style: 'gap:.5em;max-width:34em' },
-    h('div.small-text', 'Mise à jour 1.2.0 : NOUVEAUX HÉROS 🌊⚔️🚀'),
+    h('div.small-text', 'Mise à jour 1.3.0 : ULTRA FLUIDE ⚡'),
     ...[
-      ['🏃', 'Déplacements fluides : les personnages ne saccadent plus en avançant'],
-      ['🌊', 'AQUA, la surfeuse : vagues qui soignent, Raz-de-Marée et Maelström'],
-      ['⚔️', 'KAÏ, le samouraï : katana, Coup Éclair et Mille Lames'],
-      ['🚀', 'JETT, la pilote fusée : roquettes, Saut Fusée et Pluie de Roquettes'],
-      ['✨', 'Héros plus détaillés et HUD de match redessiné'],
+      ['✨', 'Menus fluides : transitions animées, cartes en cascade, boutons qui rebondissent'],
+      ['👆', 'Lobby : glisse sur l\'écran (ou ‹ ›) pour changer de héros'],
+      ['🆚', 'Intro VS animée avant chaque match, confettis à la victoire'],
+      ['⚡', 'Qualité automatique : le jeu baisse les effets si ton téléphone ralentit'],
+      ['🚀', 'Le décor 3D du lobby ne tourne plus derrière les menus : tout est plus rapide'],
     ].map(([i, t]) => h('div.row', { style: 'gap:.6em' }, h('span', { style: 'font-size:1.5em' }, i), h('span', t))),
     h('div.row', { style: 'justify-content:center;gap:.6em;margin-top:.4em' },
       h('button.btn.purple', { onclick: () => { m.close(); c.ui.push(guideScreen(c)); } }, '📖 GUIDE'),

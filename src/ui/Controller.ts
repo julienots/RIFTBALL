@@ -96,7 +96,8 @@ export class Controller {
     if (this.session) this.session.update(dt);
     else {
       this.ui.update(dt);
-      if (this.renderer.showcaseActive) this.renderer.renderShowcase(dt);
+      // the 3D lobby is only drawn when the visible screen actually shows it (not under opaque menus)
+      if (this.renderer.showcaseActive && this.ui.current?.showcase) this.renderer.renderShowcase(dt);
     }
   }
 }

@@ -43,11 +43,11 @@ Aucun héros ni aucune statistique ne s'achète. Tout se débloque en jouant : r
 
 Rejoins l'arène et deviens une LÉGENDE DU RIFT !
 
-## Notes de version (v1.2.0)
-• Déplacements parfaitement fluides : fini les saccades des personnages (écrans 60/90/120 Hz)
-• 3 nouveaux héros détaillés : AQUA la surfeuse, KAÏ le samouraï, JETT la pilote fusée
-• Héros plus détaillés (lacets, manchettes, coutures…) et marche synchronisée
-• HUD et boutons de match redessinés
+## Notes de version (v1.3.0)
+• Menus ultra fluides : transitions animées, cartes en cascade, boutons qui rebondissent
+• Lobby vivant : change de héros d'un glissement, caméra cinéma, monnaies animées
+• Intro VS animée avant chaque match et confettis à la victoire
+• Qualité automatique : le jeu reste fluide même sur les petits téléphones
 
 ## Catégorie
 Jeux › Action (ou Arcade)

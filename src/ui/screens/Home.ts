@@ -1,3 +1,4 @@
+import { PLAYABLE } from '../../data/characters';
 import { COSMETICS } from '../../data/cosmetics';
 import { menuMusic } from '../../audio/music';
 import { h, fmt } from '../dom';
@@ -31,7 +32,18 @@ export function currencyBar(c: Controller, opts: { gemsPlus?: boolean } = {}) {
   const el = h('div.row', { style: 'gap:.5em' },
     h('div.pill', h('span.cur.coin', h('span', '')), coins),
     h('div.pill', { onclick: () => { if (opts.gemsPlus !== false) { audio.play('click'); c.ui.push(shopScreen(c, 'gems')); } } }, h('span.cur.gem', h('span', '')), gems, opts.gemsPlus !== false ? h('span.plus', '+') : null));
-  const off = c.app.bus.on('wallet', (w) => { coins.textContent = fmt(w.coins); gems.textContent = fmt(w.gems); });
+  // values roll up/down instead of jumping
+  const roll = (el: HTMLElement, to: number) => {
+    const from = Number(el.dataset.v ?? to);
+    el.dataset.v = String(to);
+    if (from === to) { el.textContent = fmt(to); return; }
+    el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick');
+    const t0 = performance.now(), dur = 650;
+    const stepFn = () => { const k = Math.min(1, (performance.now() - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(Math.round(from + (to - from) * e)); if (k < 1 && el.isConnected) requestAnimationFrame(stepFn); };
+    requestAnimationFrame(stepFn);
+  };
+  coins.dataset.v = String(d.coins); gems.dataset.v = String(d.gems);
+  const off = c.app.bus.on('wallet', (w) => { roll(coins, w.coins); roll(gems, w.gems); });
   (el as any)._off = off;
   return el;
 }
@@ -39,6 +51,14 @@ export function currencyBar(c: Controller, opts: { gemsPlus?: boolean } = {}) {
 export function homeScreen(c: Controller): Screen {
   const el = h('div.screen.home');
   let offs: (() => void)[] = [];
+  // swipe on the stage to change hero
+  let swipeX = -1, swipeY = 0;
+  el.addEventListener('pointerdown', (e) => { if ((e.target as HTMLElement).closest('button, .pill, .dock, .side')) return; swipeX = e.clientX; swipeY = e.clientY; });
+  el.addEventListener('pointerup', (e) => {
+    if (swipeX < 0) return;
+    const dx = e.clientX - swipeX, dy = e.clientY - swipeY; swipeX = -1;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) (el.querySelectorAll<HTMLElement>('.car-arrow')[dx < 0 ? 1 : 0])?.click();
+  });
 
   const render = () => {
     for (const o of offs) o();
@@ -90,8 +110,21 @@ export function homeScreen(c: Controller): Screen {
       h('div.col', { style: 'gap:0' }, h('span.mt', mode.name), c.privateCode ? h('span.small-text', { style: 'color:#ffe14d' }, `🔒 Partie privée · ${c.privateCode}`) : h('span.small-text.muted', training ? `Entraînement · bots ${BOT_PROFILES[training].id}` : mode.ranked ? `${mode.teamSize}v${mode.teamSize} · Classé` : 'Coop vs IA')));
     const play = h('button.btn.yellow.big.play-btn.shine', { onclick: () => { audio.play('click'); c.screens.matchmaking(); } }, 'JOUER');
 
+    // quick hero carousel right on the lobby stage (owned heroes)
+    const owned = PLAYABLE.filter((x) => c.canPlay(x.id));
+    const cycle = (dir: number) => {
+      if (owned.length < 2) return;
+      const i = owned.findIndex((x) => x.id === c.heroId);
+      const next = owned[(i + dir + owned.length) % owned.length];
+      audio.play('whoosh');
+      c.heroId = next.id;
+      render();
+    };
     const heroInfo = h('div.hero-info',
-      h('div.hero-name.stroke', hero.name),
+      h('div.row.hero-carousel', { style: 'justify-content:center;gap:.5em' },
+        h('button.car-arrow', { onclick: () => cycle(-1), 'aria-label': 'Héros précédent' }, '‹'),
+        h('div.hero-name.stroke', hero.name),
+        h('button.car-arrow', { onclick: () => cycle(1), 'aria-label': 'Héros suivant' }, '›')),
       h('div.row', { style: 'justify-content:center;gap:.4em' },
         h('span.pill', { style: 'height:1.8em;font-size:.85em' }, `⭐ MAÎTRISE ${mastery.level}`),
         h('span.pill', { style: 'height:1.8em;font-size:.85em' }, `🏆 ${d.heroes[hero.id].trophies}`),

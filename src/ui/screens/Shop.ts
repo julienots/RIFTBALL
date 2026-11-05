@@ -1,7 +1,7 @@
 import { menuMusic } from '../../audio/music';
 import { h, fmt } from '../dom';
 import type { Controller } from '../Controller';
-import type { Screen } from '../UIManager';
+import { UIManager, type Screen } from '../UIManager';
 import { shell } from './shell';
 import { audio } from '../../audio/AudioEngine';
 import { coin, gem, rewardIcon, rewardText, cosmeticArt } from '../icons';
@@ -69,6 +69,7 @@ export function shopScreen(c: Controller, initial: Tab = 'daily'): Screen {
     for (const [t, lbl] of TABS) tabs.appendChild(h('button.tab' + (t === tab ? '.on' : ''), { onclick: () => { audio.play('tab'); tab = t; render(); } }, lbl));
     content.innerHTML = '';
     refreshLabel.textContent = `Boutique renouvelée dans ${formatDuration(c.app.shop.nextRefresh() - Clock.now())}`;
+    queueMicrotask(() => UIManager.stagger(content));
     if (tab === 'offers') renderOffers(); else if (tab === 'daily' || tab === 'skins') renderDaily(); else if (tab === 'new') renderNew(); else if (tab === 'gems') renderGems(); else if (tab === 'pass') renderPass(); else renderCrates();
   };
 

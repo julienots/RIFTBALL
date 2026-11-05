@@ -22,7 +22,17 @@ export async function resultsScreen(c: Controller, e: SessionEnd): Promise<Scree
   const sub = pve ? (m.mode.id === 'RIFT_BOSS' ? (out === 'win' ? 'Le Colosse est tombé !' : `Colosse : ${Math.round((m.result?.extra.bossHpPct ?? 0) * 100)}% PV restants`) : `Vagues survécues : ${m.result?.extra.waves ?? 0}/8`)
     : `${m.mode.id === 'RIFT_KING' ? '👑 ' : ''}${m.result!.score[0]} - ${m.result!.score[1]}${m.overtime ? ' (Sudden Death)' : ''}`;
   const rewards = h('div.reward-row');
-  const add = (v: string, k: string, i: number, color = '#fff') => rewards.appendChild(h('div.reward.panel', { style: `animation-delay:${0.25 + i * 0.12}s` }, h('div.v.stroke-s', { style: `color:${color}` }, v), h('div.k', k)));
+  // reward values count up from 0 once their card has popped in
+  const add = (v: string, k: string, i: number, color = '#fff') => {
+    const num = Number((v.match(/-?\d+/) ?? ['0'])[0]);
+    const vEl = h('div.v.stroke-s', { style: `color:${color}` }, v.replace(/-?\d+/, '0'));
+    rewards.appendChild(h('div.reward.panel', { style: `animation-delay:${0.25 + i * 0.12}s` }, vEl, h('div.k', k)));
+    setTimeout(() => {
+      const t0 = performance.now(), dur = 700;
+      const f = () => { const q = Math.min(1, (performance.now() - t0) / dur), e2 = 1 - Math.pow(1 - q, 3); vEl.textContent = v.replace(/-?\d+/, String(Math.round(num * e2))); if (q < 1 && vEl.isConnected) requestAnimationFrame(f); else { vEl.classList.add('tick'); } };
+      requestAnimationFrame(f);
+    }, 350 + i * 120);
+  };
   let i = 0;
   if (e.report.ranked) add((r.trophies >= 0 ? '+' : '') + r.trophies + ' 🏆', `TROPHÉES · ${fmt(r.trophiesTotal)}`, i++, r.trophies > 0 ? '#ffe14d' : r.trophies < 0 ? '#ff8a96' : '#fff');
   add('+' + r.xp + ' ⭐', 'RIFT XP', i++, '#7cc4ff');
@@ -71,7 +81,8 @@ export async function resultsScreen(c: Controller, e: SessionEnd): Promise<Scree
   const completed = r.missionsCompleted.map((id) => MISSIONS.find((x) => x.id === id)?.text).filter(Boolean);
   const encourage = out === 'loss' ? ['Belle tentative ! Votre progression continue.', 'Chaque match rapporte de l\'XP et du Pass XP.', 'La prochaine sera la bonne !'][Math.floor(Math.random() * 3)] : '';
 
-  const el = h('div.screen.bg.results',
+  const confetti = out === 'win' ? h('div.confetti', Array.from({ length: 46 }, (_, k) => h('i', { style: `left:${(k * 37) % 100}%;background:${['#ffcd1f', '#ff4fa3', '#2fe0ff', '#3ddc84', '#ffffff', '#7b61ff'][k % 6]};animation-delay:${(k % 12) * 0.12}s;animation-duration:${2.2 + (k % 5) * 0.35}s;--r:${(k * 53) % 360}deg` }))) : null;
+  const el = h('div.screen.bg.results', confetti,
     h('div.head.stroke.' + (out === 'win' ? 'win' : out === 'loss' ? 'lose' : 'draw'), headText),
     h('div.title.stroke-s', { style: 'font-size:1.3em' }, sub, e.report.mvp ? h('span', { style: 'color:#ffe14d' }, '  · 👑 MVP') : null, r.streak > 1 ? h('span', { style: 'color:#ff9d00' }, `  · 🔥 Série ${r.streak}`) : null),
     encourage ? h('div.small-text', encourage) : null,
