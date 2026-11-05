@@ -181,6 +181,39 @@ export function castAbility(m: Match, h: Hero, ab: AbilityData, isUlt: boolean, 
       m.emit({ t: 'explosion', x: h.x, y: h.y, radius: P.radius, color: '#ff4ecd' });
       break;
 
+    case 'tide': {
+      // cone wave in the aimed direction
+      const cosC = Math.cos(P.cone ?? 0.9);
+      for (const e of m.heroes) {
+        if (!e.alive || e.team === h.team) continue;
+        const ex = e.x - h.x, ey = e.y - h.y, d = Math.hypot(ex, ey) || 1;
+        if (d > P.distance + e.radius) continue;
+        if (d > h.radius + e.radius && (ex * dx + ey * dy) / d < cosC) continue;
+        applyDamage(m, e, P.damage, h, { kb: isBoss(e) ? 0 : P.knockback, kbX: dx, kbY: dy, slow: P.slow, slowDuration: 1.5 });
+        if (e.carrying && !isBoss(e)) m.dropCarried(e);
+      }
+      m.emit({ t: 'explosion', x: h.x + dx * P.distance * 0.5, y: h.y + dy * P.distance * 0.5, radius: P.distance * 0.5, color: '#00b4d8' });
+      break;
+    }
+
+    case 'whirlpool': m.addZone('whirlpool', h, px, py, P.radius, P.duration, { damage: P.damage, pull: P.pull, slow: P.slow, tickEvery: 0.4 }); break;
+
+    case 'thousand_cuts': {
+      // strike up to N nearest visible enemies, phasing through, end behind the last
+      const targets = m.heroes.filter((e) => e.alive && e.team !== h.team && m.isVisibleTo(e, h.team) && dist2(e.x, e.y, h.x, h.y) < P.radius * P.radius)
+        .sort((a, b) => dist2(a.x, a.y, h.x, h.y) - dist2(b.x, b.y, h.x, h.y)).slice(0, P.hits);
+      if (!targets.length) return false;
+      const pts: number[] = [h.x, h.y];
+      for (const e of targets) { applyDamage(m, e, P.damage, h, { stun: 0.3, kb: isBoss(e) ? 0 : 200, kbX: e.x - h.x, kbY: e.y - h.y }); pts.push(e.x, e.y); }
+      const last = targets[targets.length - 1];
+      const bx = last.x - h.x, by = last.y - h.y, bl = Math.hypot(bx, by) || 1;
+      const [tx, ty] = m.castToFree(h, bx / bl, by / bl, bl + 70);
+      m.emit({ t: 'teleport', hero: h.id, fx: h.x, fy: h.y, x: tx, y: ty });
+      h.x = tx; h.y = ty; h.phaseUntil = m.time + 0.5;
+      m.emit({ t: 'chain', points: pts, team: h.team });
+      break;
+    }
+
     case 'dance_floor': m.addZone('dance_floor', h, px, py, P.radius, P.duration, { damage: P.damage, heal: P.heal, slow: P.slow, tickEvery: 0.5 }); break;
 
     case 'vanish':

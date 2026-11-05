@@ -339,6 +339,10 @@ export class Match {
     if (this.phase === 'ended') return;
     this.frame++;
     this.time += dt;
+    // remember where everything was, so the renderer can interpolate between steps
+    for (const h of this.heroes) { h.px0 = h.x; h.py0 = h.y; }
+    for (const r of this.rifts) { r.px0 = r.x; r.py0 = r.y; }
+    for (const p of this.projectiles) if (p.active) { p.px0 = p.x; p.py0 = p.y; }
 
     // phase machine
     if (this.phase === 'countdown') {

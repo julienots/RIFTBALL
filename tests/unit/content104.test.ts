@@ -13,14 +13,14 @@ const duo = (a: string, b = 'magnet', mode: any = 'RIFTBALL') => {
 };
 
 describe('v1.0.4 heroes', () => {
-  it('has 22 playable heroes including 3 mythics, every one with a rarity', () => {
-    expect(PLAYABLE.length).toBe(22);
+  it('has 25 playable heroes including 3 mythics, every one with a rarity', () => {
+    expect(PLAYABLE.length).toBe(25);
     expect(PLAYABLE.filter((c) => c.rarity === 'MYTHIC').map((c) => c.id).sort()).toEqual(['chronos', 'riftborn', 'seraph']);
     for (const c of PLAYABLE) expect(c.rarity, c.id).toBeDefined();
   });
 
   it('every new ability / ult / gadget casts without errors', () => {
-    for (const id of ['zip', 'grill', 'koko', 'luna', 'gear', 'chronos', 'seraph', 'riftborn', 'vibe']) {
+    for (const id of ['zip', 'grill', 'koko', 'luna', 'gear', 'chronos', 'seraph', 'riftborn', 'vibe', 'aqua', 'kai', 'jett']) {
       const m = duo(id, 'titan');
       const a = m.human!, b = m.heroes[1];
       b.x = a.x + 250; b.y = a.y;

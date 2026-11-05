@@ -550,3 +550,27 @@ input { font: inherit; }
 .hero-card .rar { bottom: 0.35em; box-shadow: 0 0.1em 0 var(--ink); border: 0.08em solid var(--ink); }
 .hero-card .lock { inset: 0.35em 0.35em auto 0.35em; padding: 0.25em 0.35em; border-radius: 0.6em; background: rgba(10,5,30,0.72); border: 0.1em solid rgba(255,255,255,0.15); font-size: 0.66em; line-height: 1.15; display: block; }
 .hero-card .lock br { display: none; }
+
+/* ============================================================ v1.2.0 HUD & SCREENS POLISH */
+/* scoreboard: glossy capsule with team glows */
+.scoreboard { border-radius: 1em; box-shadow: 0 0.18em 0 var(--ink), 0 0.4em 0.9em rgba(0,0,0,0.35); }
+.scoreboard .team { position: relative; overflow: hidden; }
+.scoreboard .team::after, .scoreboard .clock::after { content: ''; position: absolute; inset: 0 0 52% 0; background: linear-gradient(rgba(255,255,255,0.35), rgba(255,255,255,0)); pointer-events: none; }
+.scoreboard .clock { position: relative; background: linear-gradient(#2b1d57, #120a30); }
+.scoreboard .team .n { text-shadow: 0 0.08em 0 var(--ink); -webkit-text-stroke: 0.08em var(--ink); paint-order: stroke fill; }
+/* action buttons: glass rim, inner highlight, soft drop shadow */
+.hud-btn { box-shadow: inset 0 -0.35em 0 rgba(0,0,0,0.25), inset 0 0.22em 0 rgba(255,255,255,0.5), 0 0.2em 0 var(--ink), 0 0.45em 0.8em rgba(0,0,0,0.35); overflow: visible; }
+.hud-btn::before { content: ''; position: absolute; left: 14%; right: 14%; top: 6%; height: 36%; border-radius: 50% 50% 45% 45%; background: linear-gradient(rgba(255,255,255,0.55), rgba(255,255,255,0)); pointer-events: none; }
+.hud-btn .lbl { font-family: 'Lilita One'; letter-spacing: 0.02em; }
+.hud-btn.attack { box-shadow: inset 0 -0.4em 0 rgba(0,0,0,0.25), inset 0 0.22em 0 rgba(255,255,255,0.5), 0 0.22em 0 var(--ink), 0 0 0 0.25em rgba(255,59,78,0.25), 0 0.5em 1em rgba(0,0,0,0.35); }
+.hud-btn.roll, .hud-btn.gadget { box-shadow: inset 0 -0.3em 0 rgba(0,0,0,0.25), inset 0 0.18em 0 rgba(255,255,255,0.45), 0 0.18em 0 var(--ink), 0 0.4em 0.7em rgba(0,0,0,0.3); }
+/* own portrait & bars */
+.hud-me .portrait { box-shadow: inset 0 0.14em 0 rgba(255,255,255,0.3), 0 0.16em 0 var(--ink), 0 0 0.7em rgba(123,97,255,0.5); }
+/* floating hp bars: name chip */
+.hpbar .nm { padding: 0 0.35em; border-radius: 0.4em; background: rgba(10,5,30,0.45); }
+.hpbar .hb { border-radius: 0.45em; box-shadow: 0 0.08em 0 var(--ink); }
+/* killfeed rows as chips */
+.killfeed .kf { background: linear-gradient(90deg, rgba(10,5,30,0.75), rgba(10,5,30,0.35)); border-radius: 0.6em; padding: 0.1em 0.5em; border: 0.08em solid rgba(255,255,255,0.12); }
+/* results / detail screens: hero spotlight */
+.results .podium, .results .mvp { filter: drop-shadow(0 0.3em 0.6em rgba(0,0,0,0.35)); }
+.joy-base { box-shadow: inset 0 0 0 0.12em rgba(255,255,255,0.18), 0 0 1.2em rgba(0,0,0,0.25); }

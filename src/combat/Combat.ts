@@ -55,6 +55,7 @@ export function applyDamage(m: Match, target: Hero, amount: number, source: Hero
   let dmg = amount;
   if (source && source.dmgMulNext !== 1) { dmg *= source.dmgMulNext; source.dmgMulNext = 1; }
   if (source && source.powerUntil > m.time) dmg *= 1.25;
+  if (source && source.def.passive.id === 'bushido' && target.hp > target.maxHp * source.def.passive.params.threshold) dmg *= 1 + source.def.passive.params.mul;
   if (source && source.def.passive.id === 'steady' && dist2(source.x, source.y, target.x, target.y) > source.def.passive.params.range ** 2) dmg *= 1 + source.def.passive.params.mul;
   if (source && source.def.passive.id === 'chill' && !opts.slow) { opts = { ...opts, slow: source.def.passive.params.slow, slowDuration: 1 }; }
   if (source && source.avatarUntil > m.time) dmg *= 1 + (source.def.ultimate.params.damage ?? 0.4);
@@ -159,6 +160,8 @@ export function healHero(m: Match, target: Hero, amount: number, source: Hero | 
   const done = target.hp - before;
   if (done > 0) {
     if (source) { source.stats.heal += done; source.ult = clamp(source.ult + done / 160, 0, 100); }
+    // AQUA: healing others washes back on her
+    if (source && source !== target && source.alive && source.def.passive.id === 'soak') source.hp = Math.min(source.maxHp, source.hp + done * source.def.passive.params.share);
     // LUNA: healed allies get a short speed boost
     if (source && source !== target && source.def.passive.id === 'moonlight') {
       const p = source.def.passive.params;
@@ -290,7 +293,7 @@ export function aimAssist(m: Match, h: Hero, dx: number, dy: number): { ax: numb
 export function spawnProjectile(m: Match, owner: Hero, kind: ProjectileKind, x: number, y: number, dx: number, dy: number, speed: number, range: number, radius: number, damage: number): Projectile {
   const p = m.allocProjectile();
   p.kind = kind; p.owner = owner.id; p.team = owner.team;
-  p.x = p.sx = x; p.y = p.sy = y;
+  p.x = p.sx = p.px0 = x; p.y = p.sy = p.py0 = y;
   p.vx = dx * speed; p.vy = dy * speed;
   p.range = range; p.traveled = 0; p.radius = radius; p.damage = damage;
   p.knockback = 0; p.slow = 0; p.slowDuration = 0; p.pierce = false; p.healAllies = 0;
@@ -303,7 +306,7 @@ export function spawnProjectile(m: Match, owner: Hero, kind: ProjectileKind, x: 
 export function spawnLob(m: Match, owner: Hero | null, team: TeamId, ownerId: number, x: number, y: number, tx: number, ty: number, dur: number, area: number, damage: number, kind: ProjectileKind = 'lob', color = '#ffd23f'): Projectile {
   const p = m.allocProjectile();
   p.kind = kind; p.owner = ownerId; p.team = team;
-  p.x = p.sx = x; p.y = p.sy = y; p.tx = tx; p.ty = ty; p.t = 0; p.dur = dur;
+  p.x = p.sx = p.px0 = x; p.y = p.sy = p.py0 = y; p.tx = tx; p.ty = ty; p.t = 0; p.dur = dur;
   p.areaRadius = area; p.damage = damage; p.radius = 16; p.vx = 0; p.vy = 0; p.range = 1e9; p.traveled = 0;
   p.knockback = 0; p.slow = 0; p.pierce = false; p.healAllies = 0; p.returning = false; p.phase = true; p.ultScale = kind === 'shell' ? 0.25 : 1;
   p.color = owner ? owner.def.palette.accent : color;

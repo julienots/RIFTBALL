@@ -43,11 +43,11 @@ Aucun héros ni aucune statistique ne s'achète. Tout se débloque en jouant : r
 
 Rejoins l'arène et deviens une LÉGENDE DU RIFT !
 
-## Notes de version (v1.1.0)
-• Menus entièrement redessinés, textes de match plus discrets
-• Maps plus grandes, héros plus rapides, Rift plus facile à attraper
-• 4 nouvelles mutations : TURBO, AIMANT, PLUIE DE MÉTÉORES, VAMPIRE
-• Boutique du jour (cadeau gratuit + 2 promos par jour) et nouvel onglet NOUVEAUTÉS
+## Notes de version (v1.2.0)
+• Déplacements parfaitement fluides : fini les saccades des personnages (écrans 60/90/120 Hz)
+• 3 nouveaux héros détaillés : AQUA la surfeuse, KAÏ le samouraï, JETT la pilote fusée
+• Héros plus détaillés (lacets, manchettes, coutures…) et marche synchronisée
+• HUD et boutons de match redessinés
 
 ## Catégorie
 Jeux › Action (ou Arcade)

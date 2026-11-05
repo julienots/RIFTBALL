@@ -26,6 +26,8 @@ export const emptyStats = (): HeroStats => ({ kills: 0, deaths: 0, goals: 0, ass
 
 export class Hero {
   x = 0; y = 0;
+  /** position at the start of the last simulation step (render interpolation) */
+  px0 = 0; py0 = 0;
   vx = 0; vy = 0;           // last movement velocity (for visuals / prediction)
   kx = 0; ky = 0;           // knockback velocity (decays)
   hp: number;
@@ -126,6 +128,7 @@ export type ProjectileKind = 'bolt' | 'spread' | 'lob' | 'boomerang' | 'wave' | 
 
 export class Projectile {
   active = false;
+  px0 = 0; py0 = 0;
   kind: ProjectileKind = 'bolt';
   owner = -1;
   team: TeamId = 0;
@@ -151,7 +154,7 @@ export class Projectile {
 }
 
 export type ZoneKind = 'magnet_field' | 'storm' | 'heal' | 'slow' | 'black_hole' | 'fire' | 'eruption' | 'electric_trail' | 'lava_burst' | 'mine' | 'ice_floor' | 'blizzard'
-  | 'vines' | 'smoke' | 'eclipse' | 'sanctuary' | 'moon_well' | 'oil' | 'boss_warn' | 'gravity_well' | 'dance_floor';
+  | 'vines' | 'smoke' | 'eclipse' | 'sanctuary' | 'moon_well' | 'oil' | 'boss_warn' | 'gravity_well' | 'dance_floor' | 'whirlpool';
 
 export class Zone {
   active = false;
@@ -177,6 +180,7 @@ export class Zone {
 export interface RiftEntity {
   id: number;
   x: number; y: number; vx: number; vy: number;
+  px0?: number; py0?: number;
   radius: number;
   state: RiftState;
   stateTime: number;

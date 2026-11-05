@@ -41,6 +41,8 @@ interface HeroView {
   pet: THREE.Group | null;
   petKey: string;
   petX: number; petY: number;
+  /** render-side walk phase (follows the real displacement) and smoothed bob/lean */
+  walk: number; lean: number;
 }
 
 const WARN_FS = `uniform float time; uniform float progress; varying vec2 vUv;
@@ -221,6 +223,15 @@ export class WorldRenderer {
   private time = 0;
   match: Match | null = null;
   viewerTeam: 0 | 1 = 0;
+  /** offline: fraction of the next simulation step already elapsed (0..1); positions are interpolated */
+  simAlpha = 1;
+  interpolate = false;
+  private lerpPos(x0: number | undefined, x: number, y0: number | undefined, y: number, snap: number): [number, number] {
+    if (!this.interpolate || x0 === undefined || y0 === undefined) return [x, y];
+    if (Math.abs(x - x0) > snap || Math.abs(y - y0) > snap) return [x, y];
+    const a = this.simAlpha;
+    return [x0 + (x - x0) * a, y0 + (y - y0) * a];
+  }
   focusId = -1;
   private tmpV = new THREE.Vector3();
   private projGeo: Record<string, THREE.BufferGeometry> = {};
@@ -581,7 +592,7 @@ export class WorldRenderer {
         group.add(aura);
       }
     }
-    v = { hero: h, group, body, outline, mat, outlineMat, u, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key, crown: null, mythic, avatarK: 1, pet: keepPet, petKey: keepPetKey, petX: h.x, petY: h.y };
+    v = { hero: h, group, body, outline, mat, outlineMat, u, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key, crown: null, mythic, avatarK: 1, pet: keepPet, petKey: keepPetKey, petX: h.x, petY: h.y, walk: 0, lean: 0 };
     this.heroViews.set(h.id, v);
     return v;
   }
@@ -732,7 +743,7 @@ export class WorldRenderer {
       this.matchRoot.add(mesh);
     }
     const col: Record<string, string> = { magnet_field: '#ff4d6d', storm: '#ffe600', heal: '#5cff9d', slow: '#4cc9f0', black_hole: '#7b2ff7', fire: '#ff6b35', eruption: '#ff3d00', electric_trail: '#00f0ff', lava_burst: '#ff5400', mine: '#ffd23f', ice_floor: '#bde0fe', blizzard: '#e0fbfc',
-      vines: '#52b788', smoke: '#6c757d', eclipse: '#7b2cbf', sanctuary: '#ffe66d', moon_well: '#e0aaff', oil: '#fcbf49', gravity_well: '#ff00a0', dance_floor: '#ff4ecd' };
+      vines: '#52b788', smoke: '#6c757d', eclipse: '#7b2cbf', sanctuary: '#ffe66d', moon_well: '#e0aaff', oil: '#fcbf49', gravity_well: '#ff00a0', dance_floor: '#ff4ecd', whirlpool: '#00b4d8' };
     const mat = mesh.material as THREE.ShaderMaterial;
     mat.uniforms.color.value.set(col[z.kind] ?? '#ffffff');
     mesh.scale.setScalar(z.radius * WS);
@@ -877,7 +888,8 @@ export class WorldRenderer {
       const mesh = o.children[0], shadow = o.children[2];
       let y = 0.55;
       if (p.kind === 'lob' || p.kind === 'shell') { const k = Math.min(1, p.t / p.dur); y = 0.4 + Math.sin(k * Math.PI) * (p.kind === 'shell' ? 3.2 : 1.9); }
-      o.position.set(p.x * WS, y, p.y * WS);
+      const [ppx, ppy] = p.kind === 'lob' || p.kind === 'shell' ? [p.x, p.y] : this.lerpPos(p.px0, p.x, p.py0, p.y, 200);
+      o.position.set(ppx * WS, y, ppy * WS);
       shadow.position.y = -y + 0.02;
       mesh.rotation.y = -Math.atan2(p.vy, p.vx);
       const tail = o.children[3]; tail.rotation.set(-Math.PI / 2, -Math.atan2(p.vy, p.vx), 0);
@@ -1008,10 +1020,18 @@ export class WorldRenderer {
     v.wasAlive = h.alive;
     v.group.visible = visible || (h.alive && h.team === this.viewerTeam);
     if (!v.group.visible) return;
-    // smooth positions toward the latest simulation state
-    const k = Math.min(1, dt * 22);
-    v.px += (h.x - v.px) * k; v.py += (h.y - v.py) * k;
+    const ox = v.px, oy = v.py;
+    if (this.interpolate) {
+      // offline: exact interpolation between the last two simulation steps (no stutter at 90/120 Hz)
+      [v.px, v.py] = this.lerpPos(h.px0, h.x, h.py0, h.y, 120);
+    } else {
+      // online: smooth toward the latest (predicted / dead-reckoned) state
+      const k = Math.min(1, dt * 22);
+      v.px += (h.x - v.px) * k; v.py += (h.y - v.py) * k;
+    }
     if (Math.abs(h.x - v.px) > 120 || Math.abs(h.y - v.py) > 120) { v.px = h.x; v.py = h.y; } // teleports
+    const stepLen = Math.hypot(v.px - ox, v.py - oy);
+    if (stepLen < 60) v.walk += stepLen * 0.03; // legs follow what you actually see moving (no skating, no running in place)
     let y = 0;
     if (h.leap) { const t = Math.min(1, h.leap.t / h.leap.dur); y = Math.sin(t * Math.PI) * 1.6; }
     v.group.position.set(v.px * WS, y, v.py * WS);
@@ -1023,8 +1043,11 @@ export class WorldRenderer {
     while (diff < -Math.PI) diff += Math.PI * 2;
     inner.rotation.y += diff * Math.min(1, dt * 16);
     // squash & stretch animation
-    const moving = Math.hypot(h.vx, h.vy) > 30;
-    const bob = moving ? Math.abs(Math.sin(h.anim.walk * 0.9)) * 0.08 : Math.sin(this.time * 2.5 + h.id) * 0.02;
+    const moving = Math.hypot(h.vx, h.vy) > 30 && stepLen > 0.05;
+    const u = v.u;
+    u.uMove.value += ((moving ? 1 : 0) - u.uMove.value) * Math.min(1, dt * 10);
+    const mv = u.uMove.value;
+    const bob = mv * Math.abs(Math.sin(v.walk * 0.9)) * 0.08 + (1 - mv) * Math.sin(this.time * 2.5 + h.id) * 0.02;
     const atk = h.anim.attackT > 0 ? Math.sin((h.anim.attackT / 0.22) * Math.PI) * 0.12 : 0;
     const cast = h.anim.castT > 0 ? Math.sin((h.anim.castT / 0.35) * Math.PI) * 0.18 : 0;
     inner.position.y = bob * v.scale * 4;
@@ -1032,11 +1055,10 @@ export class WorldRenderer {
     v.avatarK += ((h.avatarUntil > m.time ? 1.4 : 1) - v.avatarK) * Math.min(1, dt * 6);
     const S0 = v.scale * v.avatarK;
     inner.scale.set(S0 * (1 + atk * 0.25 + cast * 0.2), S0 * (1 - atk * 0.15 + cast * 0.4), S0 * (1 + atk * 0.25 + cast * 0.2));
-    inner.rotation.z = moving ? -0.12 : 0; // lean into the run
+    v.lean += ((moving ? -0.12 : 0) - v.lean) * Math.min(1, dt * 8);
+    inner.rotation.z = v.lean; // lean into the run (eased, never snaps)
     // limb animation (vertex shader) + hit flash
-    const u = v.u;
-    u.uWalk.value = h.anim.walk * 0.9;
-    u.uMove.value += ((moving ? 1 : 0) - u.uMove.value) * Math.min(1, dt * 10);
+    u.uWalk.value = v.walk * 0.9;
     u.uAtk.value = h.anim.attackT > 0 ? Math.sin((h.anim.attackT / 0.25) * Math.PI) : 0;
     u.uCast.value = h.anim.castT > 0 ? Math.sin((h.anim.castT / 0.35) * Math.PI) : 0;
     u.uTime.value = this.time + h.id;
@@ -1127,8 +1149,8 @@ export class WorldRenderer {
 
   private updateRift(v: RiftView, m: Match, dt: number, mutColor: string) {
     const r = v.rift;
-    const k = Math.min(1, dt * 20);
-    v.px += (r.x - v.px) * k; v.py += (r.y - v.py) * k;
+    if (this.interpolate) [v.px, v.py] = this.lerpPos(r.px0, r.x, r.py0, r.y, 150);
+    else { const k = Math.min(1, dt * 20); v.px += (r.x - v.px) * k; v.py += (r.y - v.py) * k; }
     if (Math.abs(r.x - v.px) > 150 || Math.abs(r.y - v.py) > 150) { v.px = r.x; v.py = r.y; }
     const carrier = r.carrier >= 0 ? m.heroById(r.carrier) : null;
     // the Rift is ALWAYS visible (it is the focus of the game), even when its carrier hides in a bush

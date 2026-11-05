@@ -6,8 +6,9 @@ import { ARENAS } from '../../data/arenas';
 import { MUTATIONS } from '../../data/mutations';
 
 export const MECHANICS: { icon: string; title: string; text: string; isNew?: boolean }[] = [
-  { icon: '🌀', title: 'Mutations 1.1', text: 'TURBO : tout le monde accélère et recharge plus vite. AIMANT : le Rift vient vers le héros le plus proche et s\'attrape de plus loin. PLUIE DE MÉTÉORES : sortez des cercles rouges ! VAMPIRE : chaque coup vous soigne de 35 % des dégâts.', isNew: true },
-  { icon: '☀️', title: 'Boutique du jour', text: 'Chaque jour : un cadeau gratuit, une nouvelle sélection et 2 promos (-25 % et -40 %). L\'onglet NOUVEAUTÉS garde les derniers objets en vente tout le temps.', isNew: true },
+  { icon: '🌊', title: 'Nouveaux héros 1.2', text: 'AQUA (soutien) soigne avec ses vagues et récupère une partie de ses soins. KAÏ (assassin) fait +30% de dégâts sur les ennemis en pleine forme, et Mille Lames frappe jusqu\'à 4 ennemis. JETT (artillerie) saute par-dessus les murs et fait pleuvoir des roquettes.', isNew: true },
+  { icon: '🌀', title: 'Mutations 1.1', text: 'TURBO : tout le monde accélère et recharge plus vite. AIMANT : le Rift vient vers le héros le plus proche et s\'attrape de plus loin. PLUIE DE MÉTÉORES : sortez des cercles rouges ! VAMPIRE : chaque coup vous soigne de 35 % des dégâts.' },
+  { icon: '☀️', title: 'Boutique du jour', text: 'Chaque jour : un cadeau gratuit, une nouvelle sélection et 2 promos (-25 % et -40 %). L\'onglet NOUVEAUTÉS garde les derniers objets en vente tout le temps.' },
   { icon: '🎯', title: 'Visée de précision', text: 'Appuie sur ATTAQUE : le tir part vers la meilleure cible (tir dégagé, porteur du Rift, ennemi blessé) en anticipant ses mouvements. Glisse pour viser : le tir se cale sur un ennemi à quelques degrés près. L\'indicateur montre la vraie portée, s\'arrête sur les murs et met un réticule rouge sur la cible.' },
   { icon: '⭕', title: 'Tirs en cloche', text: 'Les tirs en cloche affichent un cercle rouge à l\'endroit où ils vont tomber : sors-en vite !' },
   { icon: '🕺', title: 'Emotes de danse', text: 'Ouvre la roue d\'emotes en match (ou appuie sur DANSER dans le lobby) : ton héros danse en 3D. Bouger ou attaquer arrête la danse.' },
@@ -61,18 +62,18 @@ export function guideScreen(c: Controller): Screen {
 
 /** One-time "what's new" popup for this content update. */
 export function showNews(c: Controller) {
-  const key = 'news_v20';
+  const key = 'news_v21';
   if ((c.data as any).seenNews === key || !c.data.tutorialDone) return;
   (c.data as any).seenNews = key;
   c.app.save.save();
   const m = c.ui.modal('NOUVEAUTÉS', h('div.col', { style: 'gap:.5em;max-width:34em' },
-    h('div.small-text', 'Mise à jour 1.1.0 : GRANDE MISE À JOUR 🚀'),
+    h('div.small-text', 'Mise à jour 1.2.0 : NOUVEAUX HÉROS 🌊⚔️🚀'),
     ...[
-      ['🎨', 'Menus entièrement redessinés, textes de match plus petits et plus haut'],
-      ['🗺️', 'Maps plus grandes, héros plus rapides (+12 %), Rift plus facile à attraper'],
-      ['🌀', '4 nouvelles mutations : TURBO, AIMANT, PLUIE DE MÉTÉORES, VAMPIRE'],
-      ['☀️', 'Boutique du jour : cadeau gratuit chaque jour + 2 promos'],
-      ['✨', 'Onglet NOUVEAUTÉS : 14 nouveaux skins, traînées, compagnons et emotes'],
+      ['🏃', 'Déplacements fluides : les personnages ne saccadent plus en avançant'],
+      ['🌊', 'AQUA, la surfeuse : vagues qui soignent, Raz-de-Marée et Maelström'],
+      ['⚔️', 'KAÏ, le samouraï : katana, Coup Éclair et Mille Lames'],
+      ['🚀', 'JETT, la pilote fusée : roquettes, Saut Fusée et Pluie de Roquettes'],
+      ['✨', 'Héros plus détaillés et HUD de match redessiné'],
     ].map(([i, t]) => h('div.row', { style: 'gap:.6em' }, h('span', { style: 'font-size:1.5em' }, i), h('span', t))),
     h('div.row', { style: 'justify-content:center;gap:.6em;margin-top:.4em' },
       h('button.btn.purple', { onclick: () => { m.close(); c.ui.push(guideScreen(c)); } }, '📖 GUIDE'),

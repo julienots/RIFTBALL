@@ -67,7 +67,7 @@ export interface CharacterData {
   gadget?: AbilityData & { charges: number };
   ultChargePerHit: number;   // % gained per successful hit
   palette: { primary: string; secondary: string; accent: string; skin: string; eyes: string };
-  model: 'dj' | 'magnet' | 'blink' | 'block' | 'shade' | 'volt' | 'flux' | 'titan' | 'arc' | 'pulse' | 'vortex' | 'ember' | 'nova' | 'frost'
+  model: 'aqua' | 'kai' | 'jett' | 'dj' | 'magnet' | 'blink' | 'block' | 'shade' | 'volt' | 'flux' | 'titan' | 'arc' | 'pulse' | 'vortex' | 'ember' | 'nova' | 'frost'
     | 'koko' | 'zip' | 'mecha' | 'luna' | 'chef' | 'chronos' | 'seraph' | 'riftborn' | 'golem' | 'minion' | 'turret';
   /** Collection rarity (display only — never affects stats). */
   rarity?: Rarity;

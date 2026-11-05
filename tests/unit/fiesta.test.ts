@@ -94,3 +94,17 @@ describe('v1.1.0 mutations & feel', () => {
     expect(r.carrier).toBe(a.id);
   });
 });
+
+describe('v1.2.0 smooth movement', () => {
+  it('each step remembers the previous position for render interpolation', () => {
+    const m = new Match({ mode: 'RIFTBALL', arenaId: 'rift_valley', seed: 2, players: [{ heroId: 'kai', name: 'A', team: 0, isBot: false, human: true }, { heroId: 'aqua', name: 'B', team: 1, isBot: false }] });
+    skipCountdown(m);
+    const a = m.human!;
+    a.cmd.mx = 1;
+    m.step(1 / 60);
+    const x1 = a.x;
+    m.step(1 / 60);
+    expect(a.px0).toBe(x1);
+    expect(a.x).toBeGreaterThan(a.px0);
+  });
+});

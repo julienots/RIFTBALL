@@ -127,6 +127,15 @@ const skinDefs: Record<string, { id: string; name: string; rarity: Rarity; sourc
     { id: 'vibe_neon', name: 'Vibe Néon', rarity: 'EPIC', source: 'event', visual: { primary: '#00f5d4', secondary: '#10002b', accent: '#f72585' } },
     { id: 'vibe_gold', name: 'Vibe Or Massif', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ffd60a', secondary: '#1b1b1b', accent: '#ffffff' } },
   ],
+  aqua: [
+    { id: 'aqua_coral', name: 'Aqua Corail', rarity: 'EPIC', source: 'shop', priceGems: 149, isNew: true, visual: { primary: '#ff7b9c', secondary: '#4a0e4e', accent: '#ffd166' } },
+  ],
+  kai: [
+    { id: 'kai_shadow', name: 'Kaï Ombre', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, isNew: true, visual: { primary: '#2b2d42', secondary: '#0b0c10', accent: '#9d4edd' } },
+  ],
+  jett: [
+    { id: 'jett_ace', name: 'Jett As du Ciel', rarity: 'EPIC', source: 'shop', priceGems: 149, isNew: true, visual: { primary: '#457b9d', secondary: '#1d3557', accent: '#ffd166' } },
+  ],
   riftborn: [
     { id: 'riftborn_lava', name: 'Riftborn Magma', rarity: 'LEGENDARY', source: 'shop', priceGems: 299, visual: { primary: '#ff4800', secondary: '#1b1b1b', accent: '#ffd60a', hat: 'horns' } },
     { id: 'riftborn_jungle', name: 'Riftborn Sylvestre', rarity: 'MYTHIC', source: 'pass_plus', season: 's4', visual: { primary: '#52b788', secondary: '#081c15', accent: '#ffd60a', hat: 'horns' } },

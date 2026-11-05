@@ -10,7 +10,7 @@ import { RARITY_LABEL } from '../../data/cosmetics';
 import { coin, gem } from '../icons';
 import { shopScreen } from './Shop';
 
-const NEW_HEROES = ['vibe'];
+const NEW_HEROES = ['aqua', 'kai', 'jett'];
 const ROLE_FR: Record<string, string> = { CONTROL: 'CONTRÔLE', ASSASSIN: 'ASSASSIN', BUILDER: 'BÂTISSEUR', STEALTH: 'FURTIF', DAMAGE: 'DÉGÂTS', SUPPORT: 'SOUTIEN', TANK: 'TANK', ARTILLERY: 'ARTILLERIE' };
 
 function unlockText(c: Controller, id: string) {

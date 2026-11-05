@@ -229,7 +229,9 @@ export class GameSession {
         if (me) { me.cmd.aimX = 0; me.cmd.aimY = 0; me.cmd.aimDist = 0; }
       }
       if (steps >= 6) this.acc = 0; // device too slow: drop time instead of spiraling
-    }
+      this.r.interpolate = true;
+      this.r.simAlpha = Math.min(1, this.acc / SIM_DT);
+    } else { this.r.interpolate = !this.cfg.online && this.paused; this.r.simAlpha = 1; }
     this.rateT += dt;
     if (this.rateT >= 1) { this.simRate = this.stepsThisSecond / this.rateT; this.stepsThisSecond = 0; this.rateT = 0; }
     this.updateAim();

@@ -85,6 +85,9 @@ function body(p: Pal, o: BodyOpts = {}) {
       add(RB(0.46, 0.2, 0.3, 0.09), shoe, [0.1, 0.11, z]);
       add(S(0.13, 12, 10), shoe, [0.3, 0.1, z], [0, 0, 0], [1.05, 0.72, 1.1]);
       add(RB(0.52, 0.05, 0.32, 0.02), '#f1f1f1', [0.11, 0.025, z]);
+      // v1.2 detail: laces + heel tab
+      for (const lx of [0.16, 0.25]) add(RB(0.05, 0.03, 0.2, 0.01), lighten(shoe, 0.55), [lx, 0.21, z]);
+      add(RB(0.08, 0.12, 0.12, 0.02), darken(shoe, 0.75), [-0.16, 0.16, z]);
     });
   }
   on(PART.BODY, () => {
@@ -99,6 +102,9 @@ function body(p: Pal, o: BodyOpts = {}) {
     add(C(0.15, 0.17, 0.2, 14), skin, [0.02, 1.66, 0]);
     // pelvis
     add(S(0.42, 18, 12), pants, [0, 0.72, 0], [0, 0, 0], [1, 0.42, 0.95]);
+    // v1.2 detail: shirt hem + side seams
+    add(T(0.455 * ts[0], 0.035, Math.PI * 2, 6, 28), darken(torso, 0.82), [0, 0.66, 0], [Math.PI / 2, 0, 0], [1, (ts[2] * 0.86) / ts[0], 1]);
+    for (const sz of [1, -1]) add(B(0.03, 0.55, 0.02), darken(torso, 0.88), [0, 1.0, sz * 0.4 * ts[2] * 0.86]);
     if (o.belt !== null) {
       add(T(0.47 * ts[0], 0.065, Math.PI * 2, 8, 28), o.belt ?? darken(pants, 0.7), [0, 0.8, 0], [Math.PI / 2, 0, 0], [1, (ts[2] * 0.86) / ts[0], 1]);
       add(RB(0.08, 0.14, 0.2, 0.03), '#ffd166', [0.45, 0.8, 0], [0, 0, 0], [1, 1, 1], 0.3); // buckle
@@ -115,6 +121,10 @@ function body(p: Pal, o: BodyOpts = {}) {
       add(C(0.13, 0.12, 0.09, 12), glove, [0.02, 0.78, z]);
       add(RB(0.22, 0.2, 0.17, 0.07), glove, [0.04, 0.67, z]);
       add(CAP(0.045, 0.07), glove, [0.1, 0.7, z + (z > 0 ? -0.09 : 0.09)], [0.6 * Math.sign(z), 0, -0.5]);
+      // v1.2 detail: sleeve cuff, glove cuff, knuckles
+      add(T(0.12, 0.03, Math.PI * 2, 6, 14), darken(sleeve, 0.8), [0, 1.08, z], [Math.PI / 2, 0, 0]);
+      add(T(0.12, 0.028, Math.PI * 2, 6, 14), darken(glove, 0.8), [0.02, 0.79, z], [Math.PI / 2, 0, 0]);
+      for (let k = -1; k <= 1; k++) add(S(0.035, 6, 5), darken(glove, 0.9), [0.15, 0.63, z + k * 0.055]);
     });
   }
   on(PART.HEAD, () => {
@@ -210,6 +220,97 @@ function hat(kind: string | undefined, p: Pal, top: number) {
 // ---------------------------------------------------------------- heroes
 
 const BUILDERS: Record<string, (p: Pal) => number> = {
+  aqua: (p) => {
+    body(p, { shoe: '#0077b6', pants: p.secondary, glove: p.skin, torso: p.primary, sleeve: p.secondary, belt: p.accent });
+    on(PART.BODY, () => {
+      // wetsuit panels + zip, shell necklace
+      for (const sz of [1, -1]) add(RB(0.06, 0.62, 0.07, 0.02), p.accent, [0.46, 1.1, sz * 0.3], [0, 0, 0.08]);
+      add(B(0.04, 0.6, 0.04), '#e9ecef', [0.5, 1.15, 0]);
+      add(T(0.28, 0.025, Math.PI, 6, 16), '#e9c46a', [0.28, 1.5, 0], [0, Math.PI / 2, Math.PI]);
+      for (const sz of [-0.14, 0, 0.14]) add(K(0.05, 0.1, 6), '#ffffff', [0.5, 1.32 - Math.abs(sz) * 0.4, sz], [0, 0, Math.PI]);
+      // surfboard on the back
+      add(CAP(0.26, 1.5), p.accent, [-0.62, 1.35, 0], [0, 0, 0.1], [0.28, 1, 1]);
+      add(B(0.05, 1.6, 0.06), '#ffffff', [-0.7, 1.35, 0], [0, 0, 0.1]);
+      add(K(0.08, 0.2, 6), p.secondary, [-0.7, 0.5, 0], [0, 0, Math.PI]);
+    });
+    on(PART.HEAD, () => {
+      // wavy hair + high ponytail + swim goggles on the forehead
+      add(S(0.85, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), '#0096c7', [-0.04, 2.1, 0], [0, 0, 0.1]);
+      for (const sz of [1, -1]) add(S(0.26, 12, 10), '#0096c7', [-0.2, 1.82, sz * 0.72], [0, 0, 0], [0.8, 1.2, 0.6]);
+      add(CAP(0.2, 0.9), '#00b4d8', [-0.9, 2.45, 0], [0, 0, 1.15]);
+      add(S(0.16, 10, 8), '#90e0ef', [-0.62, 2.72, 0]);
+      add(T(0.8, 0.06, Math.PI * 2, 6, 26), '#03045e', [0.05, 2.45, 0], [Math.PI / 2, 0.15, 0]);
+      for (const s of [1, -1]) { add(C(0.16, 0.16, 0.12, 14), '#03045e', [0.55, 2.52, s * 0.24], [0, 0, Math.PI / 2 - 0.3]); add(C(0.12, 0.12, 0.13, 14), '#90e0ef', [0.57, 2.53, s * 0.24], [0, 0, Math.PI / 2 - 0.3], [1, 1, 1], 0.6); }
+    });
+    on(PART.ARM_R, () => { add(T(0.11, 0.03, Math.PI * 2, 6, 12), '#e9c46a', [0.02, 0.86, -0.7], [Math.PI / 2, 0, 0]); add(S(0.13, 12, 10), '#90e0ef', [0.2, 0.62, -0.7], [0, 0, 0], [1, 1, 1], 0.9); });
+    on(PART.FLOAT, () => { for (let i = 0; i < 3; i++) add(S(0.07 + i * 0.02, 8, 6), '#caf0f8', [0.2 + i * 0.25, 2.9 + i * 0.18, 0.5 - i * 0.4], [0, 0, 0], [1, 1, 1], 0.6); }, [0.4, 0, 0]);
+    face(p, 'happy', 2.08, 0.62, 0.29, { mouth: 'smile', cheeks: true });
+    return 2.95;
+  },
+  kai: (p) => {
+    body(p, { shoe: '#1b1b1b', pants: '#1b1b1b', glove: '#2b2d42', torso: p.secondary, sleeve: p.secondary, belt: p.accent });
+    on(PART.BODY, () => {
+      // lacquered chest armour (do) with lacing rows, tassets over the hips, red scarf
+      add(RB(0.32, 0.62, 0.86, 0.08), p.primary, [0.3, 1.12, 0]);
+      for (let k = 0; k < 3; k++) add(B(0.33, 0.03, 0.88), darken(p.primary, 0.6), [0.31, 0.92 + k * 0.18, 0]);
+      for (const sz of [-0.3, 0, 0.3]) add(RB(0.36, 0.32, 0.26, 0.04), darken(p.primary, 0.85), [0.12, 0.62, sz], [0, 0, 0.12]);
+      add(T(0.5, 0.12, Math.PI * 2, 8, 22), p.accent, [0.05, 1.52, 0], [Math.PI / 2, 0, 0]);
+      add(RB(0.12, 0.8, 0.2, 0.05), p.accent, [-0.5, 1.15, 0.15], [0.2, 0, 0.45]);
+      // sheathed katana on the back
+      add(C(0.05, 0.05, 1.5, 8), '#2b2d42', [-0.56, 1.2, -0.1], [0.5, 0, 0.6]);
+      add(C(0.09, 0.09, 0.04, 10), p.accent, [-0.25, 1.62, 0.25], [0.5, 0, 0.6]);
+    });
+    for (const [part, z] of [[PART.ARM_L, 0.7], [PART.ARM_R, -0.7]] as const) on(part, () => {
+      add(RB(0.34, 0.12, 0.34, 0.05), p.primary, [0, 1.45, z * 1.05], [z > 0 ? -0.35 : 0.35, 0, 0]);   // sode shoulder plate
+      add(RB(0.3, 0.1, 0.3, 0.04), darken(p.primary, 0.8), [0, 1.33, z * 1.08], [z > 0 ? -0.4 : 0.4, 0, 0]);
+      add(RB(0.2, 0.22, 0.2, 0.04), p.primary, [0.02, 0.82, z]);                                      // kote bracer
+    });
+    on(PART.ARM_R, () => { // katana in hand
+      add(C(0.04, 0.04, 0.26, 8), '#1b1b1b', [0.12, 0.66, -0.7], [0, 0, -Math.PI / 2]);
+      add(C(0.1, 0.1, 0.03, 12), p.accent, [0.27, 0.66, -0.7], [0, 0, -Math.PI / 2]);
+      add(B(1.2, 0.07, 0.025), '#e9ecef', [0.9, 0.66, -0.7], [0, 0, 0], [1, 1, 1], 0.25);
+      add(K(0.035, 0.12, 4), '#e9ecef', [1.55, 0.66, -0.7], [0, 0, -Math.PI / 2], [1, 1, 0.4]);
+    });
+    on(PART.HEAD, () => {
+      // kabuto helmet with crest, neck guard, lower face mask
+      add(S(0.86, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.45), p.primary, [-0.04, 2.13, 0]);
+      add(S(0.95, 22, 10, -Math.PI / 2, Math.PI, Math.PI * 0.42, Math.PI * 0.22), darken(p.primary, 0.75), [-0.05, 2.05, 0]); // shikoro neck guard (back only)
+      add(T(0.84, 0.05, Math.PI * 2, 6, 28), p.accent, [0, 2.2, 0], [Math.PI / 2, 0, 0]);
+      for (const sz of [1, -1]) add(K(0.08, 0.75, 8), p.accent, [0.35, 2.85, sz * 0.32], [sz * 0.55, 0, -0.35], [1, 1, 1], 0.3);
+      add(S(0.13, 10, 8), p.accent, [0.62, 2.58, 0], [0, 0, 0], [1, 1, 1], 0.4);
+      add(S(0.82, 22, 14, Math.PI / 2 + 0.35, Math.PI - 0.7, Math.PI * 0.6, Math.PI * 0.22), '#1b1b1b', [0.03, 2.02, 0]); // menpo mask (lower face front)
+    });
+    face(p, 'angry', 2.13, 0.6, 0.28, { mouth: 'none' });
+    return 3.05;
+  },
+  jett: (p) => {
+    body(p, { shoe: '#3a2e1f', pants: '#5e503f', glove: '#7f5539', torso: p.primary, sleeve: p.primary, belt: '#3a2e1f' });
+    on(PART.BODY, () => {
+      // flight jacket with fur collar, pockets, harness
+      add(T(0.3, 0.1, Math.PI * 2, 8, 20), '#f1e3c8', [0.02, 1.53, 0], [Math.PI / 2, 0, 0]);
+      for (const sz of [1, -1]) { add(RB(0.06, 0.2, 0.22, 0.03), darken(p.primary, 0.8), [0.5, 1.05, sz * 0.22]); add(B(0.62, 0.07, 0.07), '#3a2e1f', [0.15, 1.2, sz * 0.25], [0, 0, 0.55]); }
+      add(C(0.1, 0.1, 0.05, 12), '#adb5bd', [0.52, 1.2, 0], [0, 0, Math.PI / 2], [1, 1, 1], 0.2);
+      // twin-thruster jetpack
+      add(RB(0.36, 0.7, 0.66, 0.1), '#2b2d42', [-0.56, 1.18, 0]);
+      for (const sz of [1, -1]) {
+        add(C(0.17, 0.2, 0.75, 14), '#adb5bd', [-0.78, 1.12, sz * 0.27]);
+        add(C(0.2, 0.15, 0.16, 14), '#495057', [-0.78, 0.68, sz * 0.27]);
+        add(K(0.14, 0.32, 12), p.accent, [-0.78, 0.46, sz * 0.27], [Math.PI, 0, 0], [1, 1, 1], 1);
+        add(S(0.1, 10, 8), '#ff6b35', [-0.78, 1.52, sz * 0.27], [0, 0, 0], [1, 1, 1], 0.7);
+      }
+    });
+    on(PART.HEAD, () => {
+      // aviator cap with ear flaps and goggles, scarf tail
+      add(S(0.86, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.52), '#7f5539', [-0.04, 2.1, 0]);
+      for (const sz of [1, -1]) add(RB(0.36, 0.5, 0.12, 0.05), '#7f5539', [-0.02, 1.86, sz * 0.8], [sz * 0.12, 0, 0]);
+      add(T(0.8, 0.07, Math.PI * 2, 6, 26), '#3a2e1f', [0.05, 2.42, 0], [Math.PI / 2, 0.12, 0]);
+      for (const s of [1, -1]) { add(C(0.19, 0.19, 0.14, 16), '#495057', [0.55, 2.5, s * 0.25], [0, 0, Math.PI / 2 - 0.3]); add(C(0.15, 0.15, 0.15, 16), p.accent, [0.57, 2.51, s * 0.25], [0, 0, Math.PI / 2 - 0.3], [1, 1, 1], 0.7); }
+    });
+    on(PART.BODY, () => { add(RB(0.14, 0.7, 0.24, 0.05), '#e63946', [-0.55, 1.45, 0.2], [0.25, 0, 0.9]); });
+    on(PART.ARM_R, () => { add(RB(0.3, 0.26, 0.3, 0.06), '#495057', [0.12, 0.66, -0.72]); add(C(0.08, 0.1, 0.36, 10), '#ff9f1c', [0.36, 0.66, -0.72], [0, 0, -Math.PI / 2]); add(K(0.08, 0.16, 10), '#e63946', [0.6, 0.66, -0.72], [0, 0, -Math.PI / 2]); });
+    face(p, 'normal', 2.08, 0.62, 0.29, { mouth: 'smirk', cheeks: true });
+    return 2.95;
+  },
   dj: (p) => {
     body(p, { shoe: '#ffffff', pants: '#1b1b2f', glove: p.skin, torso: p.secondary, sleeve: p.primary, belt: p.accent });
     on(PART.BODY, () => {
