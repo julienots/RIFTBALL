@@ -1,6 +1,6 @@
 {
   "name": "riftball",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "RIFTBALL - competitive 3v3 mobile game by SuperEssence",
   "scripts": {
     "dev": "vite",

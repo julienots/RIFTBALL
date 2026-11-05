@@ -43,11 +43,11 @@ Aucun héros ni aucune statistique ne s'achète. Tout se débloque en jouant : r
 
 Rejoins l'arène et deviens une LÉGENDE DU RIFT !
 
-## Notes de version (v1.3.0)
-• Menus ultra fluides : transitions animées, cartes en cascade, boutons qui rebondissent
-• Lobby vivant : change de héros d'un glissement, caméra cinéma, monnaies animées
-• Intro VS animée avant chaque match et confettis à la victoire
-• Qualité automatique : le jeu reste fluide même sur les petits téléphones
+## Notes de version (v1.4.0)
+• Nouveau moteur graphique réaliste : matériaux physiques, reflets, éclairage cinéma
+• Sol en relief, ombres douces, herbe animée par le vent
+• Explosions, ultimes et buts qui éclairent l'arène
+• Animations plus vivantes : course dynamique, réactions aux coups
 
 ## Catégorie
 Jeux › Action (ou Arcade)
