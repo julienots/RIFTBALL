@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { toon } from './Toon';
+import { toon, radialTexture } from './Toon';
 
 /**
  * 3D lobby backdrop (menus): sky dome, giant swirling Rift portal, floating islands with crystals,
@@ -8,28 +8,62 @@ import { toon } from './Toon';
  */
 export type LobbyKind = 'embers' | 'snow' | 'leaves' | 'neon' | 'stars' | 'fiesta';
 
-const SKY_VS = `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
-const SKY_FS = `uniform vec3 top; uniform vec3 mid; uniform vec3 low; uniform float stars; uniform float time; varying vec3 vP;
+const NOISE = `
   float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,45.164))) * 43758.5453); }
+  float vn(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(h(i), h(i + vec3(1,0,0)), f.x), mix(h(i + vec3(0,1,0)), h(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(h(i + vec3(0,0,1)), h(i + vec3(1,0,1)), f.x), mix(h(i + vec3(0,1,1)), h(i + vec3(1,1,1)), f.x), f.y), f.z); }
+  float fbm(vec3 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * vn(p); p = p * 2.03 + 11.7; a *= 0.5; } return s; }`;
+const SKY_VS = `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
+/** Sky dome: 3-stop gradient, drifting nebula clouds, horizon haze, two layers of twinkling stars (HDR: they bloom). */
+const SKY_FS = `uniform vec3 top; uniform vec3 mid; uniform vec3 low; uniform float stars; uniform float time; varying vec3 vP;
+  ${NOISE}
   void main(){
-    float y = vP.y;
+    vec3 d = normalize(vP); float y = d.y;
     vec3 c = y > 0.12 ? mix(mid, top, smoothstep(0.12, 0.75, y)) : mix(low, mid, smoothstep(-0.2, 0.12, y));
-    vec3 q = floor(vP * 220.0);
-    float s = step(0.996, h(q)) * stars * smoothstep(0.1, 0.5, y) * (0.6 + 0.4 * sin(time * 2.0 + h(q) * 30.0));
-    gl_FragColor = vec4(c + vec3(s), 1.0);
+    float n = fbm(d * 2.6 + vec3(0.0, time * 0.012, 0.0)), n2 = fbm(d * 5.5 - vec3(time * 0.02, 0.0, 0.0));
+    float neb = smoothstep(0.42, 0.8, n) * smoothstep(-0.05, 0.35, y);
+    c += mix(low, mid * 1.6, n2) * neb * 0.7;
+    c += low * exp(-abs(y - 0.02) * 6.0) * 0.55;
+    vec3 q = floor(d * 190.0); float h1 = h(q);
+    float s = step(0.9968, h1) * (0.55 + 0.45 * sin(time * 2.0 + h1 * 40.0));
+    vec3 q2 = floor(d * 95.0); float h2 = h(q2 + 7.0);
+    s += step(0.9982, h2) * 2.2 * (0.6 + 0.4 * sin(time * 1.3 + h2 * 30.0));
+    c += vec3(s) * stars * smoothstep(0.05, 0.45, y) * (1.0 - neb * 0.6) * 2.4;
+    gl_FragColor = vec4(c, 1.0);
   }`;
 const PORTAL_VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
+/** Rift portal: turbulent spiral arms, white-hot HDR core, bright rim. */
 const PORTAL_FS = `uniform float time; uniform vec3 c1; uniform vec3 c2; varying vec2 vUv;
+  ${NOISE}
   void main(){
     vec2 p = vUv - 0.5; float r = length(p) * 2.0; if (r > 1.0) discard;
     float a = atan(p.y, p.x);
-    float sw = sin(a * 5.0 - r * 12.0 + time * 2.2) * 0.5 + 0.5;
-    float sw2 = sin(a * 3.0 + r * 8.0 - time * 1.4) * 0.5 + 0.5;
-    vec3 col = mix(c2, c1, sw * 0.7 + sw2 * 0.3);
-    col += vec3(1.0) * pow(1.0 - r, 3.0) * 0.9;
-    float alpha = smoothstep(1.0, 0.85, r) * (0.75 + 0.25 * sw);
+    float tw = time * 0.5 + (1.0 - r) * 4.5;
+    vec2 sp = mat2(cos(tw), -sin(tw), sin(tw), cos(tw)) * p * 2.0;
+    float n = fbm(vec3(sp * 3.2, time * 0.25));
+    float arms = sin(a * 5.0 - r * 12.0 + time * 2.2 + n * 5.0) * 0.5 + 0.5;
+    vec3 col = mix(c2, c1, clamp(arms * 0.65 + n * 0.5, 0.0, 1.0)) * (0.45 + 0.9 * n);
+    col += vec3(1.0, 0.97, 0.92) * pow(1.0 - r, 2.6) * 1.5;
+    col += c1 * smoothstep(0.72, 1.0, r) * 0.7;
+    float alpha = smoothstep(1.0, 0.9, r);
     gl_FragColor = vec4(col, alpha);
   }`;
+/** Holographic stage floor: rings pulsing outwards + radial spokes around the pedestal (additive). */
+const STAGE_FS = `uniform float time; uniform vec3 color; uniform vec3 color2; varying vec2 vUv;
+  void main(){
+    vec2 p = (vUv - 0.5) * 2.0; float r = length(p) * 14.0; float a = atan(p.y, p.x);
+    float rings = smoothstep(0.9, 1.0, sin(r * 2.4 - time * 1.6) * 0.5 + 0.5);
+    float spokes = smoothstep(0.975, 1.0, cos(a * 24.0)) * smoothstep(0.5, 1.0, sin(r * 1.2 - time * 2.4) * 0.5 + 0.5);
+    float dash = step(0.5, fract(a * 9.0 / 3.14159 + time * 0.08)) * smoothstep(0.06, 0.0, abs(r - 2.75));
+    float fade = smoothstep(14.0, 2.5, r) * smoothstep(1.75, 2.3, r);
+    vec3 c = mix(color, color2, sin(r * 0.6 - time) * 0.5 + 0.5) * (rings * 0.22 + spokes * 0.4) * fade + color2 * dash * 1.1;
+    gl_FragColor = vec4(c, 1.0);
+  }`;
+/** Volumetric light cone: brightest where you look through the most "fog", soft towards the silhouette. */
+const BEAM_VS = `varying vec3 vN; varying vec3 vV; varying float vY; void main(){ vY = uv.y; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`;
+const BEAM_FS = `uniform vec3 color; uniform float intensity; varying vec3 vN; varying vec3 vV; varying float vY;
+  void main(){ float f = pow(abs(dot(normalize(vN), normalize(vV))), 2.4); float a = f * smoothstep(0.0, 0.2, vY) * smoothstep(1.0, 0.25, vY); gl_FragColor = vec4(color * a * intensity, 1.0); }`;
 
 interface Theme { top: string; mid: string; low: string; stars: number; ground: string; ground2: string; rock: string; crystal: string; portal1: string; portal2: string; banner: string; arch: string }
 const THEMES: Record<LobbyKind, Theme> = {
@@ -41,6 +75,7 @@ const THEMES: Record<LobbyKind, Theme> = {
   stars: { top: '#10002b', mid: '#3c096c', low: '#7b61ff', stars: 1, ground: '#2a1a5e', ground2: '#b388ff', rock: '#3c2a5e', crystal: '#c77dff', portal1: '#e0aaff', portal2: '#5a189a', banner: '#7b61ff', arch: '#4a3a7a' },
 };
 
+const beamMat = (color: string, intensity: number) => new THREE.ShaderMaterial({ uniforms: { color: { value: new THREE.Color(color) }, intensity: { value: intensity } }, vertexShader: BEAM_VS, fragmentShader: BEAM_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
 const own = <T extends THREE.Object3D>(o: T) => { o.traverse((x) => { x.userData.ownMat = true; }); return o; };
 
 export class LobbyScene {
@@ -55,44 +90,94 @@ export class LobbyScene {
   private tiles: THREE.MeshBasicMaterial[] = [];
   private beams: THREE.Mesh[] = [];
   private disco: THREE.Object3D | null = null;
+  private stage: THREE.ShaderMaterial;
+  private rig: { o: THREE.Object3D; i: number }[] = [];
+  private bokeh: THREE.Points;
+  readonly theme: Theme;
 
   constructor(readonly kind: LobbyKind) {
     const T = THEMES[kind] ?? THEMES.stars;
     const g = this.group;
+    this.theme = T;
     // sky dome
     this.sky = new THREE.ShaderMaterial({ uniforms: { top: { value: new THREE.Color(T.top) }, mid: { value: new THREE.Color(T.mid) }, low: { value: new THREE.Color(T.low) }, stars: { value: T.stars }, time: { value: 0 } }, vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false, fog: false });
     g.add(own(new THREE.Mesh(new THREE.SphereGeometry(60, 32, 20), this.sky)));
     // ground: big disc + glowing rings + tile ring
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(40, 64), toon(T.ground));
-    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.56; g.add(own(ground));
+    // polished stage floor (reflects the season sky); the hole under the pedestal lets its mirror image show through
+    const ground = new THREE.Mesh(new THREE.RingGeometry(1.3, 40, 72, 6), toon(T.ground, { roughness: 0.24, metalness: 0.55 }));
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.56; ground.receiveShadow = true; g.add(own(ground));
+    this.stage = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, color: { value: new THREE.Color(T.ground2) }, color2: { value: new THREE.Color(T.portal1) } }, vertexShader: PORTAL_VS, fragmentShader: STAGE_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    const holo = new THREE.Mesh(new THREE.PlaneGeometry(28, 28), this.stage);
+    holo.rotation.x = -Math.PI / 2; holo.position.y = -0.548; g.add(own(holo));
+    // raised steps around the pedestal with a glowing lip
+    for (const [r, hgt] of [[3.05, 0.1], [2.45, 0.2]] as const) {
+      const step = new THREE.Mesh(new THREE.CylinderGeometry(r, r + 0.12, hgt, 64, 1, true), toon(T.arch, { roughness: 0.35, metalness: 0.6 }));
+      step.position.y = -0.56 + hgt / 2; g.add(own(step));
+      const cap = new THREE.Mesh(new THREE.RingGeometry(r - 0.6, r, 64), toon(T.arch, { roughness: 0.3, metalness: 0.6 }));
+      cap.rotation.x = -Math.PI / 2; cap.position.y = -0.56 + hgt; cap.receiveShadow = true; g.add(own(cap));
+      const lip = new THREE.Mesh(new THREE.TorusGeometry(r, 0.025, 6, 96), toon(T.ground2, { emissive: T.ground2, emissiveIntensity: 1.5 }));
+      lip.rotation.x = Math.PI / 2; lip.position.y = -0.56 + hgt; g.add(own(lip));
+    }
     for (const [r0, r1, o] of [[2.2, 2.32, 0.9], [3.4, 3.48, 0.6], [5.2, 5.26, 0.4]] as const) {
       const ring = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 72), new THREE.MeshBasicMaterial({ color: T.ground2, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false }));
       ring.rotation.x = -Math.PI / 2; ring.position.y = -0.54; g.add(own(ring)); this.spinners.push(ring);
     }
     for (let i = 0; i < 24; i++) {
       const a = (i / 24) * Math.PI * 2;
-      const tile = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.5), toon(i % 2 ? T.arch : T.ground));
-      tile.position.set(Math.cos(a) * 4.3, -0.5, Math.sin(a) * 4.3); tile.rotation.y = -a; g.add(own(tile));
+      const tile = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.5), i % 3 === 0 ? toon(T.ground2, { emissive: T.ground2, emissiveIntensity: 1.3 }) : toon(i % 2 ? T.arch : T.ground, { roughness: 0.4, metalness: 0.4 }));
+      tile.position.set(Math.cos(a) * 4.3, -0.5, Math.sin(a) * 4.3); tile.rotation.y = -a; tile.castShadow = true; g.add(own(tile));
     }
     // giant Rift portal in the sky
     this.portal = new THREE.ShaderMaterial({ uniforms: { time: { value: 0 }, c1: { value: new THREE.Color(T.portal1) }, c2: { value: new THREE.Color(T.portal2) } }, vertexShader: PORTAL_VS, fragmentShader: PORTAL_FS, transparent: true, depthWrite: false, fog: false });
     const disc = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), this.portal);
     disc.position.set(0, 6.1, -18); g.add(own(disc));
-    this.portalRing = new THREE.Mesh(new THREE.TorusGeometry(4.45, 0.26, 12, 64), toon(T.portal1, { emissive: T.portal1, emissiveIntensity: 1.2 }));
+    this.portalRing = new THREE.Mesh(new THREE.TorusGeometry(4.45, 0.26, 12, 64), toon(T.portal1, { emissive: T.portal1, emissiveIntensity: 1.1, roughness: 0.3, metalness: 0.6 }));
     this.portalRing.position.copy(disc.position); g.add(own(this.portalRing));
+    // carved outer frame + four anchor pylons holding the portal
+    const frame = new THREE.Mesh(new THREE.TorusGeometry(4.95, 0.2, 8, 8), toon(T.arch, { roughness: 0.45, metalness: 0.5 }));
+    frame.position.copy(disc.position); frame.position.z -= 0.25; frame.rotation.z = Math.PI / 8; g.add(own(frame));
+    // light pouring out of the portal towards the stage
+    for (const [rx, len, rad, k] of [[1.05, 15, 4.6, 0.07], [1.2, 13, 2.6, 0.1]] as const) {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(rad, len, 32, 1, true), beamMat(T.portal1, k));
+      cone.geometry.translate(0, -len / 2, 0); cone.position.copy(disc.position); cone.rotation.x = -rx; g.add(own(cone));
+    }
+    // stage lighting rig: slow sweeping volumetric beams behind the hero
+    for (let i = 0; i < 6; i++) {
+      const holder = new THREE.Group();
+      const sx = i % 2 ? 1 : -1, row = i >> 1;
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(1.5 + row * 0.4, 22, 20, 1, true), beamMat(i % 3 === 0 ? T.crystal : i % 3 === 1 ? T.portal1 : T.ground2, 0.13));
+      cone.geometry.translate(0, -11, 0); cone.rotation.x = Math.PI;
+      holder.add(cone); holder.position.set(sx * (4.5 + row * 3.6), -0.5, -7 - row * 3.5);
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.4, 0.5, 12), toon(T.arch, { roughness: 0.4, metalness: 0.6 })); lamp.position.copy(holder.position); lamp.position.y += 0.1; g.add(own(lamp));
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.26, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(T.portal1).multiplyScalar(1.6) })); lens.rotation.x = -Math.PI / 2; lens.position.copy(lamp.position); lens.position.y += 0.26; g.add(own(lens));
+      g.add(own(holder)); this.rig.push({ o: holder, i });
+    }
+    // out-of-focus light orbs drifting in front of the camera
+    {
+      const n = 26, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), c = new THREE.Color();
+      for (let i = 0; i < n; i++) {
+        pos[i * 3] = (Math.sin(i * 12.9898) * 43758.5453 % 1) * 9; pos[i * 3 + 1] = 0.2 + Math.abs(Math.sin(i * 78.233) * 43758.5453 % 1) * 4.2; pos[i * 3 + 2] = 1.5 + Math.abs(Math.sin(i * 45.164) * 43758.5453 % 1) * 4;
+        c.set([T.portal1, T.crystal, T.ground2][i % 3]); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+      }
+      const bg = new THREE.BufferGeometry();
+      bg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); bg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      this.bokeh = new THREE.Points(bg, new THREE.PointsMaterial({ size: 0.34, map: radialTexture('rgba(255,255,255,0.55)', 'rgba(255,255,255,0)'), vertexColors: true, transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      this.bokeh.frustumCulled = false; g.add(own(this.bokeh));
+    }
     for (let i = 0; i < 8; i++) {
       const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.35, 0), toon(T.crystal, { emissive: T.crystal, emissiveIntensity: 0.8 }));
       shard.userData.orbit = (i / 8) * Math.PI * 2; shard.userData.r = 5.3; shard.userData.c = disc.position.clone();
       g.add(own(shard)); this.spinners.push(shard);
     }
-    const light = new THREE.PointLight(T.portal1, 30, 30, 1.6); light.position.set(0, 5, -12); g.add(light);
+    const light = new THREE.PointLight(T.portal1, 26, 34, 1.6); light.position.set(0, 5, -12); g.add(light);
     // floating islands with crystals
     const spots: [number, number, number, number][] = [[-7.5, 2.6, -9, 1.2], [7.8, 3.4, -10, 1.4], [-11, 5, -15, 1.6], [11.5, 6.2, -17, 1.8], [-4.5, 7.5, -20, 1.2], [5, 1.4, -6.5, 0.8]];
     spots.forEach(([x, y, z, s], i) => {
       const isl = new THREE.Group();
       isl.add(new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.2, 0.5, 9), toon(T.ground)));
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(1.42, 0.03, 6, 36), toon(T.crystal, { emissive: T.crystal, emissiveIntensity: 2 })); halo.rotation.x = Math.PI / 2; halo.position.y = 0.26; isl.add(halo);
       const under = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2.2, 9), toon(T.rock)); under.position.y = -1.35; under.rotation.x = Math.PI; isl.add(under);
-      for (let k = 0; k < 3; k++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.25 + (k % 2) * 0.12, 0), toon(T.crystal, { emissive: T.crystal, emissiveIntensity: 0.9 })); c.position.set(-0.5 + k * 0.5, 0.55 + (k % 2) * 0.2, (k - 1) * 0.3); c.scale.set(0.7, 1.7, 0.7); isl.add(c); }
+      for (let k = 0; k < 3; k++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.25 + (k % 2) * 0.12, 0), toon(T.crystal, { emissive: T.crystal, emissiveIntensity: 1.8, roughness: 0.15 })); c.position.set(-0.5 + k * 0.5, 0.55 + (k % 2) * 0.2, (k - 1) * 0.3); c.scale.set(0.7, 1.7, 0.7); isl.add(c); }
       this.decorIsland(isl, T, i);
       isl.position.set(x, y, z); isl.scale.setScalar(s);
       g.add(own(isl)); this.islands.push({ o: isl, y, p: i * 1.3 });
@@ -171,7 +256,7 @@ export class LobbyScene {
       ball.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.6, 2), new THREE.MeshStandardMaterial({ color: '#e0e1dd', metalness: 0.9, roughness: 0.15, flatShading: true, emissive: '#3c096c', emissiveIntensity: 0.6 })));
       const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 6, 6), toon('#adb5bd')); rope.position.y = 4.6; ball.add(rope);
       ball.position.set(0, 11, -12); g.add(own(ball)); this.disco = ball;
-      for (const [x, c] of [[-3, '#ffffff'], [3, '#ffd60a']] as const) { const l = new THREE.PointLight(c, 25, 20, 1.5); l.position.set(x, 9, -10); g.add(l); }
+      for (const [x, c] of [[-3, '#ffffff'], [3, '#ffd60a']] as const) { const l = new THREE.PointLight(c, 10, 20, 1.5); l.position.set(x, 9, -10); g.add(l); }
       // sweeping stage light beams
       for (let i = 0; i < 6; i++) {
         const beam = new THREE.Mesh(new THREE.ConeGeometry(1.4, 16, 16, 1, true), new THREE.MeshBasicMaterial({ color: cols[i % cols.length], transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
@@ -190,6 +275,11 @@ export class LobbyScene {
   update(t: number, dt: number) {
     this.sky.uniforms.time.value = t;
     this.portal.uniforms.time.value = t;
+    this.stage.uniforms.time.value = t;
+    for (const b of this.rig) { b.o.rotation.z = Math.sin(t * 0.35 + b.i * 1.7) * 0.42; b.o.rotation.x = -0.18 + Math.sin(t * 0.27 + b.i * 0.9) * 0.2; }
+    const bp = this.bokeh.geometry.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < bp.count; i++) { bp.setY(i, bp.getY(i) + dt * (0.05 + (i % 5) * 0.012)); if (bp.getY(i) > 4.6) bp.setY(i, 0.1); bp.setX(i, bp.getX(i) + Math.sin(t * 0.3 + i) * dt * 0.05); }
+    bp.needsUpdate = true;
     this.portalRing.rotation.z = t * 0.15;
     for (const it of this.islands) { it.o.position.y = it.y + Math.sin(t * 0.7 + it.p) * 0.35; it.o.rotation.y += dt * 0.08; }
     for (const s of this.spinners) {

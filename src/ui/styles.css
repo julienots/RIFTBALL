@@ -630,3 +630,38 @@ input { font: inherit; }
 .car-arrow { width: 1.7em; height: 1.7em; border-radius: 50%; font-family: 'Lilita One'; font-size: 1.3em; line-height: 1; color: #fff; background: linear-gradient(#a995ff, var(--purple-d)); border: 0.12em solid var(--ink); box-shadow: inset 0 0.12em 0 rgba(255,255,255,0.45), 0 0.14em 0 var(--ink); animation: arrowNudge 2.2s ease-in-out infinite; }
 .car-arrow:last-child { animation-delay: 1.1s; }
 @keyframes arrowNudge { 0%, 70%, 100% { transform: none; } 80% { transform: scale(1.15); } }
+
+/* ------------------------------------------------------------------ v1.5 lobby: cinematic staging */
+/* soft shades behind the HUD so the 3D stage keeps its depth and the text stays readable */
+.home .stage-shade { position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: linear-gradient(180deg, rgba(8,3,28,0.5) 0%, rgba(8,3,28,0) 20%, rgba(8,3,28,0) 62%, rgba(8,3,28,0.62) 100%),
+              radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,0) 55%, rgba(6,2,22,0.42) 100%); }
+.home > *:not(.stage-shade) { z-index: 1; }
+.home .top { position: relative; }
+.home .side, .home .dock, .home .top { background: linear-gradient(160deg, rgba(40,22,110,0.42), rgba(12,5,40,0.5)); border: 0.1em solid rgba(255,255,255,0.14);
+  box-shadow: inset 0 0.12em 0 rgba(255,255,255,0.16), inset 0 -0.3em 0.8em rgba(0,0,0,0.25), 0 0.5em 1.2em rgba(0,0,0,0.35); }
+.home .side.right { background: linear-gradient(200deg, rgba(40,22,110,0.42), rgba(12,5,40,0.5)); }
+.home .hero-name { font-size: 1.9em; letter-spacing: 0.03em; }
+.hero-tag { display: inline-flex; align-items: center; gap: 0.45em; margin: 0.05em auto 0.3em; padding: 0.12em 0.8em; border-radius: 1em; font-family: 'Lilita One'; font-size: 0.78em; letter-spacing: 0.06em;
+  color: #fff; background: linear-gradient(90deg, rgba(10,5,30,0), rgba(10,5,30,0.7) 18%, rgba(10,5,30,0.7) 82%, rgba(10,5,30,0)); text-shadow: 0 0.08em 0 var(--ink); white-space: nowrap; }
+.hero-tag i { width: 0.7em; height: 0.7em; transform: rotate(45deg); border-radius: 0.12em; background: var(--rc, #b8c0ff); box-shadow: 0 0 0.6em var(--rc, #b8c0ff); }
+.hero-tag span { opacity: 0.6; }
+.hero-tag.rarity-MYTHIC i { animation: tagPulse 1.4s ease-in-out infinite; }
+@keyframes tagPulse { 50% { transform: rotate(45deg) scale(1.35); } }
+/* PLAY: bigger, with a breathing halo */
+.home .play-btn { letter-spacing: 0.04em; }
+.home .play-zone::before { content: ''; position: absolute; right: -1em; bottom: -1.2em; width: 17em; height: 7em; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255,205,31,0.38), rgba(255,205,31,0)); animation: haloBreath 2.4s ease-in-out infinite; z-index: -1; }
+@keyframes haloBreath { 50% { opacity: 0.45; transform: scale(1.12); } }
+/* entrance: the HUD slides in around the stage */
+.home.enter .top { animation: hudDown 0.55s cubic-bezier(.2,1.2,.4,1) both; }
+.home.enter .side.left { animation: hudRight 0.6s cubic-bezier(.2,1.2,.4,1) 0.05s both; }
+.home.enter .side.right { animation: hudLeft 0.6s cubic-bezier(.2,1.2,.4,1) 0.05s both; }
+.home.enter .dock, .home.enter .play-zone { animation: hudUp 0.6s cubic-bezier(.2,1.2,.4,1) 0.1s both; }
+.home.enter .hero-info { animation: fadeOnly 0.5s ease 0.15s both; }
+@keyframes fadeOnly { from { opacity: 0; } }
+@keyframes hudDown { from { transform: translateY(-140%); opacity: 0; } }
+@keyframes hudUp { from { transform: translateY(140%); opacity: 0; } }
+@keyframes hudRight { from { transform: translateX(-160%); opacity: 0; } }
+@keyframes hudLeft { from { transform: translateX(160%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .home.enter .top, .home.enter .side, .home.enter .dock, .home.enter .play-zone, .home.enter .hero-info, .home .play-zone::before { animation: none !important; } }

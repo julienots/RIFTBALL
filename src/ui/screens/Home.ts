@@ -1,5 +1,5 @@
 import { PLAYABLE } from '../../data/characters';
-import { COSMETICS } from '../../data/cosmetics';
+import { COSMETICS, RARITY_LABEL } from '../../data/cosmetics';
 import { menuMusic } from '../../audio/music';
 import { h, fmt } from '../dom';
 import type { Controller } from '../Controller';
@@ -51,12 +51,16 @@ export function currencyBar(c: Controller, opts: { gemsPlus?: boolean } = {}) {
 export function homeScreen(c: Controller): Screen {
   const el = h('div.screen.home');
   let offs: (() => void)[] = [];
-  // swipe on the stage to change hero
-  let swipeX = -1, swipeY = 0;
-  el.addEventListener('pointerdown', (e) => { if ((e.target as HTMLElement).closest('button, .pill, .dock, .side')) return; swipeX = e.clientX; swipeY = e.clientY; });
+  // on the stage: drag the hero to turn it, tap it to make it cheer, swipe beside it to change hero
+  let swipeX = -1, swipeY = 0, lastX = 0, onHero = false, moved = 0;
+  const overHero = (e: PointerEvent) => Math.abs(e.clientX - window.innerWidth / 2) < window.innerHeight * 0.3 && e.clientY > window.innerHeight * 0.2 && e.clientY < window.innerHeight * 0.82;
+  el.addEventListener('pointerdown', (e) => { if ((e.target as HTMLElement).closest('button, .pill, .dock, .side, .play-zone, .hero-info')) return; swipeX = lastX = e.clientX; swipeY = e.clientY; moved = 0; onHero = overHero(e); });
+  el.addEventListener('pointermove', (e) => { if (swipeX < 0 || !onHero) return; const dx = e.clientX - lastX; lastX = e.clientX; moved += Math.abs(dx); c.renderer.showcaseDrag(dx * 0.012); });
+  el.addEventListener('pointercancel', () => { swipeX = -1; });
   el.addEventListener('pointerup', (e) => {
     if (swipeX < 0) return;
     const dx = e.clientX - swipeX, dy = e.clientY - swipeY; swipeX = -1;
+    if (onHero) { if (moved < 8 && Math.abs(dy) < 8) { c.renderer.showcaseReact(); audio.play('whoosh'); } return; }
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) (el.querySelectorAll<HTMLElement>('.car-arrow')[dx < 0 ? 1 : 0])?.click();
   });
 
@@ -125,6 +129,7 @@ export function homeScreen(c: Controller): Screen {
         h('button.car-arrow', { onclick: () => cycle(-1), 'aria-label': 'Héros précédent' }, '‹'),
         h('div.hero-name.stroke', hero.name),
         h('button.car-arrow', { onclick: () => cycle(1), 'aria-label': 'Héros suivant' }, '›')),
+      h('div.hero-tag', { class: 'rarity-' + (hero.rarity ?? 'COMMON') }, h('i'), RARITY_LABEL[hero.rarity ?? 'COMMON'], h('span', '·'), hero.title),
       h('div.row', { style: 'justify-content:center;gap:.4em' },
         h('span.pill', { style: 'height:1.8em;font-size:.85em' }, `⭐ MAÎTRISE ${mastery.level}`),
         h('span.pill', { style: 'height:1.8em;font-size:.85em' }, `🏆 ${d.heroes[hero.id].trophies}`),
@@ -141,7 +146,7 @@ export function homeScreen(c: Controller): Screen {
     const dances = COSMETICS.filter((x) => x.visual.dance && c.app.inventory.owns(x.id));
     let di = 0;
     const danceBtn = h('button.dance-btn', { onclick: () => { audio.play('click'); const d0 = dances[di++ % Math.max(1, dances.length)]; c.renderer.showcaseDance(d0?.visual.dance ?? 'groove'); danceBtn.textContent = `${d0?.visual.glyph ?? '🕺'} ${d0?.name.toUpperCase() ?? 'DANSER'}`; } }, '🕺 DANSER');
-    el.append(top, evBanner, left, right, heroInfo, bottomLeft, danceBtn, h('div.play-zone', modeBtn, play));
+    el.append(h('div.stage-shade'), top, evBanner, left, right, heroInfo, bottomLeft, danceBtn, h('div.play-zone', modeBtn, play));
 
     c.renderer.setShowcase(c.heroId, c.skinId, 0);
     c.renderer.setLobbyTheme(c.app.seasons.current.lobby);
@@ -150,7 +155,7 @@ export function homeScreen(c: Controller): Screen {
 
   return {
     el, showcase: true,
-    onShow() { render(); c.renderer.showcaseActive = true; audio.playMusic(menuMusic()); c.app.shop.checkRefresh(); setTimeout(() => { c.app.seasons.check(); const end = c.app.seasons.takePendingEnd(); if (end) showSeasonEnd(c, end); else showNews(c); }, 600); },
+    onShow() { render(); el.classList.add('enter'); setTimeout(() => el.classList.remove('enter'), 900); c.renderer.showcaseActive = true; audio.playMusic(menuMusic()); c.app.shop.checkRefresh(); setTimeout(() => { c.app.seasons.check(); const end = c.app.seasons.takePendingEnd(); if (end) showSeasonEnd(c, end); else showNews(c); }, 600); },
     onHide() { for (const o of offs) o(); offs = []; },
     refresh: render,
   };

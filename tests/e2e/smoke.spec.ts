@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 test('boot -> home -> tutorial -> match -> results, no runtime errors', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  // a shader that fails to compile only logs to the console: treat it as a failure too
+  page.on('console', (m) => { if (m.type() === 'error' && /THREE\.WebGLProgram|Shader Error/.test(m.text())) errors.push(m.text().slice(0, 300)); });
   await page.goto('/?skipintro');
   await page.waitForSelector('.home', { timeout: 90_000 });
   await expect(page.locator('.play-btn')).toBeVisible();

@@ -32,7 +32,7 @@ export function settingsScreen(c: Controller): Screen {
     const row = (label: string, ctl: HTMLElement, hint = '') => h('div.settings-row', h('div.col', { style: 'gap:0' }, h('span.title', label), hint ? h('span.small-text.muted', hint) : null), ctl);
     body.append(
       h('div.title', { style: 'margin:.3em 0' }, '🎨 GRAPHISMES'),
-      row('Qualité', seg<Quality>([['LOW', 'BASSE'], ['MEDIUM', 'MOYENNE'], ['HIGH', 'HAUTE']], s.quality, (v) => { s.quality = v; c.renderer.applyQuality(v); }), 'Effets, particules, ombres, résolution et post-traitement'),
+      row('Qualité', seg<Quality>([['LOW', 'BASSE'], ['MEDIUM', 'MOYENNE'], ['HIGH', 'HAUTE'], ['ULTRA', 'ULTRA']], s.quality, (v) => { s.quality = v; c.renderer.applyQuality(v); }), 'Ombres, HDR, bloom, profondeur de champ, résolution. ULTRA : pour les téléphones puissants'),
       row('Qualité automatique', toggle(s.autoQuality, (v) => (s.autoQuality = v)), 'Baisse les effets si le téléphone n\'arrive pas à rester fluide'),
       row('Afficher les FPS', toggle(s.showFps, (v) => (s.showFps = v))),
       h('div.title', { style: 'margin:.5em 0 .3em' }, '🔊 AUDIO'),

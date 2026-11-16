@@ -22,12 +22,17 @@ Clavier : ZQSD/WASD, clic gauche = attaque, clic droit/E = capacité, Espace/R =
 
 | Choix | Raison |
 |---|---|
-| TypeScript + **Three.js** (WebGL), rendu toon + contours | 2.5D stylisé, léger (APK ≈ 4,7 Mo), 60 FPS visés en milieu de gamme |
+| TypeScript + **Three.js** (WebGL2), rendu PBR stylisé + pipeline HDR maison (bloom, profondeur de champ, étalonnage, MSAA) | 2.5D stylisé, léger (APK ≈ 4,7 Mo), 60 FPS visés en milieu de gamme |
 | Simulation **déterministe sans DOM** (`src/game/Match.ts`, pas fixe 60 Hz, RNG seedé) | testable en headless, réutilisable telle quelle sur un serveur autoritaire |
 | **Capacitor 7** → Android natif (WebView), plugin Java **Google Play Billing 7** maison | pas d'Unity disponible ; build Android 100 % en ligne de commande |
 | Audio **100 % procédural** (WebAudio) | musiques/sons originaux, aucun asset sous licence |
 
 Unity n'étant pas présent dans le projet (dépôt vide), IL2CPP/URP ne s'appliquent pas ; l'APK ne contient aucune lib native et tourne nativement sur ARM64.
+
+## Rendu (v1.5)
+
+`src/game/render/PostFX.ts` : cible HDR demi-flottant MSAA → pyramide de flou (profondeur de champ du lobby, tilt-shift en match) → bloom à seuil → rayons de lumière → composition (mappage tonal neutre, virage ombres/lumières, vignette, grain). `Environment.ts` : un ciel HDR procédural par arène/lobby, préfiltré (PMREM) pour les reflets et l'ambiance. `Models.ts` : occlusion ambiante précalculée par sommet, peau translucide, tissage des tissus, ombres animées, visages sculptés (yeux, cils, joues en dégradé posés sur le crâne).
+Qualités : BASSE (rendu direct), MOYENNE (HDR + bloom, MSAA×2), HAUTE (+ profondeur de champ, rayons, MSAA×4), ULTRA (résolution native, ombres 4096). La qualité automatique redescend d'un cran si le téléphone ne tient pas 40 FPS.
 
 ## Architecture (`src/`)
 

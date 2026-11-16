@@ -62,18 +62,18 @@ export function guideScreen(c: Controller): Screen {
 
 /** One-time "what's new" popup for this content update. */
 export function showNews(c: Controller) {
-  const key = 'news_v23';
+  const key = 'news_v24';
   if ((c.data as any).seenNews === key || !c.data.tutorialDone) return;
   (c.data as any).seenNews = key;
   c.app.save.save();
   const m = c.ui.modal('NOUVEAUTÉS', h('div.col', { style: 'gap:.5em;max-width:34em' },
-    h('div.small-text', 'Mise à jour 1.4.0 : GRAPHISMES RÉALISTES 🎬'),
+    h('div.small-text', 'Mise à jour 1.5.0 : RENDU CINÉMA 🎥'),
     ...[
-      ['💎', 'Matériaux réalistes : métal qui brille, tissu mat, peau douce, yeux brillants'],
-      ['🌅', 'Éclairage cinéma avec reflets d\'environnement et ombres douces'],
-      ['🌾', 'Sol en relief et herbe animée par le vent'],
-      ['💥', 'Explosions, ultimes et buts éclairent tout autour'],
-      ['🏃', 'Course plus dynamique et vraies réactions quand on prend un coup'],
+      ['✨', 'Nouveau moteur d\'image HDR : halos lumineux, profondeur de champ, étalonnage des couleurs'],
+      ['🧍', 'Héros retravaillés : ombres de contact, peau translucide, tissus tissés, ombres animées'],
+      ['🏟️', 'Lobby repensé : portail vivant, projecteurs, sol miroir — fais tourner ton héros au doigt !'],
+      ['🌋', 'Chaque arène a son ciel et son ambiance : braises, neige, lucioles, confettis'],
+      ['⚙️', 'Nouveau réglage ULTRA pour les téléphones puissants (Options)'],
     ].map(([i, t]) => h('div.row', { style: 'gap:.6em' }, h('span', { style: 'font-size:1.5em' }, i), h('span', t))),
     h('div.row', { style: 'justify-content:center;gap:.6em;margin-top:.4em' },
       h('button.btn.purple', { onclick: () => { m.close(); c.ui.push(guideScreen(c)); } }, '📖 GUIDE'),

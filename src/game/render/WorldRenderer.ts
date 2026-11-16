@@ -9,11 +9,12 @@ import type { Hero, MatchEvent, Projectile, RiftEntity, Zone } from '../entities
 import type { Hazard, Wall } from '../../arenas/Arena';
 import { QUALITY_PROFILES, type Quality, type QualityProfile } from '../../core/Settings';
 import { getMutation } from '../../data/mutations';
-import { heroGeometry, makeOutlineMaterial, decoGeometry, type DecoKind, makeHeroMaterial, makeHeroOutline, makeHeroUniforms, type HeroAnimUniforms } from './Models';
+import { heroGeometry, makeOutlineMaterial, decoGeometry, type DecoKind, makeHeroMaterial, makeHeroOutline, makeHeroDepthMaterial, makeHeroUniforms, type HeroAnimUniforms } from './Models';
+import { PostFX, defaultGrade, type GradeOptions } from './PostFX';
+import { skyEnvironment, type SkySpec } from './Environment';
 import { radialTexture, ringTexture, toon, toonGradient } from './Toon';
 import { Particles } from './Particles';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Rng } from '../../core/Rng';
 import { paintFloor, wallBlock } from './ArenaArt';
 
@@ -224,8 +225,18 @@ export class WorldRenderer {
   private time = 0;
   match: Match | null = null;
   viewerTeam: 0 | 1 = 0;
-  /** shared image-based lighting (RoomEnvironment through PMREM) */
+  /** image-based lighting: neutral studio sky (portraits) + one procedural HDR sky per arena / lobby */
   envMap!: THREE.Texture;
+  private matchEnv: THREE.Texture | null = null;
+  private lobbyEnv: THREE.Texture | null = null;
+  /** v1.5 cinematic pipeline (null on LOW quality: direct render) */
+  private post: PostFX | null = null;
+  private postFx!: PostFX;
+  readonly grade: GradeOptions = defaultGrade();
+  readonly lobbyGrade: GradeOptions = defaultGrade();
+  private flashK = 0;
+  /** Full-screen colour flash through the grade (goals, ultimates, mutations). */
+  screenFlash(color: string, k = 0.35) { this.grade.flash.set(color); this.flashK = Math.max(this.flashK, k); }
   /** pooled dynamic point lights for explosions / impacts (cheap: fixed count, intensity animated) */
   private flashLights: { l: THREE.PointLight; t: number; dur: number; i0: number }[] = [];
   private grass: THREE.InstancedMesh | null = null;
@@ -261,6 +272,7 @@ export class WorldRenderer {
   readonly showcase = new THREE.Scene();
   readonly showcaseCam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   private showcaseHero: THREE.Group | null = null;
+  private showcaseKeyLight: THREE.DirectionalLight | null = null;
   private showcaseKey = '';
   showcaseActive = false;
   showcaseSpin = 0;
@@ -268,16 +280,16 @@ export class WorldRenderer {
   constructor(public canvas: HTMLCanvasElement, quality: Quality) {
     this.quality = quality;
     this.q = QUALITY_PROFILES[quality];
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: quality !== 'LOW', powerPreference: 'high-performance', alpha: false, stencil: false });
+    // antialiasing is done by the MSAA HDR target of the post pipeline (the canvas itself stays single-sampled)
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', alpha: false, stencil: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // v1.4 realistic pipeline: neutral filmic tone mapping + image-based lighting (PBR reflections)
+    // filmic tone mapping (applied by the post pipeline; by the renderer itself on LOW) + image-based lighting
     this.renderer.toneMapping = THREE.NeutralToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
-    const pm = new THREE.PMREMGenerator(this.renderer);
-    this.envMap = pm.fromScene(new RoomEnvironment(), 0.04).texture;
-    pm.dispose();
+    this.renderer.toneMappingExposure = 1.0;
+    this.postFx = new PostFX(this.renderer);
+    this.envMap = skyEnvironment(this.renderer, { top: '#8fa6d6', horizon: '#f2efe9', ground: '#6b6672', sun: '#fff1d6', power: 1, level: 1 });
     this.scene.environment = this.envMap;
-    this.scene.environmentIntensity = 0.55;
+    this.scene.environmentIntensity = 0.6;
     this.camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.5, 200);
     this.hemi = new THREE.HemisphereLight('#ffffff', '#5d6b8a', 0.75);
     this.sun = new THREE.DirectionalLight('#fff4dc', 2.6);
@@ -324,11 +336,22 @@ export class WorldRenderer {
     this.renderer.shadowMap.enabled = this.q.shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.sun.castShadow = this.q.shadows;
+    this.post = this.q.post ? this.postFx : null;
+    this.postFx.level = this.q.post === 2 ? 2 : 1;
+    if (!this.post) this.postFx.dispose();
     if (this.q.shadows) {
-      this.sun.shadow.mapSize.set(q === 'HIGH' ? 2048 : 1024, q === 'HIGH' ? 2048 : 1024);
+      if (this.sun.shadow.mapSize.x !== this.q.shadowSize) { this.sun.shadow.map?.dispose(); (this.sun.shadow as any).map = null; }
+      this.sun.shadow.mapSize.set(this.q.shadowSize, this.q.shadowSize);
       const c = this.sun.shadow.camera;
-      c.left = -16; c.right = 16; c.top = 10; c.bottom = -10; c.near = 1; c.far = 40;
-      this.sun.shadow.bias = -0.002;
+      c.left = -15; c.right = 15; c.top = 10; c.bottom = -10; c.near = 1; c.far = 40;
+      c.updateProjectionMatrix();
+      this.sun.shadow.bias = -0.0006; this.sun.shadow.normalBias = 0.035; this.sun.shadow.radius = 2.2;
+    }
+    if (this.showcaseKeyLight) {
+      this.showcaseKeyLight.castShadow = this.q.shadows;
+      const sz = Math.min(2048, this.q.shadowSize || 1024);
+      if (this.showcaseKeyLight.shadow.mapSize.x !== sz) { this.showcaseKeyLight.shadow.map?.dispose(); (this.showcaseKeyLight.shadow as any).map = null; }
+      this.showcaseKeyLight.shadow.mapSize.set(sz, sz);
     }
     if (this.particles) { this.scene.remove(this.particles.points); }
     this.particles = new Particles(this.q.maxParticles);
@@ -347,6 +370,7 @@ export class WorldRenderer {
     this.showcaseCam.aspect = w / h;
     this.showcaseCam.updateProjectionMatrix();
     this.particles?.setScale(h * this.renderer.getPixelRatio() * 0.9);
+    if (this.post) { const ds = this.renderer.getDrawingBufferSize(new THREE.Vector2()); this.post.setSize(ds.x, ds.y, this.q.msaa); }
   }
 
   // ------------------------------------------------------------------ match setup
@@ -360,8 +384,23 @@ export class WorldRenderer {
     this.scene.background = new THREE.Color(th.border);
     this.scene.fog = new THREE.Fog(th.border, 22, 46);
     this.hemi.color.set(th.light);
-    this.hemi.intensity = 0.35 + th.ambient * 0.5;
+    this.hemi.groundColor.set(th.floorA).multiplyScalar(0.55);
+    // auto-exposure of the light rig: pale floors (marble, frost) would blow out under the same sun as dark basalt
+    const fc = new THREE.Color(th.floorA), fl = fc.r * 0.2126 + fc.g * 0.7152 + fc.b * 0.0722;
+    const lk = THREE.MathUtils.clamp(0.66 / (0.3 + fl), 0.5, 1.25);
+    this.hemi.intensity = (0.16 + th.ambient * 0.26) * lk;
     this.sun.color.set(th.light);
+    this.sun.intensity = 2.5 * lk;
+    // the arena's own sky lights it: zenith from the fog colour, horizon from its light, ground bounce from the floor
+    const dark = th.ambient < 0.65;
+    this.setMatchSky({ top: '#' + new THREE.Color(th.fog).lerp(new THREE.Color(dark ? '#0a0a2a' : '#3f7fe0'), 0.55).getHexString(), horizon: '#' + new THREE.Color(th.fog).lerp(new THREE.Color(th.light), 0.5).getHexString(), ground: '#' + new THREE.Color(th.floorA).multiplyScalar(0.7).getHexString(), sun: th.light, power: dark ? 0.7 : 1, level: 0.35 + th.ambient * 0.75 });
+    this.scene.environmentIntensity = (0.5 + th.ambient * 0.25) * lk;
+    const g = this.grade;
+    g.exposure = dark ? 1.12 : 0.98; g.bloom = dark ? 1.15 : 0.7; g.threshold = dark ? 0.78 : 1.0;
+    g.dofMode = 2; g.dof = 0.85; g.focusY = 0.52; g.focusR = 0.27;
+    g.vignette = dark ? 0.5 : 0.32; g.saturation = 1.14; g.contrast = 1.07; g.fringe = 0.006;
+    g.shadowTint.set(th.fog).lerp(new THREE.Color('#202a55'), 0.6).lerp(new THREE.Color('#808080'), 0.35); g.lightTint.set(th.light).lerp(new THREE.Color('#808080'), 0.55);
+    g.rays = 0; g.flashK = 0; this.flashK = 0;
     this.baseHemi = this.hemi.intensity; this.baseSun = this.sun.intensity; this.darkK = 0;
     this.buildArena(m);
     for (const h of m.heroes) this.ensureHero(h);
@@ -370,13 +409,24 @@ export class WorldRenderer {
     this.updateCamera(1, true);
   }
 
+  private matchSkyKey = '';
+  private setMatchSky(spec: SkySpec) {
+    const key = JSON.stringify(spec);
+    if (key === this.matchSkyKey && this.matchEnv) { this.scene.environment = this.matchEnv; return; }
+    this.matchSkyKey = key;
+    const prev = this.matchEnv;
+    this.matchEnv = skyEnvironment(this.renderer, spec);
+    this.scene.environment = this.matchEnv;
+    prev?.dispose();
+  }
+
   clearMatch() {
     const disposeTree = (o: THREE.Object3D) => o.traverse((c: any) => { if (c.geometry && !c.userData.sharedGeo) c.geometry.dispose?.(); if (c.material && c.userData.ownMat) c.material.dispose?.(); });
     disposeTree(this.matchRoot);
     this.matchRoot.clear();
     this.heroViews.clear(); this.riftViews.clear(); this.projViews.clear(); this.projPool = [];
     this.zoneViews.clear(); this.zonePool = []; this.wallViews.clear(); this.hazardViews.clear(); this.bushViews = [];
-    this.shockwaves = []; this.bolts = []; this.fx = []; this.beams = []; this.animated = []; this.portalViews = []; this.pickupViews.clear();
+    this.ambience = null; this.shockwaves = []; this.bolts = []; this.fx = []; this.beams = []; this.animated = []; this.portalViews = []; this.pickupViews.clear();
     this.particles?.clear();
     this.match = null;
   }
@@ -473,6 +523,53 @@ export class WorldRenderer {
     // decoration around the arena
     this.buildDecor(m);
     this.buildGrass(m);
+    this.buildAmbience(m);
+  }
+
+  /** v1.5 atmosphere: embers over lava, snow in the lab, fireflies and pollen outdoors, drifting motes elsewhere. */
+  private ambience: { pts: THREE.Points; vy: number; sway: number } | null = null;
+  private buildAmbience(m: Match) {
+    this.ambience = null;
+    if (!this.q.post) return;
+    const sp = m.arena.data.special, th = m.arena.data.theme;
+    const cfg: Record<string, { cols: string[]; vy: number; size: number; add: boolean; sway: number; n: number }> = {
+      lava_cycle: { cols: ['#ff6b35', '#ffd166', '#ff3d00'], vy: 0.7, size: 0.085, add: true, sway: 0.5, n: 150 },
+      ice: { cols: ['#ffffff', '#dff3ff'], vy: -0.55, size: 0.07, add: false, sway: 0.35, n: 170 },
+      none: { cols: ['#fff7c2', '#d8ffb0'], vy: 0.08, size: 0.075, add: true, sway: 0.6, n: 90 },
+      jungle: { cols: ['#d4ff7a', '#fff3a0'], vy: 0.1, size: 0.09, add: true, sway: 0.7, n: 110 },
+      fiesta: { cols: ['#ff4ecd', '#ffd60a', '#00f5d4', '#4cc9f0'], vy: -0.45, size: 0.08, add: false, sway: 0.5, n: 130 },
+      canyon: { cols: ['#ffe2b8', '#e0aaff'], vy: 0.12, size: 0.07, add: true, sway: 0.4, n: 90 },
+      sky: { cols: ['#ffffff', '#bae6fd'], vy: 0.15, size: 0.065, add: false, sway: 0.9, n: 90 },
+    };
+    const c = cfg[sp] ?? { cols: [th.accent, '#ffffff'], vy: 0.1, size: 0.07, add: true, sway: 0.3, n: 100 };
+    const n = Math.round(c.n * this.q.particleMul), pos = new Float32Array(n * 3), col = new Float32Array(n * 3), tc = new THREE.Color();
+    const rng = new Rng(31);
+    for (let i = 0; i < n; i++) {
+      pos[i * 3] = rng.range(-11, 11); pos[i * 3 + 1] = rng.range(0.15, 4.2); pos[i * 3 + 2] = rng.range(-7, 7);
+      tc.set(c.cols[i % c.cols.length]).multiplyScalar(c.add ? 1.6 : 1); col[i * 3] = tc.r; col[i * 3 + 1] = tc.g; col[i * 3 + 2] = tc.b;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: c.size, map: radialTexture(), vertexColors: true, transparent: true, opacity: c.add ? 0.75 : 0.85, depthWrite: false, blending: c.add ? THREE.AdditiveBlending : THREE.NormalBlending, fog: false }));
+    pts.frustumCulled = false; pts.userData.ownMat = true; pts.renderOrder = 9;
+    this.matchRoot.add(pts);
+    this.ambience = { pts, vy: c.vy, sway: c.sway };
+  }
+  private updateAmbience(dt: number) {
+    const a = this.ambience;
+    if (!a) return;
+    // the cloud is a box that follows the camera: motes wrap around instead of being respawned
+    a.pts.position.set(this.camTarget.x, 0, this.camTarget.z);
+    const p = a.pts.geometry.attributes.position as THREE.BufferAttribute, arr = p.array as Float32Array, t = this.time;
+    for (let i = 0; i < p.count; i++) {
+      const k = i * 3;
+      arr[k + 1] += a.vy * dt * (0.6 + (i % 7) * 0.1);
+      arr[k] += Math.sin(t * 0.7 + i * 1.3) * a.sway * dt; arr[k + 2] += Math.cos(t * 0.5 + i * 2.1) * a.sway * 0.6 * dt;
+      if (arr[k + 1] > 4.3) arr[k + 1] = 0.15; else if (arr[k + 1] < 0.1) arr[k + 1] = 4.3;
+      if (arr[k] > 11) arr[k] -= 22; else if (arr[k] < -11) arr[k] += 22;
+      if (arr[k + 2] > 7) arr[k + 2] -= 14; else if (arr[k + 2] < -7) arr[k + 2] += 14;
+    }
+    p.needsUpdate = true;
   }
 
   private wallBox(w: { x: number; y: number; w: number; h: number }, top: string, side: string, height: number) {
@@ -565,9 +662,9 @@ export class WorldRenderer {
   private buildGrass(m: Match) {
     this.grass = null; this.grassMat = null;
     const sp = m.arena.data.special;
-    if (this.quality === 'LOW' || !(sp === 'none' || sp === 'jungle' || sp === 'sky')) return;
+    if (this.quality === 'LOW' || !(sp === 'none' || sp === 'jungle')) return;
     const a = m.arena, th = a.data.theme;
-    const n = this.quality === 'HIGH' ? 7000 : 3600;
+    const n = this.q.grass;
     const blade = new THREE.BufferGeometry();
     // 3 crossed blades per tuft
     const pos: number[] = [], hgt: number[] = [];
@@ -663,8 +760,9 @@ void main(){
     const mat = makeHeroMaterial(u);
     const body = new THREE.Mesh(geo, mat);
     body.castShadow = this.q.shadows;
+    body.customDepthMaterial = makeHeroDepthMaterial(u);
     body.userData.sharedGeo = true; body.userData.ownMat = true;
-    const outlineMat = makeHeroOutline(u, h.pve && h.def.id === 'boss_golem' ? 0.05 : 0.065);
+    const outlineMat = makeHeroOutline(u, h.pve && h.def.id === 'boss_golem' ? 0.03 : 0.036, '#160d2b');
     outlineMat.transparent = true;
     const outline = new THREE.Mesh(geo, outlineMat);
     outline.userData.sharedGeo = true; outline.userData.ownMat = true;
@@ -959,12 +1057,14 @@ void main(){
   /** alpha: interpolation factor between the previous and current simulation step. */
   update(dt: number) {
     this.time += dt;
+    if (dt > 0) this.lastDt = dt;
     const m = this.match;
     if (!m) return;
     const mutColor = getMutation(m.mutation).color;
     this.darkK += ((m.mutation === 'BLACKOUT' ? 1 : 0) - this.darkK) * Math.min(1, dt * 2);
     this.hemi.intensity = this.baseHemi * (1 - 0.72 * this.darkK); this.sun.intensity = this.baseSun * (1 - 0.8 * this.darkK);
     for (const a of this.animated) a.mat.uniforms.time.value = this.time;
+    this.updateAmbience(dt);
 
     // heroes
     const seen = new Set<number>();
@@ -1491,13 +1591,14 @@ void main(){
         P.burst(e.x * WS, 1, e.y * WS, 120, c, 7, 0.45, 1.4, 6, -7);
         P.burst(e.x * WS, 1, e.y * WS, 80, '#ffe14d', 6, 0.35, 1.4, 7, -8);
         this.addShake(0.4);
+        this.screenFlash(c, 0.28);
         break;
       }
       case 'ability': {
         const h = m.heroById(e.hero);
         if (!h) break;
         P.burst(h.x * WS, 0.5, h.y * WS, e.ult ? 50 : 18, e.ult ? '#ffe14d' : h.def.palette.accent, e.ult ? 5 : 3, 0.3, 0.6, 2, -4);
-        if (e.ult) { this.addShockwave(h.x, h.y, 0.3, 2.5, '#ffe14d', 0.5); this.addShake(0.15); this.lightFlash(h.x, h.y, h.def.palette.accent, 10, 0.5); }
+        if (e.ult) { this.addShockwave(h.x, h.y, 0.3, 2.5, '#ffe14d', 0.5); this.addShake(0.15); this.lightFlash(h.x, h.y, h.def.palette.accent, 10, 0.5); if (h.id === this.focusId) this.screenFlash(h.def.palette.accent, 0.14); }
         break;
       }
       case 'wall': P.burst((e.x + e.w / 2) * WS, 0.2, (e.y + e.h / 2) * WS, 20, '#d9c7a5', 2.5, 0.3, 0.6, 2, -6); break;
@@ -1507,6 +1608,7 @@ void main(){
         const c = getMutation(e.mutation).color;
         if (r) { this.addShockwave(r.x, r.y, 0.5, 10, c, 1); P.burst(r.x * WS, 0.8, r.y * WS, 140, c, 8, 0.45, 1.2, 4, -4); }
         this.addShake(0.3);
+        this.screenFlash(c, 0.2);
         break;
       }
       case 'emote': {
@@ -1687,21 +1789,57 @@ void main(){
   private setupShowcase() {
     const s = this.showcase;
     s.background = new THREE.Color('#2a1a5e');
-    s.environment = this.envMap; s.environmentIntensity = 0.6;
-    s.add(new THREE.HemisphereLight('#ffffff', '#6b5bd6', 0.8));
-    const key = new THREE.DirectionalLight('#ffffff', 2.4); key.position.set(3, 6, 5); s.add(key);
-    const rim = new THREE.DirectionalLight('#b388ff', 2.2); rim.position.set(-4, 3, -4); s.add(rim);
-    const ped = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.4, 0.4, 40), toon('#ffd166').clone()); // recoloured per season: own material
-    ped.position.y = -0.2; s.add(ped);
-    const ped2 = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.55, 0.18, 40), toon('#7b61ff').clone());
-    ped2.position.y = -0.46; s.add(ped2);
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshBasicMaterial({ map: radialTexture('rgba(179,136,255,0.7)', 'rgba(179,136,255,0)'), transparent: true, depthWrite: false }));
-    glow.rotation.x = -Math.PI / 2; glow.position.y = 0.01; s.add(glow);
-    this.lobby = { ped, ped2, glow, fx: null, kind: '' };
+    s.environment = this.envMap; s.environmentIntensity = 0.75;
+    this.showcaseHemi = new THREE.HemisphereLight('#ffffff', '#6b5bd6', 0.7); s.add(this.showcaseHemi);
+    // three-point lighting: warm key (casts the hero's shadow on the stage), season-coloured rim, soft fill
+    const key = new THREE.DirectionalLight('#fff2de', 2.9); key.position.set(3.2, 6.5, 5.5); s.add(key, key.target);
+    key.target.position.set(0, 0.6, 0);
+    const sc = key.shadow.camera; sc.left = -3.4; sc.right = 3.4; sc.top = 4; sc.bottom = -1.6; sc.near = 1; sc.far = 22; sc.updateProjectionMatrix();
+    key.shadow.bias = -0.0005; key.shadow.normalBias = 0.03; key.shadow.radius = 3;
+    this.showcaseKeyLight = key;
+    this.showcaseRim = new THREE.DirectionalLight('#b388ff', 2.0); this.showcaseRim.position.set(-4, 3.5, -5); s.add(this.showcaseRim);
+    const rim2 = new THREE.DirectionalLight('#ffffff', 1.1); rim2.position.set(4.5, 2.5, -4.5); s.add(rim2);
+    this.showcaseRim2 = rim2;
+    // pedestal: open metal drum, glass top (the hero's mirror image shows through it), glowing lip, base tier
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.4, 0.4, 56, 1, true), toon('#ffd166', { roughness: 0.3, metalness: 0.55 }).clone()); // recoloured per season: own material
+    ped.position.y = -0.2; ped.castShadow = true; ped.receiveShadow = true; s.add(ped);
+    const inner = new THREE.Mesh(new THREE.CylinderGeometry(1.24, 1.24, 3, 40, 1, true), new THREE.MeshBasicMaterial({ color: '#07040f', side: THREE.BackSide, fog: false }));
+    inner.position.y = -1.5; s.add(inner);
+    const well = new THREE.Mesh(new THREE.CircleGeometry(1.24, 40), new THREE.MeshBasicMaterial({ color: '#07040f', fog: false })); well.rotation.x = -Math.PI / 2; well.position.y = -3; s.add(well);
+    const top = new THREE.Mesh(new THREE.CircleGeometry(1.25, 56), new THREE.MeshStandardMaterial({ color: '#ffd166', roughness: 0.12, metalness: 0.35, transparent: true, opacity: 0.74 }));
+    top.rotation.x = -Math.PI / 2; top.position.y = 0; top.receiveShadow = true; top.renderOrder = 2; s.add(top);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.035, 8, 72), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+    lip.rotation.x = Math.PI / 2; lip.position.y = 0.005; s.add(lip);
+    const ped2 = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.62, 0.2, 56), toon('#7b61ff', { roughness: 0.35, metalness: 0.6 }).clone());
+    ped2.position.y = -0.3; ped2.receiveShadow = true; ped2.castShadow = true; s.add(ped2);
+    // rotating rune ring hovering around the pedestal
+    const runeTex = (() => {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 32; const g = c.getContext('2d')!;
+      g.fillStyle = '#fff';
+      for (let i = 0; i < 32; i++) { const x = i * 16; if (i % 4 === 3) { g.beginPath(); g.moveTo(x + 8, 4); g.lineTo(x + 14, 16); g.lineTo(x + 8, 28); g.lineTo(x + 2, 16); g.fill(); } else g.fillRect(x + 2, 12 + (i % 2) * 2, 12 - (i % 3) * 3, 6); }
+      const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.repeat.set(3, 1); return t;
+    })();
+    const rune = new THREE.Mesh(new THREE.CylinderGeometry(1.72, 1.72, 0.16, 64, 1, true), new THREE.MeshBasicMaterial({ map: runeTex, color: '#ffffff', transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    rune.position.y = 0.12; s.add(rune);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), new THREE.MeshBasicMaterial({ map: radialTexture('rgba(179,136,255,0.7)', 'rgba(179,136,255,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    glow.rotation.x = -Math.PI / 2; glow.position.y = -0.33; s.add(glow);
+    this.lobby = { ped, ped2, glow, top, lip, rune, fx: null, kind: '' };
     this.showcaseCam.position.set(0, 1.75, 7.6);
     this.showcaseCam.lookAt(0, 0.95, 0);
     this.showcaseBase.set(0, 1.75, 7.6); this.showcaseLook.set(0, 0.95, 0);
+    const lg = this.lobbyGrade;
+    lg.exposure = 0.93; lg.bloom = 0.42; lg.threshold = 1.15; lg.dofMode = 1; lg.dof = 1; lg.focusR = 0.25;
+    lg.vignette = 0.5; lg.saturation = 1.12; lg.contrast = 1.12; lg.fringe = 0.015; lg.rays = 0.22;
   }
+  private showcaseHemi!: THREE.HemisphereLight;
+  private showcaseRim!: THREE.DirectionalLight;
+  private showcaseRim2!: THREE.DirectionalLight;
+  private showcaseMirror: THREE.Group | null = null;
+  /** finger-driven turn of the lobby hero (springs back when released) + tap reaction */
+  private showcaseYaw = 0; private showcaseYawHold = 0; private showcaseReactT = 0;
+  showcaseDrag(dx: number) { this.showcaseYaw = THREE.MathUtils.clamp(this.showcaseYaw + dx, -Math.PI * 1.5, Math.PI * 1.5); this.showcaseYawHold = 1.6; }
+  /** The lobby hero cheers (tap). */
+  showcaseReact() { if (this.showcaseDanceT > 0) return; this.showcaseReactT = 0.9; this.showcasePop = 0.35; }
 
   setShowcase(heroId: string, skinId: string, offsetX = 0) {
     const key = heroId + '|' + skinId;
@@ -1710,22 +1848,31 @@ void main(){
     this.showcaseBase.set(-offsetX, 1.75, 7.6); this.showcaseLook.set(-offsetX, 0.95, 0);
     if (key === this.showcaseKey) return;
     this.showcaseKey = key;
-    if (this.showcaseHero) this.showcase.remove(this.showcaseHero);
+    const drop = (o: THREE.Object3D | null) => { if (!o) return; this.showcase.remove(o); o.traverse((c: any) => c.material?.dispose?.()); };
+    drop(this.showcaseHero); drop(this.showcaseMirror);
     const geo = heroGeometry(heroId, skinId);
     const g = new THREE.Group();
-    this.showcaseU = makeHeroUniforms('#c9a5ff');
+    this.showcaseU = makeHeroUniforms(this.showcaseRimColor);
     this.showcaseU.uIri.value = getCharacter(heroId).rarity === 'MYTHIC' || getCosmetic(skinId)?.rarity === 'MYTHIC' ? 1 : 0;
     const body = new THREE.Mesh(geo, makeHeroMaterial(this.showcaseU));
-    const ol = new THREE.Mesh(geo, makeHeroOutline(this.showcaseU, 0.05));
+    body.castShadow = true; body.customDepthMaterial = makeHeroDepthMaterial(this.showcaseU); body.renderOrder = 3;
+    const ol = new THREE.Mesh(geo, makeHeroOutline(this.showcaseU, 0.022, '#160d2b')); ol.renderOrder = 3;
     g.add(body, ol);
     g.scale.setScalar(0.7);
     g.rotation.y = -Math.PI / 2 + 0.5;
     this.showcase.add(g);
     this.showcaseHero = g;
+    // mirror image under the glass top of the pedestal (same uniforms: it moves with the hero)
+    const mirror = new THREE.Group();
+    const mb = new THREE.Mesh(geo, makeHeroMaterial(this.showcaseU)); mb.renderOrder = 1;
+    mirror.add(mb); mirror.scale.set(0.7, -0.7, 0.7);
+    this.showcase.add(mirror);
+    this.showcaseMirror = mirror;
     this.showcasePop = 0.35;
   }
   private showcasePop = 0;
-  private lobby: { ped: THREE.Mesh; ped2: THREE.Mesh; glow: THREE.Mesh; fx: THREE.Points | null; kind: string } | null = null;
+  private lobby: { ped: THREE.Mesh; ped2: THREE.Mesh; glow: THREE.Mesh; top: THREE.Mesh; lip: THREE.Mesh; rune: THREE.Mesh; fx: THREE.Points | null; kind: string } | null = null;
+  private showcaseRimColor = '#c9a5ff';
   private showcasePet: THREE.Group | null = null; private showcasePetKey = '';
   private lobbyScene: LobbyScene | null = null;
 
@@ -1739,6 +1886,9 @@ void main(){
     ((this.lobby.ped2.material as THREE.MeshStandardMaterial).color).set(l.ring);
     (this.lobby.glow.material as THREE.MeshBasicMaterial).map = radialTexture(l.glow, l.glow.replace(/[\d.]+\)$/, '0)'));
     (this.lobby.glow.material as THREE.MeshBasicMaterial).needsUpdate = true;
+    ((this.lobby.top.material as THREE.MeshStandardMaterial).color).set(l.pedestal).multiplyScalar(0.55);
+    ((this.lobby.lip.material as THREE.MeshBasicMaterial).color).set(l.ring).multiplyScalar(2.2);
+    ((this.lobby.rune.material as THREE.MeshBasicMaterial).color).set(l.ring).lerp(new THREE.Color('#ffffff'), 0.35).multiplyScalar(1.1);
     if (this.lobby.kind === l.particle) return;
     if (this.lobby.fx) s.remove(this.lobby.fx);
     // full 3D backdrop for the season
@@ -1746,6 +1896,18 @@ void main(){
     this.lobbyScene = new LobbyScene(l.particle as LobbyKind);
     s.add(this.lobbyScene.group);
     s.fog = new THREE.Fog(l.sky, 18, 55);
+    // the season sky lights the hero: reflections, ambient, rim colour and the colour grade all follow it
+    const T = this.lobbyScene.theme;
+    const prevEnv = this.lobbyEnv;
+    this.lobbyEnv = skyEnvironment(this.renderer, { top: T.mid, horizon: '#' + new THREE.Color(T.low).lerp(new THREE.Color('#ffffff'), 0.45).getHexString(), ground: T.ground, sun: '#' + new THREE.Color(T.portal1).lerp(new THREE.Color('#ffffff'), 0.7).getHexString(), power: 1.0, level: 1.0 }, new THREE.Vector3(3.2, 6.5, 5.5));
+    s.environment = this.lobbyEnv; s.environmentIntensity = 0.9;
+    prevEnv?.dispose();
+    this.showcaseRimColor = '#' + new THREE.Color(T.portal1).lerp(new THREE.Color('#ffffff'), 0.5).getHexString();
+    this.showcaseRim.color.set(T.portal1).lerp(new THREE.Color('#ffffff'), 0.45); this.showcaseRim2.color.set(T.crystal).lerp(new THREE.Color('#ffffff'), 0.5);
+    this.showcaseHemi.color.set(T.low).lerp(new THREE.Color('#ffffff'), 0.8); this.showcaseHemi.groundColor.set(T.ground);
+    this.showcaseU?.uRim.value.set(this.showcaseRimColor);
+    this.lobbyGrade.shadowTint.set(T.mid).lerp(new THREE.Color('#808080'), 0.45);
+    this.lobbyGrade.lightTint.set(T.portal1).lerp(new THREE.Color('#808080'), 0.6);
     const n = 160, pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
     const palette: Record<string, string[]> = { embers: ['#ff6b35', '#ffd166', '#ff3d00'], snow: ['#ffffff', '#caf0f8'], leaves: ['#52b788', '#95d5b2', '#d4a373'], neon: ['#f72585', '#4cc9f0', '#b5179e'], stars: ['#ffffff', '#b388ff'], fiesta: ['#ff4ecd', '#ffd60a', '#00f5d4', '#4cc9f0', '#ffffff'] };
     const c = new THREE.Color();
@@ -1788,19 +1950,29 @@ void main(){
       const dancing = this.showcaseDanceT > 0;
       this.showcaseDanceT = Math.max(0, this.showcaseDanceT - dt);
       this.showcaseSpin += dt * (dancing ? 0 : 0.5);
-      const face = Math.PI / 2 + Math.sin(this.showcaseSpin) * 0.55 - Math.PI;
-      this.showcaseHero.rotation.y += ((dancing ? -Math.PI / 2 : face) - this.showcaseHero.rotation.y) * Math.min(1, dt * 6);
-      this.showcaseHero.position.y = Math.abs(Math.sin(this.time * 2)) * 0.05;
+      // the player's finger turns the hero; a moment after release it eases back to its idle sway
+      this.showcaseYawHold = Math.max(0, this.showcaseYawHold - dt);
+      if (this.showcaseYawHold <= 0 || dancing) this.showcaseYaw *= Math.max(0, 1 - dt * 3.5);
+      const react = this.showcaseReactT > 0 ? Math.sin((1 - this.showcaseReactT / 0.9) * Math.PI) : 0;
+      this.showcaseReactT = Math.max(0, this.showcaseReactT - dt);
+      const face = Math.PI / 2 + Math.sin(this.showcaseSpin) * 0.4 - Math.PI + this.showcaseYaw;
+      this.showcaseHero.rotation.y += ((dancing ? -Math.PI / 2 : face) - this.showcaseHero.rotation.y) * Math.min(1, dt * 9);
+      this.showcaseHero.position.y = Math.abs(Math.sin(this.time * 2)) * 0.03 + react * 0.42;
       if (this.showcaseU) {
         // idle: breathing + an occasional flourish (cast pose)
         this.showcaseU.uTime.value = this.time;
         const cyc = this.time % 6;
-        this.showcaseU.uCast.value = !dancing && cyc > 4.6 && cyc < 5.6 ? Math.sin(((cyc - 4.6) / 1.0) * Math.PI) * 0.7 : 0;
+        this.showcaseU.uCast.value = Math.max(react * 0.9, !dancing && cyc > 4.6 && cyc < 5.6 ? Math.sin(((cyc - 4.6) / 1.0) * Math.PI) * 0.7 : 0);
         this.showcaseU.uDance.value += ((dancing ? 1 : 0) - this.showcaseU.uDance.value) * Math.min(1, dt * 6);
       }
       if (this.showcasePop > 0) { this.showcasePop -= dt; const k = 1 + Math.sin((this.showcasePop / 0.35) * Math.PI) * 0.15; this.showcaseHero.scale.set(0.7 / k, 0.7 * k, 0.7 / k); }
       else this.showcaseHero.scale.setScalar(0.7);
+      if (this.showcaseMirror) {
+        const h = this.showcaseHero, m = this.showcaseMirror;
+        m.visible = !!this.post; m.rotation.y = h.rotation.y; m.position.set(h.position.x, -h.position.y, h.position.z); m.scale.set(h.scale.x, -h.scale.y, h.scale.z);
+      }
     }
+    if (this.lobby) { this.lobby.rune.rotation.y = this.time * 0.25; this.lobby.rune.position.y = 0.14 + Math.sin(this.time * 1.4) * 0.04; }
     this.lobbyScene?.update(this.time, dt);
     if (this.lobby?.fx) {
       const a = this.lobby.fx.geometry.attributes.position as THREE.BufferAttribute;
@@ -1818,10 +1990,27 @@ void main(){
       this.showcasePet.rotation.y = -0.5 + Math.sin(this.time * 0.8) * 0.4;
       animatePet(this.showcasePet, this.time);
     }
-    this.renderer.render(this.showcase, this.showcaseCam);
+    this.drawShowcase(dt);
   }
 
-  render() { this.renderer.render(this.scene, this.camera); }
+  private drawShowcase(dt: number) {
+    if (!this.post) { this.renderer.render(this.showcase, this.showcaseCam); return; }
+    const g = this.lobbyGrade;
+    // keep the hero in focus wherever the menu puts them on screen; the portal feeds the light shafts
+    this.tmpV.set(this.showcaseLook.x, 1.05, 0).project(this.showcaseCam);
+    g.focusX = this.tmpV.x * 0.5 + 0.5; g.focusY = this.tmpV.y * 0.5 + 0.5;
+    this.tmpV.set(0, 6.1, -18).project(this.showcaseCam);
+    g.raysX = this.tmpV.x * 0.5 + 0.5; g.raysY = this.tmpV.y * 0.5 + 0.5;
+    this.post.render(this.showcase, this.showcaseCam, g, dt);
+  }
+
+  private lastDt = 1 / 60;
+  render() {
+    if (!this.post) { this.renderer.render(this.scene, this.camera); return; }
+    this.flashK = Math.max(0, this.flashK - this.lastDt * 1.6);
+    this.grade.flashK = this.flashK;
+    this.post.render(this.scene, this.camera, this.grade, this.lastDt);
+  }
 
   /** Offscreen portrait of a hero (data URL) for UI cards. */
   portrait(heroId: string, skinId: string, size = 256): string {
@@ -1835,7 +2024,7 @@ void main(){
     const pu = makeHeroUniforms('#ffffff');
     pu.uCast.value = 0.25;
     const body = new THREE.Mesh(geo, makeHeroMaterial(pu));
-    const olm = makeHeroOutline(pu, 0.06);
+    const olm = makeHeroOutline(pu, 0.03, '#160d2b');
     g.add(body, new THREE.Mesh(geo, olm));
     g.rotation.y = -Math.PI / 2 + 0.45;
     scene.add(g);

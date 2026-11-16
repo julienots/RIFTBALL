@@ -28,6 +28,9 @@ let pivotOverride: V3 | null = null;
 /** v1.4 PBR surface per vertex: [roughness, metalness]. Explicit override, else guessed from color/part. */
 let surfOverride: [number, number] | null = null;
 let skinHex = '';
+/** face decals (eyes, lashes, brows, mouth, blush) are drawn without the dark outline hull */
+let flatMark = 0;
+const decal = (fn: () => void) => { const prev = flatMark; flatMark = 1; fn(); flatMark = prev; };
 const METALS = new Set(['#adb5bd', '#e9ecef', '#495057', '#ced4da', '#c0c0c0', '#9ca3af', '#6c757d']);
 const surfOf = (color: string, part: number, glow: number): [number, number] => {
   if (surfOverride) return surfOverride;
@@ -65,6 +68,7 @@ function add(geo: THREE.BufferGeometry, color: string, pos: V3, rot: V3 = [0, 0,
   const sf = surfOf(color, part, glow), sa = new Float32Array(n * 2);
   for (let i = 0; i < n; i++) { sa[i * 2] = sf[0]; sa[i * 2 + 1] = sf[1]; }
   g.setAttribute('surf', new THREE.BufferAttribute(sa, 2));
+  g.setAttribute('decalK', new THREE.BufferAttribute(new Float32Array(n).fill(flatMark), 1));
   parts.push(g);
 }
 const on = (p: number, fn: () => void, pivot: V3 | null = null) => { const prev = curPart, pp = pivotOverride; curPart = p; pivotOverride = pivot; fn(); curPart = prev; pivotOverride = pp; };
@@ -148,16 +152,39 @@ function body(p: Pal, o: BodyOpts = {}) {
   on(PART.HEAD, () => {
     const hr = o.headR ?? 0.8, hy = o.headY ?? 2.08;
     // head: slightly taller than wide, flatter sides, with jaw/chin, cheeks, ears and nose -> less "ball"
-    add(S(hr, 28, 22), skin, [0, hy, 0], [0, 0, 0], [0.97, 1, 0.92]);
+    // one continuous sculpted skull (no intersecting blobs): fuller cheeks, softer chin, slightly flat back
+    const skull = S(hr, 36, 26), sp = skull.attributes.position;
+    for (let i = 0; i < sp.count; i++) {
+      const ny = sp.getY(i) / hr;
+      const wide = ny < 0.15 ? 1 + 0.085 * Math.sin(Math.min(1, (0.15 - ny) / 1.15) * Math.PI) : 1;
+      sp.setXYZ(i, sp.getX(i) * wide * (sp.getX(i) < 0 ? 0.96 : 1), ny < 0 ? sp.getY(i) * 0.93 : sp.getY(i), sp.getZ(i) * wide);
+    }
+    skull.computeVertexNormals();
+    add(skull, skin, [0, hy, 0], [0, 0, 0], [0.97, 1, 0.92]);
     for (const sz of [1, -1]) {
       add(S(hr * 0.17, 10, 8), skin, [-0.04, hy - 0.02, sz * hr * 0.88], [0, 0, 0], [0.55, 1, 0.42]);
       add(S(hr * 0.08, 8, 6), darken(skin, 0.85), [-0.03, hy - 0.02, sz * hr * 0.92], [0, 0, 0], [0.4, 0.7, 0.3]);
     }
-    add(S(hr * 0.085, 10, 8), darken(skin, 0.93), [hr * 0.96, hy - hr * 0.12, 0], [0, 0, 0], [0.7, 0.9, 0.8]);
+    // small button nose in the skin tone: shading models it, not colour
+    add(S(hr * 0.075, 12, 10), skin, [hr * 0.955, hy - hr * 0.14, 0], [0, 0, 0], [0.75, 0.8, 0.95]);
   });
 }
 
 type EyeStyle = 'normal' | 'glow' | 'cool' | 'angry' | 'happy' | 'visor';
+/** Airbrush the last added piece: `inner` colour at its centre fading to `outer` at the rim (soft blush, no hard edge). */
+function fade(inner: string, outer: string, centre: V3, radius: number) {
+  const g = parts[parts.length - 1], pos = g.attributes.position, col = g.attributes.color as THREE.BufferAttribute;
+  const ci = new THREE.Color(inner), co = new THREE.Color(outer), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const t = Math.hypot(pos.getX(i) - centre[0], pos.getY(i) - centre[1], pos.getZ(i) - centre[2]) / radius;
+    const k = Math.min(1, Math.max(0, (t - 0.15) / 0.8)), e = k * k * (3 - 2 * k);
+    c.copy(ci).lerp(co, e); col.setXYZ(i, c.r, c.g, c.b);
+  }
+}
+/**
+ * v1.5 faces: big rounded eyes that sit flush on the head (white, iris, pupil, two catch-lights, lash line),
+ * slim brows that follow the skull, a small mouth and airbrushed cheeks — instead of stacked bulging spheres.
+ */
 function face(p: Pal, style: EyeStyle = 'normal', y = 2.1, x = 0.62, spread = 0.29, opts: { mouth?: 'smile' | 'smirk' | 'o' | 'none'; brows?: boolean; cheeks?: boolean } = {}) {
   on(PART.HEAD, () => {
     if (style === 'glow') {
@@ -169,25 +196,59 @@ function face(p: Pal, style: EyeStyle = 'normal', y = 2.1, x = 0.62, spread = 0.
       add(B(0.04, 0.08, 0.86), p.eyes, [x + 0.18, y, 0], [0, 0, 0], [1, 1, 1], 1);
       return;
     }
+    decal(() => {
+    const k = (x + 0.07) / 0.69;         // faces on bigger / smaller heads keep their proportions
+    // where the sculpted skull's surface is (same deformation as in body()), so every feature sits exactly on the skin
+    const hr = 0.8 * k, hy = y - 0.02;
+    const skullX = (yy: number, zz: number) => {
+      const yl = yy - hy, y0 = yl < 0 ? yl / 0.93 : yl, ny = y0 / hr;
+      const wide = ny < 0.15 ? 1 + 0.085 * Math.sin(Math.min(1, (0.15 - ny) / 1.15) * Math.PI) : 1;
+      const z0 = zz / (wide * 0.92);
+      return Math.sqrt(Math.max(0.01, hr * hr - y0 * y0 - z0 * z0)) * wide * 0.97;
+    };
+    const sx = skullX(y, spread);
+    const lash = darken(p.secondary, 0.35);
     for (const s of [1, -1]) {
-      const sq = style === 'happy' ? 0.55 : style === 'cool' ? 0.8 : 1;
+      const sq = style === 'happy' ? 0.6 : style === 'cool' ? 0.78 : 1;
+      const a = Math.atan2(spread, sx), nx = Math.cos(a), nz = s * Math.sin(a), tx = -Math.sin(a), tz = s * Math.cos(a); // normal + outward tangent
+      const at = (off: number, side: number, up: number): V3 => [sx - 0.012 * k + nx * off + tx * side, y + up, s * spread + nz * off + tz * side];
+      const eh = 0.2 * k * sq, ew = 0.165 * k;
       on(PART.EYES, () => {
-        add(S(0.21, 16, 12), '#ffffff', [x, y, s * spread], [0, 0, 0], [0.42, 1.12 * sq, 0.9]);
-        add(S(0.13, 12, 10), p.eyes, [x + 0.1, y - 0.01, s * (spread - 0.02)], [0, 0, 0], [0.4, 1.05 * sq, 0.9]);
-        add(S(0.07, 10, 8), '#120a24', [x + 0.15, y - 0.01, s * (spread - 0.03)], [0, 0, 0], [0.4, 1.1 * sq, 0.9]);
-        add(S(0.035, 6, 6), '#ffffff', [x + 0.19, y + 0.06 * sq, s * (spread - 0.07)], [0, 0, 0], [1, 1, 1], 0.5);
+        surf(0.1, 0, () => {
+          add(S(1, 20, 14), '#fbfbff', at(0, 0, 0), [0, -s * a, 0], [0.03, eh, ew]);
+          add(S(1, 18, 12), p.eyes, at(0.012, -0.016 * k, -0.012 * k), [0, -s * a, 0], [0.028, eh * 0.74, ew * 0.76]);
+          add(S(1, 14, 10), darken(p.eyes, 0.55), at(0.016, -0.016 * k, 0.012 * k * sq), [0, -s * a, 0], [0.027, eh * 0.56, ew * 0.6]);
+          add(S(1, 14, 10), '#0f0820', at(0.023, -0.016 * k, -0.014 * k), [0, -s * a, 0], [0.026, eh * 0.44, ew * 0.46]);
+        });
+        add(S(1, 10, 8), '#ffffff', at(0.036, 0.03 * k, 0.062 * k * sq), [0, -s * a, 0], [0.02, 0.042 * k * sq, 0.038 * k], 0.6);
+        add(S(1, 8, 6), '#ffffff', at(0.036, -0.055 * k, -0.06 * k * sq), [0, -s * a, 0], [0.018, 0.02 * k, 0.019 * k], 0.5);
+        // lash line over the eye (thicker towards the outer corner) + crease for the half-closed "cool" look
+        add(T(ew * 1.03, 0.019 * k, Math.PI * 0.86, 6, 18), lash, at(0.012, 0, 0.004), [0, Math.PI / 2 - s * a, Math.PI * 0.07], [1, eh / ew, 1]);
+        add(S(1, 8, 6), lash, at(0.014, ew * 0.98, eh * 0.2), [0, -s * a, 0], [0.02, 0.05 * k, 0.03 * k]);
+        if (style === 'cool') add(S(1, 14, 8), darken(p.skin, 0.82), at(0.03, 0, eh * 0.62), [0, -s * a, 0], [0.03, eh * 0.5, ew * 1.08]);
       }, [x, y, 0]);
-      if (style === 'cool') add(B(0.1, 0.07, 0.34), darken(p.skin, 0.75), [x + 0.06, y + 0.17, s * spread], [s * -0.12, 0, 0]);
     }
     if (opts.brows !== false) for (const s of [1, -1]) {
-      const tilt = style === 'angry' ? 0.38 : style === 'happy' ? -0.2 : 0.16;
-      add(RB(0.08, 0.07, 0.3, 0.03), darken(p.secondary, 0.55), [x + 0.06, y + 0.29, s * spread], [s * tilt, 0, 0]);
+      const tilt = style === 'angry' ? 0.42 : style === 'happy' ? -0.22 : 0.12;
+      const a = Math.atan2(spread, sx);
+      add(CAP(0.026 * k, 0.2 * k), darken(p.secondary, 0.5), [skullX(y + 0.3 * k, spread) + 0.004, y + (style === 'angry' ? 0.27 : 0.3) * k, s * spread * 1.02], [Math.PI / 2 + s * tilt, 0, -s * a * 0.9]);
     }
     const mouth = opts.mouth ?? 'smirk';
-    if (mouth === 'smile') add(T(0.12, 0.03, Math.PI, 6, 12), '#5a1a2a', [x + 0.15, y - 0.3, 0], [0, Math.PI / 2, Math.PI]);
-    if (mouth === 'smirk') add(T(0.1, 0.03, Math.PI * 0.7, 6, 12), '#5a1a2a', [x + 0.15, y - 0.3, -0.04], [0, Math.PI / 2, Math.PI * 1.1]);
-    if (mouth === 'o') add(S(0.06, 8, 6), '#5a1a2a', [x + 0.16, y - 0.3, 0], [0, 0, 0], [0.4, 1, 1]);
-    if (opts.cheeks) for (const s of [1, -1]) add(S(0.08, 8, 6), '#ff8fa3', [x - 0.02, y - 0.2, s * 0.48], [0, 0, 0], [0.3, 0.6, 1]);
+    const my = y - 0.31 * k, mx = skullX(my, 0) + 0.016;
+    if (mouth === 'smile') {
+      add(S(1, 14, 10), '#4a1220', [mx - 0.02, my + 0.015, 0], [0, 0, 0], [0.03, 0.07 * k, 0.13 * k]);
+      add(S(1, 10, 8), '#ff6b81', [mx - 0.008, my - 0.02 * k, 0], [0, 0, 0], [0.022, 0.035 * k, 0.075 * k]);
+      add(T(0.13 * k, 0.018 * k, Math.PI, 6, 14), '#4a1220', [mx - 0.005, my + 0.05 * k, 0], [0, Math.PI / 2, Math.PI]);
+    }
+    if (mouth === 'smirk') add(T(0.1 * k, 0.019 * k, Math.PI * 0.62, 6, 12), '#4a1220', [mx - 0.005, my + 0.07 * k, -0.035], [0, Math.PI / 2, Math.PI * 1.14]);
+    if (mouth === 'o') add(S(1, 10, 8), '#4a1220', [mx - 0.015, my, 0], [0, 0, 0], [0.03, 0.06 * k, 0.05 * k]);
+    if (opts.cheeks) for (const s of [1, -1]) {
+      // soft blush sprayed on the skin (colour fades to the skin tone, so there is no visible edge)
+      const cz = s * 0.45 * k, cy = y - 0.2 * k, cx = skullX(cy, cz) - 0.006;
+      add(S(1, 16, 12), p.skin, [cx, cy, cz], [0, -s * Math.atan2(Math.abs(cz), cx), -0.2], [0.022, 0.1 * k, 0.14 * k]);
+      fade('#' + new THREE.Color(p.skin).lerp(new THREE.Color('#ff6f91'), 0.34).getHexString(), p.skin, [cx, cy, cz], 0.14 * k);
+    }
+    });
   });
 }
 
@@ -868,7 +929,63 @@ export function buildHeroGeometry(heroId: string, skinId?: string): THREE.Buffer
   const merged = mergeGeometries(parts, false)!;
   merged.computeBoundingSphere();
   parts.length = 0;
+  bakeAO(merged);
   return merged;
+}
+
+/**
+ * v1.5 baked ambient occlusion (per vertex, disc-to-point form factors over a uniform grid).
+ * Creases — under the chin and hat, armpits, between the legs, around belts and props — get soft contact
+ * shading that no real-time light gives on a phone. Runs once per hero/skin (geometry is cached).
+ */
+function bakeAO(geo: THREE.BufferGeometry, R = 0.2, strength = 1.9) {
+  const pos = geo.attributes.position.array as Float32Array, nor = geo.attributes.normal.array as Float32Array;
+  const n = pos.length / 3, T = Math.floor(n / 3);
+  const cx = new Float32Array(T), cy = new Float32Array(T), cz = new Float32Array(T), mx = new Float32Array(T), my = new Float32Array(T), mz = new Float32Array(T), ar = new Float32Array(T);
+  const grid = new Map<number, number[]>();
+  const cell = (x: number, y: number, z: number) => (Math.floor(x / R) + 512) + (Math.floor(y / R) + 512) * 1024 + (Math.floor(z / R) + 512) * 1048576;
+  for (let t = 0; t < T; t++) {
+    const i = t * 9;
+    const ax = pos[i], ay = pos[i + 1], az = pos[i + 2], bx = pos[i + 3], by = pos[i + 4], bz = pos[i + 5], qx = pos[i + 6], qy = pos[i + 7], qz = pos[i + 8];
+    const ux = bx - ax, uy = by - ay, uz = bz - az, vx = qx - ax, vy = qy - ay, vz = qz - az;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz);
+    if (l < 1e-9) { ar[t] = 0; continue; }
+    ar[t] = l * 0.5; mx[t] = nx / l; my[t] = ny / l; mz[t] = nz / l;
+    cx[t] = (ax + bx + qx) / 3; cy[t] = (ay + by + qy) / 3; cz[t] = (az + bz + qz) / 3;
+    const k = cell(cx[t], cy[t], cz[t]);
+    const list = grid.get(k); if (list) list.push(t); else grid.set(k, [t]);
+  }
+  const ao = new Float32Array(n), R2 = R * R;
+  const seen = new Map<number, number>();
+  for (let i = 0; i < n; i++) {
+    const px = pos[i * 3], py = pos[i * 3 + 1], pz = pos[i * 3 + 2], nx = nor[i * 3], ny = nor[i * 3 + 1], nz = nor[i * 3 + 2];
+    // shared corners of neighbouring triangles: compute once
+    const key = Math.round(px * 400) * 73856093 ^ Math.round(py * 400) * 19349663 ^ Math.round(pz * 400) * 83492791 ^ Math.round(nx * 6) * 4099 ^ Math.round(ny * 6) * 613 ^ Math.round(nz * 6) * 97;
+    const hit = seen.get(key);
+    if (hit !== undefined) { ao[i] = hit; continue; }
+    let occ = 0;
+    const gx = Math.floor(px / R), gy = Math.floor(py / R), gz = Math.floor(pz / R);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+      const list = grid.get((gx + dx + 512) + (gy + dy + 512) * 1024 + (gz + dz + 512) * 1048576);
+      if (!list) continue;
+      for (let q = 0; q < list.length; q++) {
+        const t = list[q];
+        const vx = cx[t] - px, vy = cy[t] - py, vz = cz[t] - pz;
+        const d2 = vx * vx + vy * vy + vz * vz;
+        if (d2 > R2 || d2 < 1e-7) continue;
+        const inv = 1 / Math.sqrt(d2);
+        const cr = (nx * vx + ny * vy + nz * vz) * inv;
+        if (cr <= 0.02) continue;
+        const ce = -(mx[t] * vx + my[t] * vy + mz[t] * vz) * inv;
+        if (ce <= 0) continue;
+        occ += (ar[t] * cr * ce) / (Math.PI * d2 + ar[t]) * (1 - d2 / R2);
+      }
+    }
+    const v = 1 - Math.min(0.62, occ * strength);
+    ao[i] = v; seen.set(key, v);
+  }
+  geo.setAttribute('ao', new THREE.BufferAttribute(ao, 1));
 }
 
 const heroGeoCache = new Map<string, THREE.BufferGeometry>();
@@ -987,29 +1104,58 @@ export function makeHeroUniforms(rim = '#ffffff'): HeroAnimUniforms {
   return { uHit: { value: 0 }, uRun: { value: 0 }, uWalk: { value: 0 }, uMove: { value: 0 }, uAtk: { value: 0 }, uCast: { value: 0 }, uTime: { value: 0 }, uDance: { value: 0 }, uStyle: { value: 0 }, uFlash: { value: 0 }, uRim: { value: new THREE.Color(rim) }, uIri: { value: 0 }, uTint: { value: new THREE.Color('#ffffff') }, uTintK: { value: 0 } };
 }
 
-/** PBR (environment-lit) hero: per-vertex roughness/metalness, team rim light, emissive parts, hit flash, vertex-shader animation. */
+/**
+ * v1.5 hero shading (PBR, environment-lit): per-vertex roughness/metalness, baked ambient occlusion,
+ * warm subsurface glow on skin, woven micro-detail on cloth, sky kicker + team rim light,
+ * emissive parts, hit flash, vertex-shader animation.
+ */
 export function makeHeroMaterial(u: HeroAnimUniforms) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 0.7, metalness: 0.02, envMapIntensity: 1 });
   m.onBeforeCompile = (shader) => {
     patchVertex(shader, u);
-    shader.vertexShader = 'attribute vec2 surf; varying vec2 vSurf;\n' + shader.vertexShader.replace('vGlow = glow;', 'vGlow = glow; vSurf = surf;');
-    shader.fragmentShader = 'varying float vGlow; varying vec2 vSurf; uniform float uFlash; uniform vec3 uRim; uniform float uIri; uniform float uTime; uniform vec3 uTint; uniform float uTintK;\n' + shader.fragmentShader
-      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vSurf.x;')
+    shader.vertexShader = 'attribute vec2 surf; attribute float ao; varying vec2 vSurf; varying float vAo; varying float vSkin; varying vec3 vObj;\n' + shader.vertexShader.replace('vGlow = glow;', 'vGlow = glow; vSurf = surf; vAo = ao; vSkin = 1.0 - step(0.005, abs(surf.x - 0.52)); vObj = position;');
+    shader.fragmentShader = 'varying float vGlow; varying vec2 vSurf; varying float vAo; varying float vSkin; varying vec3 vObj; uniform float uFlash; uniform vec3 uRim; uniform float uIri; uniform float uTime; uniform vec3 uTint; uniform float uTintK;\n' + shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        // cloth: fine woven micro-detail (fades out with distance so it never shimmers in a match)
+        float clothK = step(0.66, vSurf.x) * (1.0 - step(0.05, vSurf.y)) * (1.0 - step(0.5, vGlow));
+        vec3 wq = vObj * 70.0;
+        float weave = sin(wq.x + wq.z) * sin(wq.y * 1.3) ;
+        float wFade = 1.0 - smoothstep(0.25, 0.9, length(fwidth(wq)));
+        diffuseColor.rgb *= 1.0 + weave * 0.06 * clothK * wFade;`)
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = clamp(vSurf.x + weave * 0.08 * clothK * wFade, 0.04, 1.0);')
       .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vSurf.y;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * vGlow * (1.1 + uIri * 0.4 * sin(uTime * 4.0));')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * vGlow * (0.8 + uIri * 0.2 * sin(uTime * 4.0));')
+      .replace('#include <aomap_fragment>', `#include <aomap_fragment>
+        float aoK = mix(1.0, vAo, 1.0 - step(0.5, vGlow));
+        reflectedLight.indirectDiffuse *= aoK;
+        reflectedLight.indirectSpecular *= mix(1.0, aoK, 0.85);
+        reflectedLight.directDiffuse *= mix(1.0, aoK, 0.5);
+        reflectedLight.directSpecular *= mix(1.0, aoK, 0.6);`)
       .replace('#include <opaque_fragment>', `
         vec3 nV = normalize(normal), vV = normalize(vViewPosition);
         float rimF = 1.0 - clamp(dot(nV, vV), 0.0, 1.0);
         // soft sky/ground bounce keeps volumes readable from the top-down camera
-        outgoingLight *= 0.92 + 0.16 * clamp(nV.y * 0.5 + 0.5, 0.0, 1.0);
-        outgoingLight += uRim * smoothstep(0.6, 0.98, rimF) * 0.35;
+        outgoingLight *= 0.9 + 0.2 * clamp(nV.y * 0.5 + 0.5, 0.0, 1.0);
+        // skin: light bleeding through at grazing angles (cheap subsurface scattering)
+        outgoingLight += diffuseColor.rgb * vec3(1.0, 0.34, 0.22) * pow(rimF, 2.2) * 0.2 * vSkin * aoK;
+        // cool sky kicker on the upper silhouette + team coloured rim
+        outgoingLight += vec3(0.75, 0.86, 1.0) * pow(rimF, 3.5) * 0.16 * clamp(nV.y + 0.4, 0.0, 1.0) * aoK;
+        outgoingLight += uRim * smoothstep(0.66, 0.98, rimF) * 0.3;
         vec3 iri = 0.5 + 0.5 * cos(6.2831 * (rimF * 0.8 + uTime * 0.25 + vec3(0.0, 0.33, 0.67)));
-        outgoingLight += iri * smoothstep(0.35, 1.0, rimF) * uIri * 0.8;
+        outgoingLight += iri * smoothstep(0.4, 1.0, rimF) * uIri * 0.45;
         outgoingLight = mix(outgoingLight, uTint, uTintK);
-        outgoingLight = mix(outgoingLight, vec3(1.0), uFlash);
+        outgoingLight = mix(outgoingLight, vec3(1.6), uFlash);
         #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => 'rift-hero-pbr-v5';
+  m.customProgramCacheKey = () => 'rift-hero-pbr-v8';
+  return m;
+}
+
+/** Depth material running the same vertex animation: shadows follow the limbs instead of a frozen pose. */
+export function makeHeroDepthMaterial(u: HeroAnimUniforms) {
+  const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  m.onBeforeCompile = (shader) => patchVertex(shader, u);
+  m.customProgramCacheKey = () => 'rift-hero-depth-v1';
   return m;
 }
 
@@ -1017,7 +1163,7 @@ export function makeHeroMaterial(u: HeroAnimUniforms) {
 export function makeHeroOutline(u: HeroAnimUniforms, thickness = 0.065, color = '#1a1030') {
   return new THREE.ShaderMaterial({
     uniforms: { ...u, thickness: { value: thickness }, color: { value: new THREE.Color(color) }, opacity: { value: 1 } },
-    vertexShader: ANIM_GLSL + `uniform float thickness; void main(){ vec3 p = animPos(position) + normalize(partRot() * normal) * thickness; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`,
+    vertexShader: ANIM_GLSL + `attribute float decalK; uniform float thickness; void main(){ vec3 p = animPos(position) + normalize(partRot() * normal) * thickness * (1.0 - decalK); gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`,
     fragmentShader: `uniform vec3 color; uniform float opacity; void main(){ gl_FragColor = vec4(color, opacity); }`,
     side: THREE.BackSide,
   });
@@ -1072,6 +1218,6 @@ export function decoGeometry(kind: DecoKind, accent: string, base: string): THRE
   }
   const merged = mergeGeometries(parts, false)!;
   parts.length = 0;
-  for (const n of ['part', 'pivot', 'glow', 'surf']) merged.deleteAttribute(n);
+  for (const n of ['part', 'pivot', 'glow', 'surf', 'decalK']) merged.deleteAttribute(n);
   return merged;
 }

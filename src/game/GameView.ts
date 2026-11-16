@@ -270,7 +270,7 @@ export class GameSession {
     if (this.warmup > 0) { this.warmup--; return; } // ignore shader compilation at kickoff
     this.slowSec = fps < 40 ? this.slowSec + 1 : 0;
     if (this.slowSec >= 4 && st.quality !== 'LOW') {
-      st.quality = st.quality === 'HIGH' ? 'MEDIUM' : 'LOW';
+      st.quality = st.quality === 'ULTRA' ? 'HIGH' : st.quality === 'HIGH' ? 'MEDIUM' : 'LOW';
       this.r.applyQuality(st.quality);
       this.app.save.save();
       this.slowSec = 0; this.warmup = 2;
