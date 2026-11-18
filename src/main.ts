@@ -1,3 +1,4 @@
+import { preloadHeroModels } from './game/render/HeroGLB';
 import '@fontsource/lilita-one/400.css';
 import '@fontsource/nunito/800.css';
 import '@fontsource/nunito/900.css';
@@ -38,6 +39,7 @@ async function boot() {
   const s = app.data.settings;
   audio.setVolumes(s.musicVolume, s.sfxVolume);
   loading.progress(0.2);
+  await preloadHeroModels((p) => loading.progress(0.2 + p * 0.05)); // Tripo rigged heroes (optional)
   const renderer = new WorldRenderer(canvas, s.quality);
   const c = new Controller(app, renderer, uiRoot);
   // build all hero geometries + portraits up-front (no hitches in menus or matches)

@@ -9,6 +9,7 @@ import type { Hero, MatchEvent, Projectile, RiftEntity, Zone } from '../entities
 import type { Hazard, Wall } from '../../arenas/Arena';
 import { QUALITY_PROFILES, type Quality, type QualityProfile } from '../../core/Settings';
 import { getMutation } from '../../data/mutations';
+import { GLBHero, hasHeroModel, type HeroAnimState } from './HeroGLB';
 import { heroGeometry, makeOutlineMaterial, decoGeometry, type DecoKind, makeHeroMaterial, makeHeroOutline, makeHeroUniforms, type HeroAnimUniforms } from './Models';
 import { radialTexture, ringTexture, toon, toonGradient } from './Toon';
 import { Particles } from './Particles';
@@ -18,6 +19,16 @@ import { Rng } from '../../core/Rng';
 import { paintFloor, wallBlock } from './ArenaArt';
 
 export const WS = 0.01; // world scale: sim units -> three units
+
+/** Skins recolour Tripo models with a light tint of the skin's primary colour (default skin = untouched). */
+function glbTint(skinId: string | undefined): string | null {
+  if (!skinId || skinId.endsWith('_default')) return null;
+  return (getCosmetic(skinId)?.visual as Record<string, string> | undefined)?.primary ?? null;
+}
+/** Same animation signals as the procedural heroes' vertex shader. */
+function glbState(u: HeroAnimUniforms): HeroAnimState {
+  return { time: u.uTime.value, move: u.uMove.value, run: u.uRun.value, walk: u.uWalk.value, atk: u.uAtk.value, cast: u.uCast.value, hit: u.uHit.value, dance: u.uDance.value, style: u.uStyle.value };
+}
 export const TEAM_COLORS = ['#2f9bff', '#ff3b4e'];
 
 interface HeroView {
@@ -44,6 +55,8 @@ interface HeroView {
   petX: number; petY: number;
   /** render-side walk phase (follows the real displacement) and smoothed bob/lean */
   walk: number; lean: number;
+  /** Tripo-generated rigged model (null = procedural mesh) */
+  glb: GLBHero | null;
 }
 
 const WARN_FS = `uniform float time; uniform float progress; varying vec2 vUv;
@@ -656,7 +669,7 @@ void main(){
     const key = h.def.id + '|' + h.skinId;
     if (v && v.skinKey === key) return v;
     let keepPet: THREE.Group | null = null, keepPetKey = '';
-    if (v) { this.matchRoot.remove(v.group); keepPet = v.pet; keepPetKey = v.petKey; }
+    if (v) { this.matchRoot.remove(v.group); v.glb?.dispose(); keepPet = v.pet; keepPetKey = v.petKey; }
     const geo = heroGeometry(h.def.id, h.skinId);
     const isMeHero = h.id === this.focusId;
     const u = makeHeroUniforms(isMeHero ? '#ffe14d' : TEAM_COLORS[h.team]);
@@ -670,7 +683,8 @@ void main(){
     outline.userData.sharedGeo = true; outline.userData.ownMat = true;
     const scale = (h.radius * WS) * (h.pve && h.def.id === 'boss_golem' ? 1.05 : 1.38);
     const inner = new THREE.Group();
-    inner.add(body, outline);
+    const glb = hasHeroModel(h.def.id) ? new GLBHero(h.def.id, { outline: 0.035, tint: glbTint(h.skinId) }) : null;
+    if (glb) inner.add(glb.root); else inner.add(body, outline);
     inner.scale.setScalar(scale);
     const group = new THREE.Group();
     group.add(inner);
@@ -700,7 +714,7 @@ void main(){
         group.add(aura);
       }
     }
-    v = { hero: h, group, body, outline, mat, outlineMat, u, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key, crown: null, mythic, avatarK: 1, pet: keepPet, petKey: keepPetKey, petX: h.x, petY: h.y, walk: 0, lean: 0 };
+    v = { hero: h, group, body, outline, mat, outlineMat, u, ring, shadow, shield, stun, scale, px: h.x, py: h.y, wasAlive: h.alive, skinKey: key, crown: null, mythic, avatarK: 1, pet: keepPet, petKey: keepPetKey, petX: h.x, petY: h.y, walk: 0, lean: 0, glb };
     this.heroViews.set(h.id, v);
     return v;
   }
@@ -973,7 +987,7 @@ void main(){
       const v = this.ensureHero(h);
       this.updateHero(v, m, dt);
     }
-    for (const [id, v] of this.heroViews) if (!seen.has(id)) { this.matchRoot.remove(v.group); if (v.pet) this.matchRoot.remove(v.pet); this.heroViews.delete(id); }
+    for (const [id, v] of this.heroViews) if (!seen.has(id)) { this.matchRoot.remove(v.group); v.glb?.dispose(); if (v.pet) this.matchRoot.remove(v.pet); this.heroViews.delete(id); }
 
     // rifts
     const rseen = new Set<number>();
@@ -1187,6 +1201,11 @@ void main(){
     const op = ghost ? 0.45 : 1;
     v.mat.opacity = op; v.outlineMat.uniforms.opacity.value = op;
     v.outline.visible = op >= 1; v.mat.depthWrite = op >= 1;
+    if (v.glb) {
+      v.glb.setOpacity(op);
+      v.glb.setFlash(u.uFlash.value);
+      v.glb.update(dt, glbState(u));
+    }
     v.shield.visible = h.shield > 0 && h.shieldUntil > m.time;
     if (v.shield.visible) v.shield.scale.setScalar(1 + Math.sin(this.time * 6) * 0.04);
     v.stun.visible = h.stunUntil > m.time;
@@ -1715,9 +1734,14 @@ void main(){
     const g = new THREE.Group();
     this.showcaseU = makeHeroUniforms('#c9a5ff');
     this.showcaseU.uIri.value = getCharacter(heroId).rarity === 'MYTHIC' || getCosmetic(skinId)?.rarity === 'MYTHIC' ? 1 : 0;
-    const body = new THREE.Mesh(geo, makeHeroMaterial(this.showcaseU));
-    const ol = new THREE.Mesh(geo, makeHeroOutline(this.showcaseU, 0.05));
-    g.add(body, ol);
+    this.showcaseGLB?.dispose();
+    this.showcaseGLB = hasHeroModel(heroId) ? new GLBHero(heroId, { outline: 0.03, tint: glbTint(skinId) }) : null;
+    if (this.showcaseGLB) g.add(this.showcaseGLB.root);
+    else {
+      const body = new THREE.Mesh(geo, makeHeroMaterial(this.showcaseU));
+      const ol = new THREE.Mesh(geo, makeHeroOutline(this.showcaseU, 0.05));
+      g.add(body, ol);
+    }
     g.scale.setScalar(0.7);
     g.rotation.y = -Math.PI / 2 + 0.5;
     this.showcase.add(g);
@@ -1773,6 +1797,7 @@ void main(){
     this.showcase.add(this.showcasePet);
   }
   private showcaseU: HeroAnimUniforms | null = null;
+  private showcaseGLB: GLBHero | null = null;
   private showcaseDanceT = 0;
   private showcaseBase = new THREE.Vector3();
   private showcaseLook = new THREE.Vector3();
@@ -1797,6 +1822,7 @@ void main(){
         const cyc = this.time % 6;
         this.showcaseU.uCast.value = !dancing && cyc > 4.6 && cyc < 5.6 ? Math.sin(((cyc - 4.6) / 1.0) * Math.PI) * 0.7 : 0;
         this.showcaseU.uDance.value += ((dancing ? 1 : 0) - this.showcaseU.uDance.value) * Math.min(1, dt * 6);
+        this.showcaseGLB?.update(dt, glbState(this.showcaseU));
       }
       if (this.showcasePop > 0) { this.showcasePop -= dt; const k = 1 + Math.sin((this.showcasePop / 0.35) * Math.PI) * 0.15; this.showcaseHero.scale.set(0.7 / k, 0.7 * k, 0.7 / k); }
       else this.showcaseHero.scale.setScalar(0.7);
@@ -1836,7 +1862,9 @@ void main(){
     pu.uCast.value = 0.25;
     const body = new THREE.Mesh(geo, makeHeroMaterial(pu));
     const olm = makeHeroOutline(pu, 0.06);
-    g.add(body, new THREE.Mesh(geo, olm));
+    const pglb = hasHeroModel(heroId) ? new GLBHero(heroId, { outline: 0.03, tint: glbTint(skinId) }) : null;
+    if (pglb) { pglb.update(0, glbState(pu)); g.add(pglb.root); }
+    else g.add(body, new THREE.Mesh(geo, olm));
     g.rotation.y = -Math.PI / 2 + 0.45;
     scene.add(g);
     const big = heroId === 'boss_golem';
@@ -1856,7 +1884,7 @@ void main(){
     this.renderer.readRenderTargetPixels(rt, 0, 0, size, size, buf);
     this.renderer.setRenderTarget(null);
     this.renderer.setClearColor(0x000000, 1);
-    rt.dispose(); olm.dispose(); (body.material as THREE.Material).dispose();
+    rt.dispose(); olm.dispose(); (body.material as THREE.Material).dispose(); pglb?.dispose();
     const c = document.createElement('canvas');
     c.width = c.height = size;
     const ctx = c.getContext('2d')!;
