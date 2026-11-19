@@ -52,13 +52,20 @@ export function hasHeroModel(heroId: string) { return templates.has(heroId); }
 function prepareTemplate(scene: THREE.Object3D, clips: THREE.AnimationClip[]): Template {
   scene.updateMatrixWorld(true);
   const box = new THREE.Box3();
-  // skinned meshes: bounding box of the bind pose
+  // Bounds of what is actually drawn. For a skinned mesh the raw geometry is NOT where it renders
+  // (Tripo exports put the armature scale/offset in the bind matrices): measure the skinned rest pose,
+  // otherwise heroes come out half size and floating above the ground.
   scene.traverse((o) => {
     const m = o as THREE.Mesh;
-    if (m.isMesh) {
+    if (!m.isMesh) return;
+    if ((m as THREE.SkinnedMesh).isSkinnedMesh) {
+      const sm = m as THREE.SkinnedMesh;
+      sm.skeleton.update();
+      sm.computeBoundingBox();
+      box.union(sm.boundingBox!.clone().applyMatrix4(sm.matrixWorld));
+    } else {
       m.geometry.computeBoundingBox();
-      const b = m.geometry.boundingBox!.clone().applyMatrix4(m.matrixWorld);
-      box.union(b);
+      box.union(m.geometry.boundingBox!.clone().applyMatrix4(m.matrixWorld));
     }
   });
   const size = box.getSize(new THREE.Vector3());

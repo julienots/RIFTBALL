@@ -1736,7 +1736,7 @@ void main(){
     this.showcaseU.uIri.value = getCharacter(heroId).rarity === 'MYTHIC' || getCosmetic(skinId)?.rarity === 'MYTHIC' ? 1 : 0;
     this.showcaseGLB?.dispose();
     this.showcaseGLB = hasHeroModel(heroId) ? new GLBHero(heroId, { outline: 0.03, tint: glbTint(skinId) }) : null;
-    if (this.showcaseGLB) g.add(this.showcaseGLB.root);
+    if (this.showcaseGLB) { this.showcaseGLB.root.scale.setScalar(0.85); g.add(this.showcaseGLB.root); }
     else {
       const body = new THREE.Mesh(geo, makeHeroMaterial(this.showcaseU));
       const ol = new THREE.Mesh(geo, makeHeroOutline(this.showcaseU, 0.05));
