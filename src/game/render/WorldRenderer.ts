@@ -1729,6 +1729,7 @@ void main(){
     this.showcaseBase.set(-offsetX, 1.75, 7.6); this.showcaseLook.set(-offsetX, 0.95, 0);
     if (key === this.showcaseKey) return;
     this.showcaseKey = key;
+    this.showcaseYaw = 0; this.showcaseYawVel = 0; // a new hero starts facing the camera again
     if (this.showcaseHero) this.showcase.remove(this.showcaseHero);
     const geo = heroGeometry(heroId, skinId);
     const g = new THREE.Group();
@@ -1802,6 +1803,30 @@ void main(){
   private showcaseBase = new THREE.Vector3();
   private showcaseLook = new THREE.Vector3();
   /** Lobby: the showcased hero dances for a few seconds (style: groove | robot | floss | disco). */
+  // ---- finger interaction with the lobby hero
+  private showcaseYaw = 0; private showcaseYawVel = 0; private showcaseTouchT = 99; private showcaseDragging = false; private showcaseFlourish = 0;
+  /** Is this screen point (CSS px) on the lobby hero? (generous box around its projected silhouette) */
+  showcaseHit(x: number, y: number): boolean {
+    const g = this.showcaseHero;
+    if (!g) return false;
+    const c = this.renderer.domElement.getBoundingClientRect();
+    const toScreen = (wy: number) => { const v = new THREE.Vector3(g.position.x, wy, g.position.z).project(this.showcaseCam); return { x: c.left + (v.x + 1) / 2 * c.width, y: c.top + (1 - v.y) / 2 * c.height }; };
+    const feet = toScreen(g.position.y), head = toScreen(g.position.y + 2.4 * g.scale.y);
+    const hgt = Math.abs(feet.y - head.y), half = Math.max(60, hgt * 0.45);
+    return x > feet.x - half && x < feet.x + half && y > head.y - hgt * 0.1 && y < feet.y + hgt * 0.08;
+  }
+  showcaseDragStart() { this.showcaseDragging = true; this.showcaseYawVel = 0; this.showcaseTouchT = 0; }
+  /** dx in CSS pixels; a full screen-width swipe is ~1.5 turns */
+  showcaseDrag(dx: number, dt: number) {
+    const w = Math.max(320, this.renderer.domElement.clientWidth);
+    const d = (dx / w) * Math.PI * 3;
+    this.showcaseYaw += d;
+    if (dt > 0) this.showcaseYawVel = this.showcaseYawVel * 0.6 + (d / dt) * 0.4;
+    this.showcaseTouchT = 0;
+  }
+  showcaseDragEnd() { this.showcaseDragging = false; this.showcaseTouchT = 0; this.showcaseYawVel = Math.max(-12, Math.min(12, this.showcaseYawVel)); }
+  /** quick tap on the hero: a little reaction (pop + raised arms) */
+  showcaseTap() { if (this.showcaseFlourish <= 0) { this.showcaseFlourish = 0.9; this.showcasePop = 0.35; } this.showcaseTouchT = 0; }
   showcaseDance(style: string) { if (this.showcaseU) this.showcaseU.uStyle.value = DANCE_STYLES[style] ?? 0; this.showcaseDanceT = 5.5; }
 
   renderShowcase(dt: number) {
@@ -1813,14 +1838,25 @@ void main(){
       const dancing = this.showcaseDanceT > 0;
       this.showcaseDanceT = Math.max(0, this.showcaseDanceT - dt);
       this.showcaseSpin += dt * (dancing ? 0 : 0.5);
-      const face = Math.PI / 2 + Math.sin(this.showcaseSpin) * 0.55 - Math.PI;
-      this.showcaseHero.rotation.y += ((dancing ? -Math.PI / 2 : face) - this.showcaseHero.rotation.y) * Math.min(1, dt * 6);
-      this.showcaseHero.position.y = Math.abs(Math.sin(this.time * 2)) * 0.05;
+      // finger rotation: the hero follows the drag, keeps spinning a little (inertia), and the idle sway
+      // only comes back a few seconds after the last touch
+      this.showcaseTouchT += dt;
+      if (!this.showcaseDragging) {
+        this.showcaseYaw += this.showcaseYawVel * dt;
+        this.showcaseYawVel *= Math.max(0, 1 - dt * 3.5);
+      }
+      const sway = Math.min(1, Math.max(0, (this.showcaseTouchT - 4) / 2));
+      const face = Math.PI / 2 + Math.sin(this.showcaseSpin) * 0.55 * sway - Math.PI + this.showcaseYaw;
+      const target = dancing ? -Math.PI / 2 + this.showcaseYaw : face;
+      this.showcaseHero.rotation.y += (target - this.showcaseHero.rotation.y) * Math.min(1, dt * (this.showcaseDragging ? 18 : 6));
+      this.showcaseHero.position.y = 0; // feet stay planted on the pedestal
       if (this.showcaseU) {
         // idle: breathing + an occasional flourish (cast pose)
         this.showcaseU.uTime.value = this.time;
         const cyc = this.time % 6;
-        this.showcaseU.uCast.value = !dancing && cyc > 4.6 && cyc < 5.6 ? Math.sin(((cyc - 4.6) / 1.0) * Math.PI) * 0.7 : 0;
+        this.showcaseFlourish = Math.max(0, this.showcaseFlourish - dt);
+        const tapPose = this.showcaseFlourish > 0 ? Math.sin((1 - this.showcaseFlourish / 0.9) * Math.PI) : 0;
+        this.showcaseU.uCast.value = Math.max(tapPose, !dancing && cyc > 4.6 && cyc < 5.6 ? Math.sin(((cyc - 4.6) / 1.0) * Math.PI) * 0.7 : 0);
         this.showcaseU.uDance.value += ((dancing ? 1 : 0) - this.showcaseU.uDance.value) * Math.min(1, dt * 6);
         this.showcaseGLB?.update(dt, glbState(this.showcaseU));
       }

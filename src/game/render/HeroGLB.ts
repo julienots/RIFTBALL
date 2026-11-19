@@ -276,10 +276,10 @@ export class GLBHero {
     const style = s.style;
 
     // arms: T-pose -> down along the body (only when no clip already poses them)
-    const lower = this.mixer ? 0 : 1.25;
+    const lower = this.mixer ? 0 : 0.92; // not fully down: chibi bodies are wide, arms would sink into the torso
     // ---- legs
     const legSwing = (side: number) => side * sw * (0.6 + s.run * 0.25) * mv;
-    const knee = (side: number) => Math.max(0, side * Math.cos(s.walk)) * (0.9 + s.run * 0.4) * mv + 0.04 * (1 - mv) * (this.mixer ? 0 : 1);
+    const knee = (side: number) => Math.max(0, side * Math.cos(s.walk)) * (0.9 + s.run * 0.4) * mv;
     const danceLeg = (side: number) => (style < 0.5 ? side * Math.sin(beat) * 0.2 : style < 1.5 ? side * (Math.sin(t * 4) > 0 ? 0.3 : 0) : style < 2.5 ? Math.sin(t * 10) * 0.1 : side * 0.2);
     const danceKnee = (side: number) => Math.max(0, Math.sin(beat + (side > 0 ? 0 : Math.PI))) * 0.7;
     for (const [leg, shin, side] of [['legL', 'shinL', 1], ['legR', 'shinR', -1]] as const) {
@@ -320,7 +320,7 @@ export class GLBHero {
     }
     // ---- hips bob (walk bounce, dance hop)
     if (B.hips) {
-      const bob = Math.abs(Math.cos(s.walk)) * 0.06 * mv + dz * Math.abs(Math.sin(beat)) * 0.08 - s.hit * 0.03;
+      const bob = Math.abs(Math.cos(s.walk)) * 0.06 * mv - s.hit * 0.03; // no hop when idle/dancing: feet stay on the ground
       B.hips.bone.position.y += bob * this.hipsUnit;
     }
   }

@@ -31,12 +31,46 @@ export class Controller {
 
   constructor(readonly app: App, readonly renderer: WorldRenderer, root: HTMLElement) {
     this.ui = new UIManager(root);
+    this.bindShowcaseTouch(root);
     app.bus.on('notify', (n) => {
       if (this.session && !this.session.match.result) return; // no popups during a match
       const icons: Record<string, string> = { skin: '🎨', mission: '✅', pass: '🎟️', event: '🎉', reward: '🎁', shop: '🛒', level: '⭐', crew: '👥', friend: '🤝' };
       this.ui.toast(icons[n.kind] ?? '🔔', n.title, n.body);
       audio.play('notify');
     });
+  }
+
+  /**
+   * Lobby / hero screens: drag on the 3D hero (not on a button or a panel) to spin it; a quick tap
+   * makes it react. Buttons, scroll lists and modals keep working as before.
+   */
+  private bindShowcaseTouch(root: HTMLElement) {
+    let id = -1, x0 = 0, lastX = 0, lastT = 0, moved = 0, downT = 0;
+    const blocked = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
+      return !el || !!el.closest?.('button, a, input, select, textarea, label, .panel, .scroll, .modal-wrap, .dock, .play-zone, .tut, [role=button]');
+    };
+    root.addEventListener('pointerdown', (e) => {
+      if (this.session || !this.renderer.showcaseActive || !this.ui.current?.showcase || blocked(e.target) || !this.renderer.showcaseHit(e.clientX, e.clientY)) return;
+      id = e.pointerId; x0 = lastX = e.clientX; lastT = downT = performance.now(); moved = 0;
+      this.renderer.showcaseDragStart();
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== id) return;
+      const now = performance.now();
+      const dx = e.clientX - lastX;
+      moved = Math.max(moved, Math.abs(e.clientX - x0));
+      this.renderer.showcaseDrag(dx, (now - lastT) / 1000);
+      lastX = e.clientX; lastT = now;
+    });
+    const up = (e: PointerEvent) => {
+      if (e.pointerId !== id) return;
+      id = -1;
+      this.renderer.showcaseDragEnd();
+      if (moved < 8 && performance.now() - downT < 350) { this.renderer.showcaseTap(); audio.play('click'); }
+    };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   }
 
   get data() { return this.app.data; }

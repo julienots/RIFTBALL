@@ -51,9 +51,9 @@ export function currencyBar(c: Controller, opts: { gemsPlus?: boolean } = {}) {
 export function homeScreen(c: Controller): Screen {
   const el = h('div.screen.home');
   let offs: (() => void)[] = [];
-  // swipe on the stage to change hero
+  // swipe on the stage (beside the hero) to change hero; dragging the hero itself rotates it (Controller)
   let swipeX = -1, swipeY = 0;
-  el.addEventListener('pointerdown', (e) => { if ((e.target as HTMLElement).closest('button, .pill, .dock, .side')) return; swipeX = e.clientX; swipeY = e.clientY; });
+  el.addEventListener('pointerdown', (e) => { if ((e.target as HTMLElement).closest('button, .pill, .dock, .side') || c.renderer.showcaseHit(e.clientX, e.clientY)) return; /* on the hero = rotate it */ swipeX = e.clientX; swipeY = e.clientY; });
   el.addEventListener('pointerup', (e) => {
     if (swipeX < 0) return;
     const dx = e.clientX - swipeX, dy = e.clientY - swipeY; swipeX = -1;
