@@ -13,7 +13,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
  */
 
 /** Height (model units, before the hero view scale) the GLB is normalised to — matches the procedural heroes. */
-export const GLB_HERO_HEIGHT = 2.55;
+export const GLB_HERO_HEIGHT = 3.0;
 
 interface Template { scene: THREE.Object3D; clips: THREE.AnimationClip[]; height: number }
 const templates = new Map<string, Template>();
@@ -71,8 +71,9 @@ function prepareTemplate(scene: THREE.Object3D, clips: THREE.AnimationClip[]): T
   holder.scale.setScalar(k);
   holder.position.set(-center.x * k, -box.min.y * k, -center.z * k);
   holder.add(scene);
-  // glTF characters face +Z; the hero views expect +X (see Models.ts: sides are ±Z)
-  root.rotation.y = Math.PI / 2;
+  // the hero views expect the character to face +X (see Models.ts: sides are ±Z). Find where this model faces
+  // from its skeleton (left arm -> left hand = character's left; forward = left × up); default: glTF +Z.
+  root.rotation.y = facingAngle(scene);
   root.add(holder);
   scene.traverse((o) => {
     const m = o as THREE.Mesh;
@@ -84,6 +85,23 @@ function prepareTemplate(scene: THREE.Object3D, clips: THREE.AnimationClip[]): T
   const wrapped = new THREE.Group();
   wrapped.add(root);
   return { scene: wrapped, clips, height: GLB_HERO_HEIGHT };
+}
+
+/** Rotation about Y that turns the model's forward direction into +X. */
+function facingAngle(scene: THREE.Object3D): number {
+  let arm: THREE.Object3D | null = null, hand: THREE.Object3D | null = null;
+  scene.traverse((o) => {
+    const n = norm(o.name);
+    if (!arm && (n === 'leftarm' || n === 'leftupperarm')) arm = o;
+    if (!hand && n === 'lefthand') hand = o;
+  });
+  if (!arm || !hand) return Math.PI / 2;
+  const a = (arm as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+  const h = (hand as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+  const left = h.sub(a); left.y = 0;
+  if (left.lengthSq() < 1e-8) return Math.PI / 2;
+  const fwd = left.normalize().cross(new THREE.Vector3(0, 1, 0)); // forward = left × up
+  return Math.atan2(fwd.z, fwd.x);
 }
 
 // ---------------------------------------------------------------- instance
