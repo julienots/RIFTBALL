@@ -109,6 +109,8 @@ export class GameSession {
   private lastSent = { mx: 9, my: 9 };
   private history: { seq: number; x: number; y: number }[] = [];
   private snaps: Snapshot[] = [];
+  /** remote heroes: pending server correction, blended out over a few frames instead of snapping (no back-and-forth) */
+  private remoteCorr = new Map<number, { x: number; y: number }>();
   disconnected = false;
 
   static mirrorMatch(cfg: SessionConfig): Match {
@@ -165,6 +167,8 @@ export class GameSession {
       }
     }
     // 3) apply server snapshots (+ reconciliation)
+    const before = new Map<number, { x: number; y: number; alive: boolean }>();
+    if (this.snaps.length) for (const hh of m.heroes) if (hh !== me) before.set(hh.id, { x: hh.x, y: hh.y, alive: hh.alive });
     for (const s of this.snaps) {
       const predicting = !!me && me.alive && !me.leap && !me.dash;
       applySnapshot(m, s, this.mirror, predicting ? m.humanId : -1);
@@ -177,14 +181,47 @@ export class GameSession {
           this.history = this.history.filter((hh) => hh.seq > s.ack);
           const bx = hist ? hist.x : me.x, by = hist ? hist.y : me.y;
           const ex = sx - bx, ey = sy - by, err = Math.hypot(ex, ey);
+          // The acked history point and the server position are never sampled at exactly the same instant
+          // (network + server tick timing), so a moving hero always shows a small error along its path.
+          // Correcting that every snapshot made the hero surge forward then back. Only real divergence
+          // (walls, knockbacks, speed changes) is corrected, gently.
+          const tol = 14 + me.def.speed * 0.12;
           if (err > 160) { me.x = sx; me.y = sy; this.history = []; }
-          else if (err > 2) { me.x += ex * 0.35; me.y += ey * 0.35; for (const hh of this.history) { hh.x += ex * 0.35; hh.y += ey * 0.35; } }
+          else if (err > tol) {
+            const k = 0.18 * (1 - tol / err); // only the part beyond the tolerance
+            me.x += ex * k; me.y += ey * k;
+            for (const hh of this.history) { hh.x += ex * k; hh.y += ey * k; }
+          }
         }
       }
     }
+    // remote heroes: keep where they are drawn, remember the server correction and blend it out below
+    for (const [id, b] of before) {
+      const hh = m.heroById(id);
+      if (!hh || !hh.alive || !b.alive || hh.leap) { this.remoteCorr.delete(id); continue; }
+      const ex = hh.x - b.x, ey = hh.y - b.y;
+      if (Math.hypot(ex, ey) > 140) { this.remoteCorr.delete(id); continue; } // teleport / dash: snap
+      hh.x = b.x; hh.y = b.y;
+      this.remoteCorr.set(id, { x: ex, y: ey });
+    }
     this.snaps.length = 0;
     // 4) dead-reckoning between snapshots for smooth remote motion
-    for (const hh of m.heroes) if (hh !== me && hh.alive && !hh.leap) { hh.x += hh.vx * dt; hh.y += hh.vy * dt; }
+    for (const hh of m.heroes) if (hh !== me && hh.alive && !hh.leap) {
+      hh.x += hh.vx * dt; hh.y += hh.vy * dt;
+      const cr = this.remoteCorr.get(hh.id);
+      if (cr) {
+        const k = Math.min(1, dt * 10);
+        let cx = cr.x * k, cy = cr.y * k;
+        // never let a correction pull a moving hero backwards: cap the part opposed to its velocity
+        const sp = Math.hypot(hh.vx, hh.vy);
+        if (sp > 30) {
+          const ux = hh.vx / sp, uy = hh.vy / sp, along = cx * ux + cy * uy, maxBack = sp * dt * 0.6;
+          if (along < -maxBack) { cx -= (along + maxBack) * ux; cy -= (along + maxBack) * uy; }
+        }
+        hh.x += cx; hh.y += cy; cr.x -= cx; cr.y -= cy;
+        if (Math.abs(cr.x) + Math.abs(cr.y) < 0.5) this.remoteCorr.delete(hh.id);
+      }
+    }
     for (const r of m.rifts) if (r.carrier < 0 && r.state !== 'PORTAL' && r.state !== 'IDLE') { r.x += r.vx * dt; r.y += r.vy * dt; }
     for (const p of m.projectiles) if (p.active) { if (p.kind === 'lob' || p.kind === 'shell') { p.t = Math.min(p.dur, p.t + dt); const k = p.t / p.dur; p.x = p.sx + (p.tx - p.sx) * k; p.y = p.sy + (p.ty - p.sy) * k; } else { p.x += p.vx * dt; p.y += p.vy * dt; } }
     for (const hh of m.heroes) { hh.anim.attackT = Math.max(0, hh.anim.attackT - dt); hh.anim.castT = Math.max(0, hh.anim.castT - dt); hh.anim.hitT = Math.max(0, hh.anim.hitT - dt); }
@@ -232,9 +269,11 @@ export class GameSession {
         m.events.length = 0;
         if (me) { me.cmd.aimX = 0; me.cmd.aimY = 0; me.cmd.aimDist = 0; }
       }
-      if (steps >= 6) this.acc = 0; // device too slow: drop time instead of spiraling
+      const dropped = steps >= 6;
+      if (dropped) this.acc = 0; // device too slow: drop time instead of spiraling
       this.r.interpolate = true;
-      this.r.simAlpha = Math.min(1, this.acc / SIM_DT);
+      // after dropping time, show the latest state (alpha 0 would jump back one step on screen)
+      this.r.simAlpha = dropped ? 1 : Math.min(1, this.acc / SIM_DT);
     } else { this.r.interpolate = !this.cfg.online && this.paused; this.r.simAlpha = 1; }
     this.rateT += dt;
     if (this.rateT >= 1) { this.simRate = this.stepsThisSecond / this.rateT; this.stepsThisSecond = 0; this.rateT = 0; }
